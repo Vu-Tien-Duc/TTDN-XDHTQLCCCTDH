@@ -1,94 +1,22 @@
 const express = require('express');
 const router = express.Router();
-const { login, register, getMe } = require('../controllers/auth.controller');
-const { verifyToken } = require('../middlewares/auth.middleware');
+const { login, register, refreshToken, logout, getMe } = require('../controllers/auth.controller');
+const { verifyToken, authorizeRoles } = require('../middlewares/auth.middleware');
 
-/**
- * @swagger
- * tags:
- *   name: Auth
- *   description: Xử lý Xác thực & Đăng nhập
- */
+// Hướng dẫn nếu vô tình gọi GET /login
+router.get('/login', (req, res) => {
+  res.status(405).json({
+    success: false,
+    message: 'Phương thức GET không được hỗ trợ cho route này. Vui lòng gửi HTTP POST với Body JSON { email, password } để đăng nhập.',
+    hint: 'Sử dụng POST /api/auth/login',
+  });
+});
 
-/**
- * @swagger
- * /api/v1/auth/login:
- *   post:
- *     summary: Đăng nhập vào hệ thống
- *     tags: [Auth]
- *     requestBody:
- *       required: true
- *       content:
- *         application/json:
- *           schema:
- *             type: object
- *             required:
- *               - email
- *               - password
- *             properties:
- *               email:
- *                 type: string
- *                 example: giangvien@university.edu.vn
- *               password:
- *                 type: string
- *                 example: 123456
- *     responses:
- *       200:
- *         description: Đăng nhập thành công
- */
 router.post('/login', login);
-
-/**
- * @swagger
- * /api/v1/auth/register:
- *   post:
- *     summary: Đăng ký tài khoản người dùng
- *     tags: [Auth]
- *     requestBody:
- *       required: true
- *       content:
- *         application/json:
- *           schema:
- *             type: object
- *             required:
- *               - userCode
- *               - fullName
- *               - email
- *               - password
- *             properties:
- *               userCode:
- *                 type: string
- *                 example: GV001
- *               fullName:
- *                 type: string
- *                 example: Nguyễn Văn A
- *               email:
- *                 type: string
- *                 example: giangvien@university.edu.vn
- *               password:
- *                 type: string
- *                 example: 123456
- *               role:
- *                 type: string
- *                 example: LECTURER
- *     responses:
- *       201:
- *         description: Đăng ký thành công
- */
-router.post('/register', register);
-
-/**
- * @swagger
- * /api/v1/auth/me:
- *   get:
- *     summary: Lấy thông tin tài khoản đang đăng nhập
- *     tags: [Auth]
- *     security:
- *       - BearerAuth: []
- *     responses:
- *       200:
- *         description: Thành công
- */
+router.post('/register', verifyToken, authorizeRoles('admin'), register);
+router.post('/refresh-token', refreshToken);
+router.post('/refresh', refreshToken); // Alias hỗ trợ theo mục 3.1
+router.post('/logout', logout);
 router.get('/me', verifyToken, getMe);
 
 module.exports = router;

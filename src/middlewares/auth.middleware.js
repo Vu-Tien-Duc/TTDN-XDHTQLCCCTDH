@@ -24,7 +24,7 @@ const verifyToken = (req, res, next) => {
 
 /**
  * Middleware phân quyền người dùng (Role-based Authorization)
- * @param  {...string} allowedRoles Các vai trò được phép truy cập ('admin', 'lecturer', 'staff', etc.)
+ * @param  {...string} allowedRoles Các vai trò được phép truy cập: 'admin', 'truongkhoa', 'giangvien', 'nhanvien'
  */
 const authorizeRoles = (...allowedRoles) => {
   return (req, res, next) => {

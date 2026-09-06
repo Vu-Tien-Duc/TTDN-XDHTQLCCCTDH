@@ -2,15 +2,9 @@ const mongoose = require('mongoose');
 
 const userSchema = new mongoose.Schema(
   {
-    userCode: {
-      type: String,
-      required: [true, 'Mã cán bộ/giảng viên là bắt buộc'],
-      unique: true,
-      trim: true,
-    },
     fullName: {
       type: String,
-      required: [true, 'Họ và tên là bắt buộc'],
+      required: [true, 'Họ tên hiển thị là bắt buộc'],
       trim: true,
     },
     email: {
@@ -20,42 +14,48 @@ const userSchema = new mongoose.Schema(
       lowercase: true,
       trim: true,
     },
-    password: {
+    passwordHash: {
       type: String,
       required: [true, 'Mật khẩu là bắt buộc'],
-      minlength: 6,
-      select: false, // Bỏ qua password khi query trừ khi được gọi rõ ràng
-    },
-    phone: {
-      type: String,
-      default: '',
+      select: false, // Không bao giờ trả về trong response mặc định
     },
     role: {
       type: String,
-      enum: ['ADMIN', 'LECTURER', 'STAFF', 'MANAGER'],
-      default: 'LECTURER',
+      enum: ['admin', 'truongkhoa', 'giangvien', 'nhanvien'],
+      required: [true, 'Vai trò người dùng là bắt buộc'],
+      default: 'giangvien',
     },
-    department: {
+    departmentId: {
       type: mongoose.Schema.Types.ObjectId,
       ref: 'Department',
-      required: false,
-    },
-    title: {
-      type: String,
-      default: 'Giảng viên', // Chức danh: Giáo sư, Phó Giáo sư, Tiến sĩ, Thạc sĩ,...
-    },
-    avatar: {
-      type: String,
-      default: '',
+      required: [true, 'Khoa/phòng ban trực thuộc là bắt buộc'],
     },
     isActive: {
       type: Boolean,
+      required: true,
       default: true,
+    },
+    annualLeaveQuota: {
+      type: Number,
+      default: 12,
     },
   },
   {
     timestamps: true,
+    collection: 'users',
+    toJSON: {
+      transform: (doc, ret) => {
+        delete ret.passwordHash;
+        return ret;
+      },
+    },
+    toObject: {
+      transform: (doc, ret) => {
+        delete ret.passwordHash;
+        return ret;
+      },
+    },
   }
 );
 
-module.exports = mongoose.model('User', userSchema);
+module.exports = mongoose.model('User', userSchema, 'users');

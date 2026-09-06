@@ -2,52 +2,48 @@ const mongoose = require('mongoose');
 
 const scheduleSchema = new mongoose.Schema(
   {
-    lecturer: {
+    userId: {
       type: mongoose.Schema.Types.ObjectId,
       ref: 'User',
-      required: [true, 'Giảng viên là bắt buộc'],
+      required: [true, 'Người được phân lịch (userId) là bắt buộc'],
     },
-    subjectCode: {
+    shiftId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'ShiftConfig',
+      required: [true, 'Ca áp dụng (shiftId) là bắt buộc'],
+    },
+    roomId: {
       type: String,
-      required: true,
       trim: true,
+      default: '',
     },
-    subjectName: {
-      type: String,
-      required: true,
-      trim: true,
+    weekday: {
+      type: Number,
+      required: [true, 'Thứ trong tuần (0-6) là bắt buộc'],
+      min: [0, 'Thứ trong tuần từ 0 (Chủ nhật) đến 6 (Thứ bảy)'],
+      max: [6, 'Thứ trong tuần từ 0 (Chủ nhật) đến 6 (Thứ bảy)'],
     },
-    room: {
-      type: String,
-      required: true, // Ví dụ: A2-301
-      trim: true,
+    isRecurring: {
+      type: Boolean,
+      required: [true, 'Trạng thái lặp (isRecurring) là bắt buộc'],
+      default: true,
     },
-    date: {
+    startDate: {
       type: Date,
-      required: true, // Ngày giảng dạy / công tác
+      required: [true, 'Ngày bắt đầu hiệu lực (startDate) là bắt buộc'],
     },
-    shift: {
-      type: String,
-      enum: ['MORNING', 'AFTERNOON', 'EVENING', 'SHIFT_1', 'SHIFT_2', 'SHIFT_3', 'SHIFT_4'],
-      required: true,
-    },
-    startTime: {
-      type: String, // Định dạng "HH:mm" ví dụ: "07:00"
-      required: true,
-    },
-    endTime: {
-      type: String, // Định dạng "HH:mm" ví dụ: "11:30"
-      required: true,
-    },
-    status: {
-      type: String,
-      enum: ['SCHEDULED', 'CANCELLED', 'COMPLETED', 'SUBSTITUTED'],
-      default: 'SCHEDULED',
+    endDate: {
+      type: Date,
+      required: [true, 'Ngày kết thúc hiệu lực (endDate) là bắt buộc'],
     },
   },
   {
     timestamps: true,
+    collection: 'schedules',
   }
 );
 
-module.exports = mongoose.model('Schedule', scheduleSchema);
+// Index bắt buộc tăng tốc truy vấn "lịch hiệu lực hôm nay" gọi liên tục ở check-in và cron
+scheduleSchema.index({ userId: 1, weekday: 1, startDate: 1, endDate: 1 });
+
+module.exports = mongoose.model('Schedule', scheduleSchema, 'schedules');

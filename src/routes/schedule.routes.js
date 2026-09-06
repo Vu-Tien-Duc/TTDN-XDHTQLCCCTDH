@@ -2,24 +2,19 @@ const express = require('express');
 const router = express.Router();
 const {
   getSchedules,
+  getScheduleById,
   createSchedule,
   updateSchedule,
   deleteSchedule,
 } = require('../controllers/schedule.controller');
 const { verifyToken, authorizeRoles } = require('../middlewares/auth.middleware');
 
-/**
- * @swagger
- * tags:
- *   name: Schedules
- *   description: Quản lý Lịch giảng dạy & Ca công tác
- */
-
 router.use(verifyToken);
 
 router.get('/', getSchedules);
-router.post('/', authorizeRoles('ADMIN', 'MANAGER'), createSchedule);
-router.put('/:id', authorizeRoles('ADMIN', 'MANAGER'), updateSchedule);
-router.delete('/:id', authorizeRoles('ADMIN'), deleteSchedule);
+router.get('/:id', getScheduleById);
+router.post('/', authorizeRoles('admin', 'truongkhoa'), createSchedule);
+router.put('/:id', authorizeRoles('admin', 'truongkhoa'), updateSchedule);
+router.delete('/:id', authorizeRoles('admin', 'truongkhoa'), deleteSchedule);
 
 module.exports = router;
