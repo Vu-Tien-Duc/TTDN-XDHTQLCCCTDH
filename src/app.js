@@ -33,7 +33,8 @@ app.get('/', (req, res) => {
   });
 });
 
-// 5. Main API Routes
+// 5. Main API Routes (Hỗ trợ cả /api và /api/v1)
+app.use('/api', apiRoutes);
 app.use('/api/v1', apiRoutes);
 
 // 6. Error & 404 Handling Middlewares

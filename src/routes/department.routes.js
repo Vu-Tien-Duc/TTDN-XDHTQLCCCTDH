@@ -2,24 +2,19 @@ const express = require('express');
 const router = express.Router();
 const {
   getAllDepartments,
+  getDepartmentById,
   createDepartment,
   updateDepartment,
   deleteDepartment,
 } = require('../controllers/department.controller');
 const { verifyToken, authorizeRoles } = require('../middlewares/auth.middleware');
 
-/**
- * @swagger
- * tags:
- *   name: Departments
- *   description: Quản lý Khoa / Bộ môn / Phòng ban
- */
+router.use(verifyToken);
 
 router.get('/', getAllDepartments);
-
-router.use(verifyToken);
-router.post('/', authorizeRoles('ADMIN'), createDepartment);
-router.put('/:id', authorizeRoles('ADMIN'), updateDepartment);
-router.delete('/:id', authorizeRoles('ADMIN'), deleteDepartment);
+router.get('/:id', getDepartmentById);
+router.post('/', authorizeRoles('admin'), createDepartment);
+router.put('/:id', authorizeRoles('admin'), updateDepartment);
+router.delete('/:id', authorizeRoles('admin'), deleteDepartment);
 
 module.exports = router;
