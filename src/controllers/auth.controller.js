@@ -2,6 +2,7 @@ const jwt = require('jsonwebtoken');
 const bcrypt = require('bcryptjs');
 const User = require('../models/user.model');
 const RefreshToken = require('../models/refreshToken.model');
+const TokenBlacklist = require('../models/tokenBlacklist.model');
 const { sendSuccess, sendError } = require('../utils/responseHandler');
 
 /**
@@ -30,13 +31,14 @@ const login = async (req, res, next) => {
       return sendError(res, 'Tài khoản của bạn đã bị vô hiệu hóa.', null, 403);
     }
 
+    // 1. Cấp Access Token: Thời hạn 15 phút theo chuẩn nghiệp vụ
     const token = jwt.sign(
       { id: user._id, role: user.role, email: user.email },
       process.env.JWT_SECRET || 'secret_key',
-      { expiresIn: process.env.JWT_EXPIRES_IN || '1d' }
+      { expiresIn: process.env.JWT_EXPIRES_IN || '15m' }
     );
 
-    // Tạo refresh token (thời hạn 7 ngày)
+    // 2. Cấp Refresh Token: Thời hạn 7 ngày
     const refreshTokenExpiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
     const refreshTokenString = jwt.sign(
       { id: user._id },
@@ -48,6 +50,14 @@ const login = async (req, res, next) => {
       token: refreshTokenString,
       userId: user._id,
       expiresAt: refreshTokenExpiresAt,
+    });
+
+    // 3. Lưu Refresh Token vào httpOnly cookie (Bảo mật XSS)
+    res.cookie('refreshToken', refreshTokenString, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: process.env.NODE_ENV === 'production' ? 'strict' : 'lax',
+      maxAge: 7 * 24 * 60 * 60 * 1000,
     });
 
     const userData = {
@@ -117,14 +127,14 @@ const register = async (req, res, next) => {
 };
 
 /**
- * @desc Cấp mới Access Token từ Refresh Token
- * @route POST /api/v1/auth/refresh-token
+ * @desc Cấp mới Access Token từ Refresh Token (Hỗ trợ đọc từ Cookie hoặc Body)
+ * @route POST /api/v1/auth/refresh-token hoặc POST /api/v1/auth/refresh
  */
 const refreshToken = async (req, res, next) => {
   try {
-    const { refreshToken: token } = req.body;
+    const token = req.cookies?.refreshToken || req.body?.refreshToken;
     if (!token) {
-      return sendError(res, 'Vui lòng cung cấp refreshToken.', null, 400);
+      return sendError(res, 'Vui lòng cung cấp refreshToken qua Cookie hoặc Request Body.', null, 400);
     }
 
     const savedToken = await RefreshToken.findOne({ token });
@@ -141,7 +151,7 @@ const refreshToken = async (req, res, next) => {
     const newAccessToken = jwt.sign(
       { id: user._id, role: user.role, email: user.email },
       process.env.JWT_SECRET || 'secret_key',
-      { expiresIn: process.env.JWT_EXPIRES_IN || '1d' }
+      { expiresIn: process.env.JWT_EXPIRES_IN || '15m' }
     );
 
     return sendSuccess(res, 'Cấp mới token thành công.', { token: newAccessToken });
@@ -151,16 +161,43 @@ const refreshToken = async (req, res, next) => {
 };
 
 /**
- * @desc Đăng xuất - vô hiệu hóa Refresh Token
+ * @desc Đăng xuất - Thêm Access Token vào Blacklist & xóa Refresh Token / Cookie
  * @route POST /api/v1/auth/logout
  */
 const logout = async (req, res, next) => {
   try {
-    const { refreshToken: token } = req.body;
+    // 1. Đưa Access Token hiện tại vào Blacklist để vô hiệu hóa ngay lập tức
+    const authHeader = req.headers.authorization;
+    const accessToken = req.token || (authHeader && authHeader.startsWith('Bearer ') ? authHeader.split(' ')[1] : null);
+
+    if (accessToken) {
+      try {
+        const decoded = jwt.decode(accessToken);
+        const expiresAt = decoded && decoded.exp ? new Date(decoded.exp * 1000) : new Date(Date.now() + 15 * 60 * 1000);
+        await TokenBlacklist.findOneAndUpdate(
+          { token: accessToken },
+          { token: accessToken, userId: decoded?.id || req.user?.id || null, expiresAt },
+          { upsert: true }
+        );
+      } catch (err) {
+        console.error('[Logout] Lỗi đưa token vào blacklist:', err);
+      }
+    }
+
+    // 2. Vô hiệu hóa Refresh Token trong CSDL
+    const token = req.cookies?.refreshToken || req.body?.refreshToken;
     if (token) {
       await RefreshToken.deleteOne({ token });
     }
-    return sendSuccess(res, 'Đăng xuất thành công.');
+
+    // 3. Xóa httpOnly cookie khỏi client
+    res.clearCookie('refreshToken', {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: process.env.NODE_ENV === 'production' ? 'strict' : 'lax',
+    });
+
+    return sendSuccess(res, 'Đăng xuất thành công. Token đã được thu hồi và đưa vào blacklist.');
   } catch (error) {
     next(error);
   }

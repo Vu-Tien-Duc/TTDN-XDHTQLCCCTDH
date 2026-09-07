@@ -10,19 +10,20 @@ Dự án Backend xây dựng trên nền tảng **Node.js**, **Express 5**, **Mo
 - **Database ODM**: [`mongoose`](https://mongoosejs.com/) (v9.x)
 - **API Documentation**: [`swagger-jsdoc`](https://github.com/Swaagie/swagger-jsdoc) & [`swagger-ui-express`](https://github.com/scottie1984/swagger-ui-express)
 - **Bảo mật & Middleware**:
-  - [`jsonwebtoken`](https://github.com/auth0/node-jsonwebtoken) (Xác thực JWT Token: Access Token + Refresh Token)
+  - [`jsonwebtoken`](https://github.com/auth0/node-jsonwebtoken) (Xác thực JWT: Access Token 15 phút + Refresh Token 7 ngày)
+  - [`cookie-parser`](https://github.com/expressjs/cookie-parser) (Lưu trữ và trích xuất Refresh Token trong `httpOnly cookie` an toàn)
   - [`bcryptjs`](https://github.com/dcodeIO/bcrypt.js) (Mã hóa mật khẩu chi phí cao cost 12)
   - [`helmet`](https://helmetjs.github.io/) (Bảo mật HTTP Headers)
-  - [`cors`](https://github.com/expressjs/cors) (Quản lý Cross-Origin Resource Sharing)
+  - [`cors`](https://github.com/expressjs/cors) (Quản lý Cross-Origin Resource Sharing với credentials)
   - [`morgan`](https://github.com/expressjs/morgan) (HTTP Logger)
   - [`dotenv`](https://github.com/motdotla/dotenv) (Quản lý biến môi trường)
 - **Dev Tool**: [`nodemon`](https://nodemon.io/) (Tự động tải lại mã nguồn khi phát triển)
 
 ---
 
-## 🗄 Danh mục 8 Collections MongoDB Chuẩn
+## 🗄 Danh mục Collections MongoDB Chuẩn
 
-1. **`users`**: Quản lý tài khoản (Admin, Trưởng khoa, Giảng viên, Nhân viên), mật khẩu mã hóa bcrypt cost 12, hạn mức nghỉ phép năm `annualLeaveQuota`.
+1. **`users`**: Quản lý tài khoản (Admin, Trưởng khoa, Giảng viên, Nhân viên), mật khẩu mã hóa bcrypt cost 12, hạn mức phép năm `annualLeaveQuota`, soft delete qua `isActive`.
 2. **`departments`**: Cơ cấu tổ chức phân cấp (Trường > Khoa > Bộ môn / Phòng ban), quản lý bởi `managerId`.
 3. **`shift_configs`**: Danh mục các ca làm việc chuẩn (Giờ bắt đầu/kết thúc, ngưỡng trễ).
 4. **`schedules`**: Lịch phân công giảng dạy/công tác theo học kỳ (Compound index: `{ userId: 1, weekday: 1, startDate: 1, endDate: 1 }`).
@@ -30,6 +31,7 @@ Dự án Backend xây dựng trên nền tảng **Node.js**, **Express 5**, **Mo
 6. **`leave_requests`**: Đơn xin nghỉ phép, dạy bù, đổi ca (Compound index: `{ userId: 1, status: 1, type: 1 }`).
 7. **`audit_logs`**: Nhật ký kiểm toán truy vết các thao tác nhạy cảm (duyệt đơn, điều chỉnh log chấm công).
 8. **`refresh_tokens`**: Quản lý phiên đăng nhập và thu hồi token, tự hủy với TTL Index `{ expiresAt: 1 }`.
+9. **`token_blacklists`**: Danh sách Access Token bị thu hồi khi Logout, tự động hủy qua MongoDB TTL Index.
 
 ---
 
@@ -62,7 +64,8 @@ TTDN-XDHTQLCCCTDH/
 │   │   ├── attendanceLog.model.js    # Collection: attendance_logs
 │   │   ├── leaveRequest.model.js     # Collection: leave_requests
 │   │   ├── auditLog.model.js         # Collection: audit_logs
-│   │   └── refreshToken.model.js     # Collection: refresh_tokens
+│   │   ├── refreshToken.model.js     # Collection: refresh_tokens
+│   │   └── tokenBlacklist.model.js   # Collection: token_blacklists
 │   ├── routes/                   # Định tuyến API (Endpoints)
 │   │   ├── index.js                  # Router tổng hợp
 │   │   ├── auth.routes.js            # /api/auth
