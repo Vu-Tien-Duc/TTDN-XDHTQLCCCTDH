@@ -16,12 +16,13 @@ const login = async (req, res, next) => {
       return sendError(res, 'Vui lòng cung cấp email và mật khẩu.', null, 400);
     }
 
-    const user = await User.findOne({ email }).select('+passwordHash');
-    if (!user) {
+    const user = await User.findOne({ email }).select('+passwordHash +password');
+    const hash = user ? (user.passwordHash || user.password) : null;
+    if (!user || !hash) {
       return sendError(res, 'Email hoặc mật khẩu không chính xác.', null, 401);
     }
 
-    const isMatch = await bcrypt.compare(password, user.passwordHash);
+    const isMatch = await bcrypt.compare(password, hash);
     if (!isMatch) {
       return sendError(res, 'Email hoặc mật khẩu không chính xác.', null, 401);
     }
