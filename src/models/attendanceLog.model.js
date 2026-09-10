@@ -66,7 +66,9 @@ const attendanceLogSchema = new mongoose.Schema(
 );
 
 // Indexes hỗ trợ tra cứu lịch sử chấm công theo người dùng và ngày
+attendanceLogSchema.index({ userId: 1, checkInTime: -1 });
+attendanceLogSchema.index({ scheduleId: 1, checkInTime: 1 });
 attendanceLogSchema.index({ userId: 1, createdAt: -1 });
-attendanceLogSchema.index({ userId: 1, checkInTime: 1 });
 
 module.exports = mongoose.model('AttendanceLog', attendanceLogSchema, 'attendance_logs');
+

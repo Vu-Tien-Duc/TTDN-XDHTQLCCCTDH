@@ -158,12 +158,15 @@ Authorization: Bearer {{token}}
 ### ------------------------------------------------------------------------------
 ### 3.3 SCHEDULE & SHIFT CONFIG (TV B)
 ### ------------------------------------------------------------------------------
+### 3.3 SCHEDULE & SHIFT CONFIG (TV B) - BỘ KIỂM THỬ HOÀN THIỆN NGÀY 5
+### ------------------------------------------------------------------------------
 
-### 16. Danh sách ca làm việc chuẩn (Shifts)
+### 16. Danh sách ca làm việc chuẩn (Shifts - Sắp xếp theo giờ bắt đầu)
 GET {{baseUrl}}/shifts HTTP/1.1
 Authorization: Bearer {{token}}
 
-### 17. Tạo ca làm việc mới
+### 17. [Case 1: Thành công] Tạo ca học mới
+# @name createNewShift
 POST {{baseUrl}}/shifts HTTP/1.1
 Authorization: Bearer {{token}}
 Content-Type: application/json
@@ -175,7 +178,19 @@ Content-Type: application/json
   "lateThresholdMinutes": 15
 }
 
-### 18. Cập nhật cấu hình ca
+### 17b. [Case 2: Test Lỗi] Thử tạo ca trùng tên (Kỳ vọng: 409 Conflict, Mã SHIFT_004)
+POST {{baseUrl}}/shifts HTTP/1.1
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "name": "Ca Chiều Muộn (Tiết 7 - 9)",
+  "startTime": "15:00",
+  "endTime": "18:00",
+  "lateThresholdMinutes": 15
+}
+
+### 18. Cập nhật cấu hình ca làm việc
 PUT {{baseUrl}}/shifts/{{shiftId}} HTTP/1.1
 Authorization: Bearer {{token}}
 Content-Type: application/json
@@ -184,19 +199,25 @@ Content-Type: application/json
   "lateThresholdMinutes": 20
 }
 
-### 19. Xóa ca làm việc (Chặn xóa nếu có lịch tham chiếu)
+### 19. [Case 3: Test Lỗi] Thử xóa ca đang có lịch dạy liên kết (Kỳ vọng: 400 Bad Request, Mã SHIFT_002)
+# Ca Sáng mẫu đang được phân lịch giảng dạy cho GV Bích
 DELETE {{baseUrl}}/shifts/{{shiftId}} HTTP/1.1
 Authorization: Bearer {{token}}
 
-### 20. Danh sách lịch giảng dạy/công tác (Lọc theo học kỳ)
+### 20. Danh sách lịch giảng dạy/công tác (Lọc theo học kỳ & có phân quyền)
 GET {{baseUrl}}/schedules?startDate=2026-01-01&endDate=2026-12-31 HTTP/1.1
 Authorization: Bearer {{token}}
 
-### 21. Chi tiết một lịch cụ thể
+### 20b. Danh sách lịch có phân trang (page=1, limit=2)
+GET {{baseUrl}}/schedules?page=1&limit=2 HTTP/1.1
+Authorization: Bearer {{token}}
+
+### 21. Chi tiết một lịch cụ thể (Populate giảng viên và ca)
 GET {{baseUrl}}/schedules/{{scheduleId}} HTTP/1.1
 Authorization: Bearer {{token}}
 
-### 22. Tạo lịch mới (Bắt buộc startDate/endDate, validate chống trùng ca)
+### 22. [Case 4: Thành công] Tạo lịch học kỳ chuẩn (Tự động kế thừa startTime, endTime từ Ca)
+# @name createNewSchedule
 POST {{baseUrl}}/schedules HTTP/1.1
 Authorization: Bearer {{token}}
 Content-Type: application/json
@@ -211,7 +232,36 @@ Content-Type: application/json
   "endDate": "2026-12-31T23:59:59.000Z"
 }
 
-### 23. Cập nhật lịch (Gia hạn / đổi phòng)
+### 22b. [Case 5: Test Lỗi] Thử tạo lịch trùng giờ cùng thứ cho giảng viên (Kỳ vọng: 409 Conflict, Mã SCHEDULE_002)
+POST {{baseUrl}}/schedules HTTP/1.1
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "userId": "{{userId}}",
+  "shiftId": "{{shiftId}}",
+  "roomId": "Phòng thực hành Lab-02",
+  "weekday": 2,
+  "isRecurring": true,
+  "startDate": "2026-02-01T00:00:00.000Z",
+  "endDate": "2026-06-30T23:59:59.000Z"
+}
+
+### 22c. [Case 6: Test Lỗi] Thử tạo lịch có endDate < startDate (Kỳ vọng: 400 Bad Request, Mã SCHEDULE_003)
+POST {{baseUrl}}/schedules HTTP/1.1
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "userId": "{{userId}}",
+  "shiftId": "{{shiftId}}",
+  "roomId": "Phòng Hội Thảo",
+  "weekday": 4,
+  "startDate": "2026-12-31T00:00:00.000Z",
+  "endDate": "2026-01-01T00:00:00.000Z"
+}
+
+### 23. Cập nhật lịch (Gia hạn học kỳ / đổi phòng học)
 PUT {{baseUrl}}/schedules/{{scheduleId}} HTTP/1.1
 Authorization: Bearer {{token}}
 Content-Type: application/json
