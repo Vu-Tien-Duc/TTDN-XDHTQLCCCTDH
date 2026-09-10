@@ -1,6 +1,7 @@
 const mongoose = require('mongoose');
 const LeaveRequest = require('../models/leaveRequest.model');
 const User = require('../models/user.model');
+const Department = require('../models/department.model');
 const AuditLog = require('../models/auditLog.model');
 const { sendSuccess, sendError } = require('../utils/responseHandler');
 const { sendLeaveApprovedEmail, sendLeaveRejectedEmail } = require('../services/email.service');
@@ -36,7 +37,7 @@ const createLeaveRequest = async (req, res, next) => {
     const leaveRequest = await LeaveRequest.create({
       userId: req.user.id,
       type,
-      normalizedReason,
+      reason: normalizedReason,
       startDate: start,
       endDate: end,
       attachmentUrl: attachmentUrl || null,
@@ -66,7 +67,9 @@ const getLeaveRequests = async (req, res, next) => {
       query.userId = req.user.id;
     } else if (req.user.role === 'truongkhoa') {
       const myInfo = await User.findById(req.user.id);
-      const facultyUsers = await User.find({ departmentId: myInfo.departmentId }).select('_id');
+      const childDepts = await Department.find({ parentId: myInfo.departmentId }).select('_id');
+      const allDeptIds = [myInfo.departmentId, ...childDepts.map((d) => d._id)];
+      const facultyUsers = await User.find({ departmentId: { $in: allDeptIds } }).select('_id');
       const facultyUserIds = facultyUsers.map((u) => u._id);
 
       if (userId) {
@@ -113,7 +116,9 @@ const getLeaveRequestById = async (req, res, next) => {
       }
     } else if (req.user.role === 'truongkhoa') {
       const myInfo = await User.findById(req.user.id);
-      if (request.userId.departmentId && request.userId.departmentId.toString() !== myInfo.departmentId.toString()) {
+      const childDepts = await Department.find({ parentId: myInfo.departmentId }).select('_id');
+      const allDeptIds = [myInfo.departmentId.toString(), ...childDepts.map((d) => d._id.toString())];
+      if (request.userId.departmentId && !allDeptIds.includes(request.userId.departmentId.toString())) {
         return sendError(res, 'Bạn không có quyền xem đơn của nhân sự ngoài khoa.', null, 403);
       }
     }
