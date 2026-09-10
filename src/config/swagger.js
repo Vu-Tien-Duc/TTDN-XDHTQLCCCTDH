@@ -1,4 +1,7 @@
 const swaggerJsdoc = require('swagger-jsdoc');
+const { swaggerPaths, swaggerComponents, swaggerTags } = require('./swaggerPaths');
+
+const port = process.env.PORT || 5000;
 
 const options = {
   definition: {
@@ -6,35 +9,29 @@ const options = {
     info: {
       title: 'Hệ thống Quản lý Chấm công Trường Đại học - API Documentation',
       version: '1.0.0',
-      description: 'Hệ thống API quản lý chấm công, lịch dạy, đơn nghỉ phép dành cho Giảng viên và Cán bộ Nhân viên Trường Đại học.',
+      description:
+        'Hệ thống API RESTful quản lý chấm công, lịch giảng dạy, ca làm việc, đơn nghỉ phép dành cho Giảng viên, Cán bộ Nhân viên và Quản trị viên Trường Đại học.',
       contact: {
-        name: 'Đội ngũ Phát triển Hệ thống',
+        name: 'Đội ngũ Kỹ thuật Hệ thống',
         email: 'admin@university.edu.vn',
       },
     },
     servers: [
       {
-        url: `http://localhost:${process.env.PORT || 27017}`,
+        url: `http://localhost:${port}`,
         description: 'Máy chủ Thử nghiệm (Local Environment)',
       },
     ],
-    components: {
-      securitySchemes: {
-        BearerAuth: {
-          type: 'http',
-          scheme: 'bearer',
-          bearerFormat: 'JWT',
-          description: 'Nhập Token JWT dưới dạng: Bearer <token>',
-        },
-      },
-    },
+    tags: swaggerTags,
+    paths: swaggerPaths,
+    components: swaggerComponents,
     security: [
       {
         BearerAuth: [],
       },
     ],
   },
-  apis: ['./src/routes/*.js', './src/controllers/*.js'], // Đường dẫn quét các annotation Swagger
+  apis: ['./src/routes/*.js', './src/controllers/*.js'], // Hỗ trợ quét thêm JSDoc annotation nếu có
 };
 
 const swaggerSpec = swaggerJsdoc(options);
