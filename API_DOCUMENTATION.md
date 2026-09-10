@@ -39,16 +39,16 @@ Tất cả tài khoản dùng chung mật khẩu: **`password123`**
 
 | Method | Endpoint | Quyền truy cập | Mô tả |
 | :--- | :--- | :--- | :--- |
-| `POST` | `/api/auth/login` | Công khai | Đăng nhập hệ thống, cấp Access Token (15 phút) + Refresh Token (7 ngày) lưu trong `httpOnly cookie`. |
-| `POST` | `/api/auth/refresh` | Công khai / Cookie | Cấp lại Access Token mới (15 phút) từ Refresh Token (nhận qua `httpOnly cookie` hoặc body). |
-| `POST` | `/api/auth/logout` | Đã đăng nhập | Đưa Access Token vào Blacklist, xóa Refresh Token khỏi CSDL và clear `httpOnly cookie`. |
-| `GET` | `/api/auth/me` | Đã đăng nhập | Lấy thông tin cá nhân hiện tại kèm đơn vị công tác (ẩn passwordHash). |
-| `GET` | `/api/users` | Admin / TrưởngKhoa | Danh sách người dùng (Admin xem toàn trường, Trưởng khoa tự động chỉ xem nhân sự thuộc khoa mình). |
-| `GET` | `/api/users/:id` | Admin / TrưởngKhoa | Xem chi tiết một người dùng (Trưởng khoa chỉ xem người trong khoa). |
+| `POST` | `/api/auth/register` | Admin | Tạo tài khoản người dùng mới (mã hóa bcrypt cost 12). |
+| `POST` | `/api/auth/login` | Công khai | Đăng nhập hệ thống, trả Access Token + Refresh Token (7 ngày). |
+| `POST` | `/api/auth/refresh` | Đã đăng nhập | Cấp lại Access Token mới từ Refresh Token. |
+| `POST` | `/api/auth/logout` | Đã đăng nhập | Vô hiệu hóa và xóa Refresh Token khỏi CSDL. |
+| `GET` | `/api/auth/me` | Đã đăng nhập | Lấy thông tin cá nhân hiện tại (ẩn passwordHash). |
+| `GET` | `/api/users` | Admin / TrưởngKhoa | Danh sách người dùng, phân trang và lọc theo khoa. |
+| `GET` | `/api/users/:id` | Admin / TrưởngKhoa | Xem chi tiết một người dùng. |
 | `POST` | `/api/users` | Admin | Tạo mới giảng viên/nhân viên, thiết lập `annualLeaveQuota`. |
-| `PUT` | `/api/users/:id` | Admin / TrưởngKhoa | Cập nhật thông tin tài khoản (Trưởng khoa chỉ cập nhật nhân sự khoa mình). |
+| `PUT` | `/api/users/:id` | Admin | Cập nhật thông tin tài khoản người dùng. |
 | `DELETE` | `/api/users/:id` | Admin | Soft delete (`isActive = false`), không xóa vật lý. |
-
 
 ### Ví dụ Request / Response:
 

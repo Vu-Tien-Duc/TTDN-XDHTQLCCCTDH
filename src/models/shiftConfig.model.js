@@ -32,4 +32,8 @@ const shiftConfigSchema = new mongoose.Schema(
   }
 );
 
+// Đánh index tối ưu tra cứu cho name và cặp (startTime, endTime) theo yêu cầu Ngày 2
+shiftConfigSchema.index({ name: 1 });
+shiftConfigSchema.index({ startTime: 1, endTime: 1 });
+
 module.exports = mongoose.model('ShiftConfig', shiftConfigSchema, 'shift_configs');

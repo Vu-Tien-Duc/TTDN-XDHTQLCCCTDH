@@ -1,7 +1,7 @@
 /**
  * BẢNG MÃ LỖI CHUẨN TOÀN HỆ THỐNG (ERROR CODES)
  * Đề tài: Xây dựng ứng dụng quản lý chấm công trường đại học
- * Thống nhất chung giữa 3 thành viên theo kế hoạch Ngày 1 - Tuần 1.
+ * Thống nhất chung giữa 3 thành viên theo kế hoạch Tuần 1.
  */
 
 const ERROR_CODES = {

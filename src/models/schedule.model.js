@@ -12,6 +12,18 @@ const scheduleSchema = new mongoose.Schema(
       ref: 'ShiftConfig',
       required: [true, 'Ca áp dụng (shiftId) là bắt buộc'],
     },
+    startTime: {
+      type: String,
+      trim: true,
+      match: [/^([01]\d|2[0-3]):([0-5]\d)$/, 'Định dạng giờ bắt đầu phải là HH:mm'],
+      default: '',
+    },
+    endTime: {
+      type: String,
+      trim: true,
+      match: [/^([01]\d|2[0-3]):([0-5]\d)$/, 'Định dạng giờ kết thúc phải là HH:mm'],
+      default: '',
+    },
     roomId: {
       type: String,
       trim: true,
@@ -43,7 +55,24 @@ const scheduleSchema = new mongoose.Schema(
   }
 );
 
+// Hook pre('save'): Tự động kế thừa startTime/endTime từ ShiftConfig nếu người tạo không chỉ định riêng
+scheduleSchema.pre('save', async function () {
+  if ((!this.startTime || !this.endTime) && this.shiftId) {
+    try {
+      const ShiftConfig = mongoose.model('ShiftConfig');
+      const shift = await ShiftConfig.findById(this.shiftId);
+      if (shift) {
+        if (!this.startTime) this.startTime = shift.startTime;
+        if (!this.endTime) this.endTime = shift.endTime;
+      }
+    } catch (err) {
+      // Bỏ qua lỗi truy vấn phụ để controller xử lý validation ca
+    }
+  }
+});
+
 // Index bắt buộc tăng tốc truy vấn "lịch hiệu lực hôm nay" gọi liên tục ở check-in và cron
 scheduleSchema.index({ userId: 1, weekday: 1, startDate: 1, endDate: 1 });
+scheduleSchema.index({ shiftId: 1 });
 
 module.exports = mongoose.model('Schedule', scheduleSchema, 'schedules');

@@ -3,24 +3,17 @@ const ShiftConfig = require('../models/shiftConfig.model');
 const Schedule = require('../models/schedule.model');
 const AuditLog = require('../models/auditLog.model');
 const User = require('../models/user.model');
-const { calculateAttendanceStatus, getAttendanceSummaryByUser } = require('../services/attendance.service');
+const {
+  getVietnamTime,
+  timeStringToMinutes,
+  getTodayScheduleWindow,
+  calculateAttendanceStatus,
+  getAttendanceSummaryByUser,
+} = require('../services/attendance.service');
 const { sendSuccess, sendError } = require('../utils/responseHandler');
+const ERROR_CODES = require('../utils/errorCodes');
 
-/**
- * Hàm tiện ích lấy ngày giờ hiện tại theo múi giờ Asia/Ho_Chi_Minh (UTC+7)
- */
-const getVietnamTime = (date = new Date()) => {
-  const vnTimeString = date.toLocaleString('en-US', { timeZone: 'Asia/Ho_Chi_Minh' });
-  return new Date(vnTimeString);
-};
 
-/**
- * Chuyển đổi chuỗi "HH:mm" thành số phút tính từ đầu ngày (00:00)
- */
-const timeStringToMinutes = (timeStr) => {
-  const [h, m] = timeStr.split(':').map(Number);
-  return h * 60 + m;
-};
 
 /**
  * @desc Thực hiện Check-in tự động xác định ca và lịch làm việc
@@ -55,19 +48,21 @@ const checkIn = async (req, res, next) => {
     // 3. Lọc trong các lịch tìm được, CHỈ giữ lại lịch mà:
     // thời điểm hiện tại nằm trong khoảng [startTime - 30 phút, endTime]
     const matchingSchedules = schedules.filter((sch) => {
-      if (!sch.shiftId || !sch.shiftId.startTime || !sch.shiftId.endTime) return false;
-      const startMinutes = timeStringToMinutes(sch.shiftId.startTime);
-      const endMinutes = timeStringToMinutes(sch.shiftId.endTime);
-      return currentMinutes >= startMinutes - 30 && currentMinutes <= endMinutes;
+      const window = getTodayScheduleWindow(sch.shiftId);
+      if (!window) return false;
+      return currentMinutes >= window.windowStartMinutes && currentMinutes <= window.windowEndMinutes;
     });
+
 
     // 4. Không có lịch nào thỏa khoảng trên -> trả lỗi ATTENDANCE_004
     if (matchingSchedules.length === 0) {
-      return res.status(400).json({
-        success: false,
-        errorCode: 'ATTENDANCE_004',
-        message: 'Không tìm thấy ca làm việc hoặc lịch công tác hiệu lực tại thời điểm này.',
-      });
+      return sendError(
+        res,
+        'Không tìm thấy ca làm việc hoặc lịch công tác hiệu lực tại thời điểm này.',
+        null,
+        400,
+        ERROR_CODES.ATTENDANCE_NO_MATCHING_SCHEDULE
+      );
     }
 
     // 5 & 6. Xử lý trường hợp 1 lịch hoặc 2 lịch trùng khoảng
@@ -95,7 +90,7 @@ const checkIn = async (req, res, next) => {
 
     const shift = selectedSchedule.shiftId;
 
-    // Kiểm tra xem hôm nay đã check-in cho lịch này chưa
+    // Kiểm tra xem hôm nay đã check-in cho lịch này chưa (chống check-in trùng)
     const existingLog = await AttendanceLog.findOne({
       userId,
       scheduleId: selectedSchedule._id,
@@ -103,7 +98,13 @@ const checkIn = async (req, res, next) => {
     });
 
     if (existingLog) {
-      return sendError(res, 'Bạn đã thực hiện check-in cho ca này hôm nay rồi.', existingLog, 400);
+      return sendError(
+        res,
+        'Bạn đã thực hiện check-in cho ca này hôm nay rồi.',
+        existingLog,
+        409,
+        ERROR_CODES.ATTENDANCE_ALREADY_EXISTS
+      );
     }
 
     const checkInTime = new Date();
