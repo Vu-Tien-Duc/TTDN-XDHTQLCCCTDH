@@ -81,23 +81,38 @@ const login = async (req, res, next) => {
 };
 
 /**
+<<<<<<< HEAD
  * @desc Đăng ký người dùng mới (Dành cho Admin)
+=======
+ * @desc Đăng ký người dùng mới (Chỉ dành cho Admin / Trưởng khoa)
+>>>>>>> b24b7ba958d3ee96263bc17378d92648966d96aa
  * @route POST /api/v1/auth/register
  */
 const register = async (req, res, next) => {
   try {
     const { fullName, email, password, role, departmentId, annualLeaveQuota } = req.body;
 
+<<<<<<< HEAD
     if (!fullName || !email || !password || !departmentId) {
       return sendError(res, 'Vui lòng cung cấp đầy đủ họ tên, email, mật khẩu và departmentId.', null, 400);
+=======
+    if (!fullName || !email || !password) {
+      return sendError(res, 'Vui lòng cung cấp đầy đủ họ tên, email và mật khẩu.', null, 400);
+>>>>>>> b24b7ba958d3ee96263bc17378d92648966d96aa
     }
 
     const existingUser = await User.findOne({ email });
     if (existingUser) {
+<<<<<<< HEAD
       return sendError(res, 'Email đã tồn tại trên hệ thống.', null, 400);
     }
 
     // Mã hóa mật khẩu bcrypt với cost 12
+=======
+      return sendError(res, 'Email này đã được sử dụng trong hệ thống.', null, 400);
+    }
+
+>>>>>>> b24b7ba958d3ee96263bc17378d92648966d96aa
     const salt = await bcrypt.genSalt(12);
     const passwordHash = await bcrypt.hash(password, salt);
 
@@ -105,8 +120,13 @@ const register = async (req, res, next) => {
       fullName,
       email,
       passwordHash,
+<<<<<<< HEAD
       role: role || 'giangvien',
       departmentId,
+=======
+      role: role || 'nhanvien',
+      departmentId: departmentId || null,
+>>>>>>> b24b7ba958d3ee96263bc17378d92648966d96aa
       annualLeaveQuota: annualLeaveQuota !== undefined ? annualLeaveQuota : 12,
     });
 

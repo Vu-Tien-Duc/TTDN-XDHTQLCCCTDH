@@ -73,6 +73,10 @@ Content-Type: application/json
 ### 5. Đăng xuất (Đưa Access Token vào Blacklist & Clear Cookie)
 POST {{baseUrl}}/auth/logout HTTP/1.1
 Authorization: Bearer {{token}}
+<<<<<<< HEAD
+=======
+
+>>>>>>> b24b7ba958d3ee96263bc17378d92648966d96aa
 Content-Type: application/json
 
 {

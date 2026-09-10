@@ -39,7 +39,10 @@ Tất cả tài khoản dùng chung mật khẩu: **`password123`**
 
 | Method | Endpoint | Quyền truy cập | Mô tả |
 | :--- | :--- | :--- | :--- |
+<<<<<<< HEAD
 | `POST` | `/api/auth/register` | Admin | Tạo tài khoản người dùng mới (mã hóa bcrypt cost 12). |
+=======
+>>>>>>> b24b7ba958d3ee96263bc17378d92648966d96aa
 | `POST` | `/api/auth/login` | Công khai | Đăng nhập hệ thống, cấp Access Token (15 phút) + Refresh Token (7 ngày) lưu trong `httpOnly cookie`. |
 | `POST` | `/api/auth/refresh` | Công khai / Cookie | Cấp lại Access Token mới (15 phút) từ Refresh Token (nhận qua `httpOnly cookie` hoặc body). |
 | `POST` | `/api/auth/logout` | Đã đăng nhập | Đưa Access Token vào Blacklist, xóa Refresh Token khỏi CSDL và clear `httpOnly cookie`. |
@@ -50,6 +53,10 @@ Tất cả tài khoản dùng chung mật khẩu: **`password123`**
 | `PUT` | `/api/users/:id` | Admin / TrưởngKhoa | Cập nhật thông tin tài khoản (Trưởng khoa chỉ cập nhật nhân sự khoa mình). |
 | `DELETE` | `/api/users/:id` | Admin | Soft delete (`isActive = false`), không xóa vật lý. |
 
+<<<<<<< HEAD
+=======
+
+>>>>>>> b24b7ba958d3ee96263bc17378d92648966d96aa
 ### Ví dụ Request / Response:
 
 #### Đăng nhập (`POST /api/auth/login`)

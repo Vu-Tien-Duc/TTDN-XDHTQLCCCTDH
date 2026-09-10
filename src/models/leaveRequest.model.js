@@ -9,18 +9,25 @@ const leaveRequestSchema = new mongoose.Schema(
     },
     type: {
       type: String,
+<<<<<<< HEAD
       enum: {
         values: ['nghi_phep', 'day_bu', 'doi_ca'],
         message: 'Loại đơn không hợp lệ',
       },
+=======
+      enum: ['nghi_phep', 'day_bu', 'doi_ca'],
+>>>>>>> b24b7ba958d3ee96263bc17378d92648966d96aa
       required: [true, 'Loại đơn (nghi_phep, day_bu, doi_ca) là bắt buộc'],
     },
     reason: {
       type: String,
       required: [true, 'Lý do xin nghỉ/đổi ca là bắt buộc'],
       trim: true,
+<<<<<<< HEAD
       minlength: [5, 'Lý do phải có ít nhất 5 ký tự'],
       maxlength: [500, 'Lý do không được vượt quá 500 ký tự'],
+=======
+>>>>>>> b24b7ba958d3ee96263bc17378d92648966d96aa
     },
     startDate: {
       type: Date,
@@ -33,7 +40,10 @@ const leaveRequestSchema = new mongoose.Schema(
     attachmentUrl: {
       type: String,
       default: null,
+<<<<<<< HEAD
       trim: true,
+=======
+>>>>>>> b24b7ba958d3ee96263bc17378d92648966d96aa
     },
     status: {
       type: String,
@@ -46,8 +56,9 @@ const leaveRequestSchema = new mongoose.Schema(
       ref: 'User',
       default: null,
     },
-    approvalNote: {
+    rejectionReason: {
       type: String,
+<<<<<<< HEAD
       default: '',
       trim: true,
       maxlength: [500, 'Ghi chú duyệt không được vượt quá 500 ký tự'],
@@ -60,6 +71,14 @@ const leaveRequestSchema = new mongoose.Schema(
       validate: {
         validator: function (val) {
           if (this.status === 'REJECTED' && (!val || !val.trim())) return false;
+=======
+      default: null,
+      validate: {
+        validator: function (val) {
+          if (this.status === 'REJECTED' && (!val || val.trim() === '')) {
+            return false;
+          }
+>>>>>>> b24b7ba958d3ee96263bc17378d92648966d96aa
           return true;
         },
         message: 'Lý do từ chối là bắt buộc khi đơn bị từ chối (REJECTED)',
@@ -72,6 +91,7 @@ const leaveRequestSchema = new mongoose.Schema(
   }
 );
 
+<<<<<<< HEAD
 leaveRequestSchema.index({ userId: 1, status: 1, type: 1 });
 
 leaveRequestSchema.pre('validate', function () {
@@ -80,4 +100,9 @@ leaveRequestSchema.pre('validate', function () {
   }
 });
 
+=======
+// Index bắt buộc tăng tốc pipeline aggregate tính số ngày phép còn lại
+leaveRequestSchema.index({ userId: 1, status: 1, type: 1 });
+
+>>>>>>> b24b7ba958d3ee96263bc17378d92648966d96aa
 module.exports = mongoose.model('LeaveRequest', leaveRequestSchema, 'leave_requests');

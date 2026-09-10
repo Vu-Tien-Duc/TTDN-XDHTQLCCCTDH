@@ -1,7 +1,10 @@
 const mongoose = require('mongoose');
 const LeaveRequest = require('../models/leaveRequest.model');
 const User = require('../models/user.model');
+<<<<<<< HEAD
 const Department = require('../models/department.model');
+=======
+>>>>>>> b24b7ba958d3ee96263bc17378d92648966d96aa
 const AuditLog = require('../models/auditLog.model');
 const { sendSuccess, sendError } = require('../utils/responseHandler');
 const { sendLeaveApprovedEmail, sendLeaveRejectedEmail } = require('../services/email.service');
@@ -21,14 +24,18 @@ const createLeaveRequest = async (req, res, next) => {
     const start = new Date(startDate);
     const end = new Date(endDate);
 
+<<<<<<< HEAD
     if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) {
       return sendError(res, 'Ngày bắt đầu hoặc ngày kết thúc không hợp lệ.', null, 400);
     }
 
+=======
+>>>>>>> b24b7ba958d3ee96263bc17378d92648966d96aa
     if (end < start) {
       return sendError(res, 'Ngày kết thúc không thể trước ngày bắt đầu.', null, 400);
     }
 
+<<<<<<< HEAD
     const normalizedReason = reason.trim();
     if (normalizedReason.length < 5 || normalizedReason.length > 500) {
       return sendError(res, 'Lý do phải có từ 5 đến 500 ký tự.', null, 400);
@@ -38,6 +45,12 @@ const createLeaveRequest = async (req, res, next) => {
       userId: req.user.id,
       type,
       reason: normalizedReason,
+=======
+    const leaveRequest = await LeaveRequest.create({
+      userId: req.user.id,
+      type,
+      reason,
+>>>>>>> b24b7ba958d3ee96263bc17378d92648966d96aa
       startDate: start,
       endDate: end,
       attachmentUrl: attachmentUrl || null,
@@ -67,9 +80,13 @@ const getLeaveRequests = async (req, res, next) => {
       query.userId = req.user.id;
     } else if (req.user.role === 'truongkhoa') {
       const myInfo = await User.findById(req.user.id);
+<<<<<<< HEAD
       const childDepts = await Department.find({ parentId: myInfo.departmentId }).select('_id');
       const allDeptIds = [myInfo.departmentId, ...childDepts.map((d) => d._id)];
       const facultyUsers = await User.find({ departmentId: { $in: allDeptIds } }).select('_id');
+=======
+      const facultyUsers = await User.find({ departmentId: myInfo.departmentId }).select('_id');
+>>>>>>> b24b7ba958d3ee96263bc17378d92648966d96aa
       const facultyUserIds = facultyUsers.map((u) => u._id);
 
       if (userId) {
@@ -116,9 +133,13 @@ const getLeaveRequestById = async (req, res, next) => {
       }
     } else if (req.user.role === 'truongkhoa') {
       const myInfo = await User.findById(req.user.id);
+<<<<<<< HEAD
       const childDepts = await Department.find({ parentId: myInfo.departmentId }).select('_id');
       const allDeptIds = [myInfo.departmentId.toString(), ...childDepts.map((d) => d._id.toString())];
       if (request.userId.departmentId && !allDeptIds.includes(request.userId.departmentId.toString())) {
+=======
+      if (request.userId.departmentId && request.userId.departmentId.toString() !== myInfo.departmentId.toString()) {
+>>>>>>> b24b7ba958d3ee96263bc17378d92648966d96aa
         return sendError(res, 'Bạn không có quyền xem đơn của nhân sự ngoài khoa.', null, 403);
       }
     }
@@ -207,6 +228,7 @@ const approveLeaveRequest = async (req, res, next) => {
       return sendError(res, 'Không tìm thấy đơn xin.', null, 404);
     }
 
+<<<<<<< HEAD
     if (request.status !== 'PENDING') {
       return sendError(res, `Đơn đã được xử lý với trạng thái ${request.status}.`, null, 400);
     }
@@ -214,6 +236,10 @@ const approveLeaveRequest = async (req, res, next) => {
     request.status = 'APPROVED';
     request.approvedBy = req.user.id;
     request.approvalNote = typeof req.body.approvalNote === 'string' ? req.body.approvalNote.trim() : '';
+=======
+    request.status = 'APPROVED';
+    request.approvedBy = req.user.id;
+>>>>>>> b24b7ba958d3ee96263bc17378d92648966d96aa
     request.rejectionReason = null;
     await request.save();
 
@@ -227,6 +253,7 @@ const approveLeaveRequest = async (req, res, next) => {
       timestamp: new Date(),
     });
 
+<<<<<<< HEAD
     // Thông báo email là tùy chọn: lỗi mail không làm thất bại nghiệp vụ duyệt đơn.
     const applicant = await User.findById(request.userId).select('email fullName');
     if (applicant?.email && process.env.MAIL_USER && process.env.MAIL_PASSWORD) {
@@ -243,6 +270,8 @@ const approveLeaveRequest = async (req, res, next) => {
       }
     }
 
+=======
+>>>>>>> b24b7ba958d3ee96263bc17378d92648966d96aa
     return sendSuccess(res, 'Đã phê duyệt đơn thành công.', request);
   } catch (error) {
     next(error);
@@ -266,6 +295,7 @@ const rejectLeaveRequest = async (req, res, next) => {
       return sendError(res, 'Không tìm thấy đơn xin.', null, 404);
     }
 
+<<<<<<< HEAD
     if (request.status !== 'PENDING') {
       return sendError(res, `Đơn đã được xử lý với trạng thái ${request.status}.`, null, 400);
     }
@@ -273,6 +303,11 @@ const rejectLeaveRequest = async (req, res, next) => {
     request.status = 'REJECTED';
     request.approvedBy = req.user.id;
     request.rejectionReason = rejectionReason.trim();
+=======
+    request.status = 'REJECTED';
+    request.approvedBy = req.user.id;
+    request.rejectionReason = rejectionReason;
+>>>>>>> b24b7ba958d3ee96263bc17378d92648966d96aa
     await request.save();
 
     // Ghi audit log
@@ -285,6 +320,7 @@ const rejectLeaveRequest = async (req, res, next) => {
       timestamp: new Date(),
     });
 
+<<<<<<< HEAD
     const applicant = await User.findById(request.userId).select('email fullName');
     if (applicant?.email && process.env.MAIL_USER && process.env.MAIL_PASSWORD) {
       try {
@@ -300,6 +336,8 @@ const rejectLeaveRequest = async (req, res, next) => {
       }
     }
 
+=======
+>>>>>>> b24b7ba958d3ee96263bc17378d92648966d96aa
     return sendSuccess(res, 'Đã từ chối đơn thành công.', request);
   } catch (error) {
     next(error);

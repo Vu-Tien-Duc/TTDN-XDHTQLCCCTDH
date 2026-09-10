@@ -10,6 +10,7 @@ const verifyToken = async (req, res, next) => {
   try {
     const authHeader = req.headers.authorization;
 
+<<<<<<< HEAD
     if (!authHeader) {
       return sendError(res, 'Truy cập bị từ chối. Token không tồn tại.', null, 401);
     }
@@ -23,6 +24,13 @@ const verifyToken = async (req, res, next) => {
     if (!token) {
       return sendError(res, 'Truy cập bị từ chối. Định dạng token không hợp lệ.', null, 401);
     }
+=======
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      return sendError(res, 'Truy cập bị từ chối. Token không tồn tại hoặc không đúng định dạng.', null, 401);
+    }
+
+    const token = authHeader.split(' ')[1];
+>>>>>>> b24b7ba958d3ee96263bc17378d92648966d96aa
 
     // 1. Kiểm tra xem Access Token có nằm trong danh sách Blacklist (đã logout) hay không
     const isBlacklisted = await TokenBlacklist.findOne({ token });
