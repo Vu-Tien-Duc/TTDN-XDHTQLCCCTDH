@@ -62,7 +62,7 @@ Content-Type: application/json
 GET {{baseUrl}}/auth/me HTTP/1.1
 Authorization: Bearer {{token}}
 
-### 4. Cấp lại Access Token mới từ Refresh Token
+### 4. Cấp lại Access Token mới (15 phút) từ Refresh Token (nhận từ Cookie hoặc Body)
 POST {{baseUrl}}/auth/refresh HTTP/1.1
 Content-Type: application/json
 
@@ -70,9 +70,10 @@ Content-Type: application/json
   "refreshToken": "{{refreshToken}}"
 }
 
-### 5. Đăng xuất (Vô hiệu hóa Refresh Token)
+### 5. Đăng xuất (Đưa Access Token vào Blacklist & Clear Cookie)
 POST {{baseUrl}}/auth/logout HTTP/1.1
 Authorization: Bearer {{token}}
+
 Content-Type: application/json
 
 {

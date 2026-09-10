@@ -4,6 +4,27 @@ const helmet = require('helmet');
 const morgan = require('morgan');
 const swaggerUi = require('swagger-ui-express');
 
+// Middleware phân tích cookies an toàn không phụ thuộc thư viện ngoài
+const cookieParserMiddleware = (req, res, next) => {
+  req.cookies = req.cookies || {};
+  const cookieHeader = req.headers.cookie;
+  if (cookieHeader) {
+    cookieHeader.split(';').forEach((cookie) => {
+      const parts = cookie.split('=');
+      const name = parts[0]?.trim();
+      const value = parts.slice(1).join('=').trim();
+      if (name) {
+        try {
+          req.cookies[name] = decodeURIComponent(value);
+        } catch {
+          req.cookies[name] = value;
+        }
+      }
+    });
+  }
+  next();
+};
+
 const swaggerSpec = require('./config/swagger');
 const apiRoutes = require('./routes');
 const { errorHandler, notFoundHandler } = require('./middlewares/error.middleware');
@@ -11,8 +32,17 @@ const { errorHandler, notFoundHandler } = require('./middlewares/error.middlewar
 const app = express();
 
 // 1. Security Middlewares
-app.use(helmet());
-app.use(cors());
+app.use(
+  helmet({
+    contentSecurityPolicy: false,
+  })
+);
+app.use(
+  cors({
+    origin: process.env.CLIENT_URL || true,
+    credentials: true,
+  })
+);
 
 // 2. Logging & Parsing Middlewares
 if (process.env.NODE_ENV === 'development') {
@@ -20,9 +50,17 @@ if (process.env.NODE_ENV === 'development') {
 }
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
+app.use(cookieParserMiddleware);
+
 
 // 3. Swagger UI Documentation Route
-app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec));
+const swaggerUiOptions = {
+  customSiteTitle: 'Tài Liệu API - Hệ Thống Quản Lý Chấm Công',
+  swaggerOptions: {
+    persistAuthorization: true,
+  },
+};
+app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec, swaggerUiOptions));
 
 // 4. Base Route / Welcome
 app.get('/', (req, res) => {
