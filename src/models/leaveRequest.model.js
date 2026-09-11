@@ -9,13 +9,18 @@ const leaveRequestSchema = new mongoose.Schema(
     },
     type: {
       type: String,
-      enum: ['nghi_phep', 'day_bu', 'doi_ca'],
+      enum: {
+        values: ['nghi_phep', 'day_bu', 'doi_ca'],
+        message: 'Loại đơn không hợp lệ',
+      },
       required: [true, 'Loại đơn (nghi_phep, day_bu, doi_ca) là bắt buộc'],
     },
     reason: {
       type: String,
       required: [true, 'Lý do xin nghỉ/đổi ca là bắt buộc'],
       trim: true,
+      minlength: [5, 'Lý do phải có ít nhất 5 ký tự'],
+      maxlength: [500, 'Lý do không được vượt quá 500 ký tự'],
     },
     startDate: {
       type: Date,
@@ -28,6 +33,7 @@ const leaveRequestSchema = new mongoose.Schema(
     attachmentUrl: {
       type: String,
       default: null,
+      trim: true,
     },
     status: {
       type: String,
@@ -40,14 +46,20 @@ const leaveRequestSchema = new mongoose.Schema(
       ref: 'User',
       default: null,
     },
+    approvalNote: {
+      type: String,
+      default: '',
+      trim: true,
+      maxlength: [500, 'Ghi chú duyệt không được vượt quá 500 ký tự'],
+    },
     rejectionReason: {
       type: String,
       default: null,
+      trim: true,
+      maxlength: [500, 'Lý do từ chối không được vượt quá 500 ký tự'],
       validate: {
         validator: function (val) {
-          if (this.status === 'REJECTED' && (!val || val.trim() === '')) {
-            return false;
-          }
+          if (this.status === 'REJECTED' && (!val || !val.trim())) return false;
           return true;
         },
         message: 'Lý do từ chối là bắt buộc khi đơn bị từ chối (REJECTED)',
@@ -62,5 +74,11 @@ const leaveRequestSchema = new mongoose.Schema(
 
 // Index bắt buộc tăng tốc pipeline aggregate tính số ngày phép còn lại
 leaveRequestSchema.index({ userId: 1, status: 1, type: 1 });
+
+leaveRequestSchema.pre('validate', function () {
+  if (this.startDate && this.endDate && this.startDate > this.endDate) {
+    this.invalidate('endDate', 'Ngày kết thúc phải lớn hơn hoặc bằng ngày bắt đầu');
+  }
+});
 
 module.exports = mongoose.model('LeaveRequest', leaveRequestSchema, 'leave_requests');

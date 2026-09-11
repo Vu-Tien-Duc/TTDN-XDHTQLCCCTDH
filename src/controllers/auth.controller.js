@@ -112,7 +112,6 @@ const register = async (req, res, next) => {
       return sendError(res, 'Email này đã được sử dụng bởi một tài khoản đã kích hoạt.', null, 400);
     }
 
-    // Mã hóa mật khẩu bcrypt với cost 12
     const salt = await bcrypt.genSalt(12);
     const passwordHash = await bcrypt.hash(password, salt);
 

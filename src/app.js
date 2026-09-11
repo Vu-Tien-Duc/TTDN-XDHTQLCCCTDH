@@ -5,7 +5,6 @@ const morgan = require('morgan');
 const swaggerUi = require('swagger-ui-express');
 
 const cookieParser = require('cookie-parser');
-
 const swaggerSpec = require('./config/swagger');
 const apiRoutes = require('./routes');
 const { errorHandler, notFoundHandler } = require('./middlewares/error.middleware');

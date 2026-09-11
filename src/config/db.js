@@ -5,7 +5,8 @@ const mongoose = require('mongoose');
  */
 const connectDB = async () => {
   try {
-    const conn = await mongoose.connect(process.env.MONGODB_URI, {
+    const mongoURI = process.env.MONGODB_URI || 'mongodb://localhost:27017/university_attendance_db';
+    const conn = await mongoose.connect(mongoURI, {
       // Các tùy chọn Mongoose mặc định phù hợp cho phiên bản 6+
     });
 
