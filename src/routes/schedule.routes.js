@@ -7,7 +7,7 @@ const {
   updateSchedule,
   deleteSchedule,
 } = require('../controllers/schedule.controller');
-const { verifyToken, verifyRole } = require('../middlewares/auth.middleware');
+const { verifyToken, verifyRole, authorizeRoles } = require('../middlewares/auth.middleware');
 
 /**
  * @swagger

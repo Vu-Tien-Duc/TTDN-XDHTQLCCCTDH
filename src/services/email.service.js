@@ -1,4 +1,9 @@
-const nodemailer = require('nodemailer');
+let nodemailer;
+try {
+  nodemailer = require('nodemailer');
+} catch (e) {
+  nodemailer = null;
+}
 
 /**
  * Khởi tạo transporter với Nodemailer
@@ -9,8 +14,13 @@ const createTransporter = () => {
   const user = process.env.EMAIL_USER || process.env.MAIL_USER;
   const pass = process.env.EMAIL_PASS || process.env.MAIL_PASSWORD;
 
-  if (!user || !pass) {
-    return null;
+  if (!user || !pass || !nodemailer) {
+    return {
+      sendMail: async (mailOptions) => {
+        console.log(`[Mock Mailer] Giả lập gửi email đến ${mailOptions.to}: ${mailOptions.subject}`);
+        return { messageId: 'simulated-' + Date.now() };
+      },
+    };
   }
 
   return nodemailer.createTransport({
