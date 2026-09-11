@@ -1,28 +1,17 @@
 const bcrypt = require('bcryptjs');
 const User = require('../models/user.model');
-const bcrypt = require('bcryptjs');
 const { sendSuccess, sendError } = require('../utils/responseHandler');
 
 /**
-<<<<<<< HEAD
  * @desc Lấy danh sách người dùng (Hỗ trợ lọc, tìm kiếm; Trưởng khoa chỉ xem thuộc khoa mình)
-=======
- * @desc Lấy danh sách tất cả người dùng (Có phân trang, lọc theo phòng ban, vai trò, trạng thái)
->>>>>>> b24b7ba958d3ee96263bc17378d92648966d96aa
  * @route GET /api/v1/users
  */
 const getAllUsers = async (req, res, next) => {
   try {
-<<<<<<< HEAD
     const { role, departmentId, isActive, search } = req.query;
     const query = {};
 
     // 1. Phân quyền dữ liệu theo phạm vi (Scope RBAC):
-=======
-    const { departmentId, role, isActive, search } = req.query;
-    const query = {};
-
->>>>>>> b24b7ba958d3ee96263bc17378d92648966d96aa
     // Trưởng khoa chỉ được phép xem danh sách nhân sự thuộc khoa của mình
     if (req.user.role === 'truongkhoa') {
       if (!req.user.departmentId) {
@@ -66,59 +55,36 @@ const getUserById = async (req, res, next) => {
 
     // Nếu là Trưởng khoa, kiểm tra người dùng được xem có thuộc khoa mình phụ trách hay không
     if (req.user.role === 'truongkhoa') {
-<<<<<<< HEAD
       const userDeptId = user.departmentId?._id ? user.departmentId._id.toString() : user.departmentId?.toString();
-=======
-      const userDeptId = user.departmentId ? user.departmentId._id.toString() : null;
->>>>>>> b24b7ba958d3ee96263bc17378d92648966d96aa
       if (userDeptId !== req.user.departmentId) {
         return sendError(res, 'Bạn chỉ có quyền xem thông tin nhân sự thuộc khoa của mình.', null, 403);
       }
     }
 
-<<<<<<< HEAD
     return sendSuccess(res, 'Lấy thông tin người dùng thành công.', user);
-=======
-    return sendSuccess(res, 'Lấy chi tiết người dùng thành công.', user);
->>>>>>> b24b7ba958d3ee96263bc17378d92648966d96aa
   } catch (error) {
     next(error);
   }
 };
 
 /**
-<<<<<<< HEAD
  * @desc Thêm người dùng mới (Chỉ Admin)
-=======
- * @desc Thêm người dùng mới (Chỉ dành cho Admin)
->>>>>>> b24b7ba958d3ee96263bc17378d92648966d96aa
  * @route POST /api/v1/users
  */
 const createUser = async (req, res, next) => {
   try {
     const { fullName, email, password, role, departmentId, annualLeaveQuota } = req.body;
 
-<<<<<<< HEAD
     if (!fullName || !email || !password || !departmentId) {
       return sendError(res, 'Vui lòng cung cấp đầy đủ họ tên, email, mật khẩu và departmentId.', null, 400);
-=======
-    if (!fullName || !email || !password) {
-      return sendError(res, 'Vui lòng cung cấp đầy đủ họ tên, email và mật khẩu.', null, 400);
->>>>>>> b24b7ba958d3ee96263bc17378d92648966d96aa
     }
 
     const existingUser = await User.findOne({ email });
     if (existingUser) {
-<<<<<<< HEAD
       return sendError(res, 'Email đã tồn tại trên hệ thống.', null, 400);
     }
 
     // Mã hóa mật khẩu bcrypt với cost 12
-=======
-      return sendError(res, 'Email này đã được sử dụng trong hệ thống.', null, 400);
-    }
-
->>>>>>> b24b7ba958d3ee96263bc17378d92648966d96aa
     const salt = await bcrypt.genSalt(12);
     const passwordHash = await bcrypt.hash(password, salt);
 
@@ -126,25 +92,16 @@ const createUser = async (req, res, next) => {
       fullName,
       email,
       passwordHash,
-<<<<<<< HEAD
       role: role || 'giangvien',
       departmentId,
       annualLeaveQuota: annualLeaveQuota !== undefined ? annualLeaveQuota : 12,
       isActive: true,
-=======
-      role: role || 'nhanvien',
-      departmentId: departmentId || null,
-      annualLeaveQuota: annualLeaveQuota !== undefined ? annualLeaveQuota : 12,
->>>>>>> b24b7ba958d3ee96263bc17378d92648966d96aa
+      isVerified: true,
     });
 
     const populatedUser = await User.findById(newUser._id).populate('departmentId', 'name type');
 
-<<<<<<< HEAD
     return sendSuccess(res, 'Tạo người dùng mới thành công.', populatedUser, 201);
-=======
-    return sendSuccess(res, 'Thêm người dùng mới thành công.', populatedUser, 201);
->>>>>>> b24b7ba958d3ee96263bc17378d92648966d96aa
   } catch (error) {
     next(error);
   }

@@ -2,12 +2,14 @@ const nodemailer = require('nodemailer');
 
 //Cấu hình mailer, Cấu hình Nodemailer
 
+const user = process.env.MAIL_USER || process.env.EMAIL_USER;
+const pass = process.env.MAIL_PASSWORD || process.env.EMAIL_PASS;
+
 const transporter = nodemailer.createTransport({
     service: 'gmail',
-
     auth: {
-        user: process.env.MAIL_USER,
-        pass: process.env.MAIL_PASSWORD,
+        user,
+        pass,
     },
 });
 

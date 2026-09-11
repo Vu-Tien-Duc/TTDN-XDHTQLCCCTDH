@@ -199,7 +199,7 @@ const swaggerPaths = {
               type: 'object',
               required: ['email', 'password'],
               properties: {
-                email: { type: 'string', example: 'admin@university.edu.vn' },
+                email: { type: 'string', example: 'daihocdtd@gmail.com' },
                 password: { type: 'string', example: 'password123' },
               },
             },
@@ -219,8 +219,8 @@ const swaggerPaths = {
                   refreshToken: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...',
                   user: {
                     _id: '6a9d57378cf3a6165de25dd6',
-                    fullName: 'Quản Trị Viên Hệ Thống',
-                    email: 'admin@university.edu.vn',
+                    fullName: 'Quản Trị Viên Hệ Thống (Admin Trường)',
+                    email: 'daihocdtd@gmail.com',
                     role: 'admin',
                     departmentId: '6a9d57378cf3a6165de25dd4',
                     annualLeaveQuota: 15,
@@ -310,8 +310,9 @@ const swaggerPaths = {
   '/api/auth/register': {
     post: {
       tags: ['3.1 - Xác Thực & Phiên Làm Việc (Auth)'],
-      summary: 'Đăng ký tài khoản người dùng mới (Chỉ Admin)',
-      security: [{ BearerAuth: [] }],
+      summary: 'Đăng ký tài khoản người dùng mới (Gửi mã OTP 6 chữ số qua Email, hạn 10 phút)',
+      description: 'Đăng ký tài khoản mới và nhận mã OTP 6 số để kích hoạt tài khoản. Tài khoản ở trạng thái chưa xác minh (isVerified: false).',
+      security: [],
       requestBody: {
         required: true,
         content: {
@@ -332,8 +333,96 @@ const swaggerPaths = {
         },
       },
       responses: {
-        201: { description: 'Tạo tài khoản thành công' },
-        400: { description: 'Dữ liệu đầu vào không hợp lệ hoặc Email đã tồn tại' },
+        201: { description: 'Đăng ký thành công, mã OTP 6 số đã được gửi qua email (hạn 10 phút)' },
+        400: { description: 'Thiếu dữ liệu bắt buộc hoặc Email đã được sử dụng' },
+      },
+    },
+  },
+
+  '/api/auth/verify-otp': {
+    post: {
+      tags: ['3.1 - Xác Thực & Phiên Làm Việc (Auth)'],
+      summary: 'Xác minh tài khoản bằng mã OTP (Quá 10 phút -> Xóa tài khoản)',
+      description: 'Người dùng nhập mã OTP 6 chữ số nhận từ Email để kích hoạt tài khoản. Nếu quá 10 phút, hệ thống tự động xóa tài khoản và yêu cầu đăng ký lại.',
+      security: [],
+      requestBody: {
+        required: true,
+        content: {
+          'application/json': {
+            schema: {
+              type: 'object',
+              required: ['email', 'otp'],
+              properties: {
+                email: { type: 'string', example: 'nguyenvanmoi@university.edu.vn' },
+                otp: { type: 'string', example: '123456' },
+              },
+            },
+          },
+        },
+      },
+      responses: {
+        200: { description: 'Xác minh tài khoản thành công, gửi email chúc mừng' },
+        400: { description: 'Mã OTP không hợp lệ HOẶC đã hết hạn (quá 10 phút, tài khoản đã bị xóa)' },
+        404: { description: 'Không tìm thấy thông tin tài khoản' },
+      },
+    },
+  },
+
+  '/api/auth/forgot-password': {
+    post: {
+      tags: ['3.1 - Xác Thực & Phiên Làm Việc (Auth)'],
+      summary: 'Yêu cầu mã OTP đặt lại mật khẩu (Hạn 10 phút)',
+      description: 'Gửi mã OTP 6 chữ số đến email để xác thực yêu cầu đổi mật khẩu mới.',
+      security: [],
+      requestBody: {
+        required: true,
+        content: {
+          'application/json': {
+            schema: {
+              type: 'object',
+              required: ['email'],
+              properties: {
+                email: { type: 'string', example: 'daihocdtd@gmail.com' },
+              },
+            },
+          },
+        },
+      },
+      responses: {
+        200: { description: 'Mã OTP đặt lại mật khẩu đã được gửi đến email (hạn 10 phút)' },
+        400: { description: 'Thiếu email' },
+        403: { description: 'Tài khoản chưa được kích hoạt hoặc đã bị vô hiệu hóa' },
+        404: { description: 'Không tìm thấy tài khoản với email này' },
+      },
+    },
+  },
+
+  '/api/auth/reset-password': {
+    post: {
+      tags: ['3.1 - Xác Thực & Phiên Làm Việc (Auth)'],
+      summary: 'Xác thực OTP và đặt lại mật khẩu mới',
+      description: 'Nhập mã OTP 6 số còn hiệu lực (< 10 phút) và mật khẩu mới để đổi mật khẩu (thu hồi các token cũ).',
+      security: [],
+      requestBody: {
+        required: true,
+        content: {
+          'application/json': {
+            schema: {
+              type: 'object',
+              required: ['email', 'otp', 'newPassword'],
+              properties: {
+                email: { type: 'string', example: 'daihocdtd@gmail.com' },
+                otp: { type: 'string', example: '123456' },
+                newPassword: { type: 'string', example: 'new_password123' },
+              },
+            },
+          },
+        },
+      },
+      responses: {
+        200: { description: 'Đặt lại mật khẩu thành công' },
+        400: { description: 'Mã OTP không hợp lệ, đã hết hạn (>10 phút) hoặc mật khẩu dưới 6 ký tự' },
+        404: { description: 'Không tìm thấy tài khoản' },
       },
     },
   },
@@ -470,7 +559,7 @@ const swaggerPaths = {
                 name: { type: 'string', example: 'Bộ môn Khoa học Dữ liệu' },
                 type: { type: 'string', enum: ['khoa', 'bomon', 'phongban'], example: 'bomon' },
                 parentId: { type: 'string', example: '6a9d57378cf3a6165de25dd1', nullable: true },
-                managerId: { type: 'string', nullable: true },
+                managerId: { type: 'string', example: '6a9d57378cf3a6165de25dd7', nullable: true },
                 location: {
                   type: 'object',
                   properties: {
@@ -485,7 +574,7 @@ const swaggerPaths = {
       },
       responses: {
         201: { description: 'Tạo đơn vị thành công' },
-        400: { description: 'Thiếu thông tin bắt buộc' },
+        400: { description: 'Thiếu thông tin bắt buộc hoặc vi phạm quy tắc phân cấp / managerId không hợp lệ' },
       },
     },
   },
@@ -503,7 +592,7 @@ const swaggerPaths = {
     },
     put: {
       tags: ['3.2 - Cơ Cấu Tổ Chức & Phòng Ban (Departments)'],
-      summary: 'Cập nhật thông tin Khoa / Phòng ban (Chỉ Admin)',
+      summary: 'Cập nhật thông tin Khoa / Phòng ban (Admin / Trưởng khoa)',
       security: [{ BearerAuth: [] }],
       parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'string' } }],
       requestBody: {

@@ -9,10 +9,7 @@ Dự án Backend xây dựng trên nền tảng **Node.js**, **Express 5**, **Mo
 - **Web Framework**: [`express`](https://expressjs.com/) (v5.x)
 - **Database ODM**: [`mongoose`](https://mongoosejs.com/) (v9.x)
 - **API Documentation**: [`swagger-jsdoc`](https://github.com/Swaagie/swagger-jsdoc) & [`swagger-ui-express`](https://github.com/scottie1984/swagger-ui-express)
-<<<<<<< HEAD
 - **Bảo mật & Middleware**:
-=======
->>>>>>> b24b7ba958d3ee96263bc17378d92648966d96aa
   - [`jsonwebtoken`](https://github.com/auth0/node-jsonwebtoken) (Xác thực JWT: Access Token 15 phút + Refresh Token 7 ngày)
   - [`cookie-parser`](https://github.com/expressjs/cookie-parser) (Lưu trữ và trích xuất Refresh Token trong `httpOnly cookie` an toàn)
   - [`bcryptjs`](https://github.com/dcodeIO/bcrypt.js) (Mã hóa mật khẩu chi phí cao cost 12)
@@ -36,10 +33,6 @@ Dự án Backend xây dựng trên nền tảng **Node.js**, **Express 5**, **Mo
 8. **`refresh_tokens`**: Quản lý phiên đăng nhập và thu hồi token, tự hủy với TTL Index `{ expiresAt: 1 }`.
 9. **`token_blacklists`**: Danh sách Access Token bị thu hồi khi Logout, tự động hủy qua MongoDB TTL Index.
 
-<<<<<<< HEAD
-=======
-
->>>>>>> b24b7ba958d3ee96263bc17378d92648966d96aa
 ---
 
 ## 📂 Cấu trúc thư mục (Project Structure)
@@ -73,10 +66,6 @@ TTDN-XDHTQLCCCTDH/
 │   │   ├── auditLog.model.js         # Collection: audit_logs
 │   │   ├── refreshToken.model.js     # Collection: refresh_tokens
 │   │   └── tokenBlacklist.model.js   # Collection: token_blacklists
-<<<<<<< HEAD
-=======
-
->>>>>>> b24b7ba958d3ee96263bc17378d92648966d96aa
 │   ├── routes/                   # Định tuyến API (Endpoints)
 │   │   ├── index.js                  # Router tổng hợp
 │   │   ├── auth.routes.js            # /api/auth
@@ -89,7 +78,7 @@ TTDN-XDHTQLCCCTDH/
 │   │   ├── auditLog.routes.js        # /api/audit-logs
 │   │   └── report.routes.js          # /api/reports
 │   ├── middlewares/              # Xác thực JWT & Bắt lỗi hệ thống
-│   │   ├── auth.middleware.js        # verifyToken, authorizeRoles
+│   │   ├── auth.middleware.js        # verifyToken, verifyRole (RBAC)
 │   │   └── error.middleware.js       # errorHandler, notFoundHandler
 │   ├── services/                 # Helper tính toán logic
 │   │   ├── attendance.service.js     # Tính toán trạng thái ON_TIME/LATE theo ca
@@ -115,7 +104,7 @@ npm run seed
 ### 2. Danh sách tài khoản thử nghiệm:
 | Vai trò | Email | Mật khẩu | Ghi chú |
 | :--- | :--- | :--- | :--- |
-| **Admin** | `admin@university.edu.vn` | `password123` | Toàn quyền quản trị hệ thống |
+| **Admin** | `daihocdtd@gmail.com` | `password123` | Toàn quyền quản trị hệ thống (Email trường) |
 | **Trưởng Khoa** | `truongkhoa.cntt@university.edu.vn` | `password123` | Quản lý nhân sự Khoa CNTT |
 | **Giảng Viên 1** | `giangvien.bich@university.edu.vn` | `password123` | Có lịch dạy hôm nay, đã duyệt nghỉ 3 ngày |
 | **Giảng Viên 2** | `giangvien.cuong@university.edu.vn` | `password123` | Có đơn xin nghỉ đang chờ duyệt (PENDING) |

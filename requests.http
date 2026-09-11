@@ -34,7 +34,7 @@ POST {{baseUrl}}/auth/login HTTP/1.1
 Content-Type: application/json
 
 {
-  "email": "admin@university.edu.vn",
+  "email": "daihocdtd@gmail.com",
   "password": "password123"
 }
 
@@ -58,6 +58,47 @@ Content-Type: application/json
   "password": "password123"
 }
 
+### 2d. Đăng ký tài khoản mới (Gửi mã OTP 6 số qua Email - TTL 10 phút)
+POST {{baseUrl}}/auth/register HTTP/1.1
+Content-Type: application/json
+
+{
+  "fullName": "Giảng Viên Thử Nghiệm",
+  "email": "test.giangvien@university.edu.vn",
+  "password": "password123",
+  "role": "giangvien",
+  "departmentId": "{{deptId}}",
+  "annualLeaveQuota": 12
+}
+
+### 2e. Xác minh tài khoản bằng mã OTP (Nhập mã 6 chữ số nhận từ Email / Terminal)
+# Lưu ý: Nếu quá 10 phút, hệ thống tự động xóa tài khoản và yêu cầu đăng ký lại
+POST {{baseUrl}}/auth/verify-otp HTTP/1.1
+Content-Type: application/json
+
+{
+  "email": "test.giangvien@university.edu.vn",
+  "otp": "123456"
+}
+
+### 2f. Quên mật khẩu (Gửi mã OTP 6 số qua Email - TTL 10 phút)
+POST {{baseUrl}}/auth/forgot-password HTTP/1.1
+Content-Type: application/json
+
+{
+  "email": "test.giangvien@university.edu.vn"
+}
+
+### 2g. Đặt lại mật khẩu mới bằng mã OTP
+POST {{baseUrl}}/auth/reset-password HTTP/1.1
+Content-Type: application/json
+
+{
+  "email": "test.giangvien@university.edu.vn",
+  "otp": "123456",
+  "newPassword": "new_password123"
+}
+
 ### 3. Lấy thông tin cá nhân hiện tại (/me)
 GET {{baseUrl}}/auth/me HTTP/1.1
 Authorization: Bearer {{token}}
@@ -73,10 +114,6 @@ Content-Type: application/json
 ### 5. Đăng xuất (Đưa Access Token vào Blacklist & Clear Cookie)
 POST {{baseUrl}}/auth/logout HTTP/1.1
 Authorization: Bearer {{token}}
-<<<<<<< HEAD
-=======
-
->>>>>>> b24b7ba958d3ee96263bc17378d92648966d96aa
 Content-Type: application/json
 
 {
@@ -140,6 +177,7 @@ Content-Type: application/json
   "name": "Bộ môn An Toàn Thông Tin",
   "type": "bomon",
   "parentId": "{{deptId}}",
+  "managerId": "{{userId}}",
   "location": {
     "lat": 21.028511,
     "lng": 105.854167
@@ -152,7 +190,8 @@ Authorization: Bearer {{token}}
 Content-Type: application/json
 
 {
-  "name": "Khoa Công Nghệ Thông Tin & Truyền Thông"
+  "name": "Khoa Công Nghệ Thông Tin & Truyền Thông",
+  "managerId": "{{userId}}"
 }
 
 ### 15. Xóa đơn vị (Kiểm tra ràng buộc nhân sự)
