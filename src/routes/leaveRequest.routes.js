@@ -8,15 +8,18 @@ const {
   approveLeaveRequest,
   rejectLeaveRequest,
 } = require('../controllers/leaveRequest.controller');
-const { verifyToken, authorizeRoles } = require('../middlewares/auth.middleware');
+const { verifyToken, verifyRole } = require('../middlewares/auth.middleware');
 
 router.use(verifyToken);
 
-router.post('/', createLeaveRequest);
-router.get('/', getLeaveRequests);
-router.get('/balance', getLeaveBalance);
-router.get('/:id', getLeaveRequestById);
-router.put('/:id/approve', authorizeRoles('admin', 'truongkhoa'), approveLeaveRequest);
-router.put('/:id/reject', authorizeRoles('admin', 'truongkhoa'), rejectLeaveRequest);
+// Tất cả cán bộ/giảng viên/nhân viên đều có quyền nộp đơn và tra cứu đơn/quỹ phép của mình
+router.post('/', verifyRole(['admin', 'truongkhoa', 'giangvien', 'nhanvien']), createLeaveRequest);
+router.get('/', verifyRole(['admin', 'truongkhoa', 'giangvien', 'nhanvien']), getLeaveRequests);
+router.get('/balance', verifyRole(['admin', 'truongkhoa', 'giangvien', 'nhanvien']), getLeaveBalance);
+router.get('/:id', verifyRole(['admin', 'truongkhoa', 'giangvien', 'nhanvien']), getLeaveRequestById);
+
+// Phê duyệt hoặc từ chối đơn nghỉ phép (chỉ Admin hoặc Trưởng khoa)
+router.put('/:id/approve', verifyRole(['admin', 'truongkhoa']), approveLeaveRequest);
+router.put('/:id/reject', verifyRole(['admin', 'truongkhoa']), rejectLeaveRequest);
 
 module.exports = router;

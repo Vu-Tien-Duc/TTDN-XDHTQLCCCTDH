@@ -57,10 +57,13 @@ const verifyToken = async (req, res, next) => {
 };
 
 /**
- * Middleware phân quyền người dùng (Role-based Authorization)
- * @param  {...string} allowedRoles Các vai trò được phép truy cập: 'admin', 'truongkhoa', 'giangvien', 'nhanvien'
+ * Middleware phân quyền người dùng (Role-Based Access Control - RBAC)
+ * Hỗ trợ truyền dạng mảng: verifyRole(['admin', 'truongkhoa'])
+ * hoặc danh sách đối số: verifyRole('admin', 'truongkhoa')
+ * @param {string[]|...string} roles Các vai trò được phép: 'admin', 'truongkhoa', 'giangvien', 'nhanvien'
  */
-const authorizeRoles = (...allowedRoles) => {
+const verifyRole = (...roles) => {
+  const allowedRoles = Array.isArray(roles[0]) ? roles[0] : roles;
   return (req, res, next) => {
     if (!req.user || !allowedRoles.includes(req.user.role)) {
       return sendError(res, 'Bạn không có quyền thực hiện hành động này.', null, 403);
@@ -69,7 +72,11 @@ const authorizeRoles = (...allowedRoles) => {
   };
 };
 
+// Alias hỗ trợ tương thích ngược
+const authorizeRoles = verifyRole;
+
 module.exports = {
   verifyToken,
+  verifyRole,
   authorizeRoles,
 };

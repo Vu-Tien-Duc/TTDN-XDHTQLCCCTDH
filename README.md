@@ -78,7 +78,7 @@ TTDN-XDHTQLCCCTDH/
 │   │   ├── auditLog.routes.js        # /api/audit-logs
 │   │   └── report.routes.js          # /api/reports
 │   ├── middlewares/              # Xác thực JWT & Bắt lỗi hệ thống
-│   │   ├── auth.middleware.js        # verifyToken, authorizeRoles
+│   │   ├── auth.middleware.js        # verifyToken, verifyRole (RBAC)
 │   │   └── error.middleware.js       # errorHandler, notFoundHandler
 │   ├── services/                 # Helper tính toán logic
 │   │   ├── attendance.service.js     # Tính toán trạng thái ON_TIME/LATE theo ca
@@ -104,7 +104,7 @@ npm run seed
 ### 2. Danh sách tài khoản thử nghiệm:
 | Vai trò | Email | Mật khẩu | Ghi chú |
 | :--- | :--- | :--- | :--- |
-| **Admin** | `admin@university.edu.vn` | `password123` | Toàn quyền quản trị hệ thống |
+| **Admin** | `daihocdtd@gmail.com` | `password123` | Toàn quyền quản trị hệ thống (Email trường) |
 | **Trưởng Khoa** | `truongkhoa.cntt@university.edu.vn` | `password123` | Quản lý nhân sự Khoa CNTT |
 | **Giảng Viên 1** | `giangvien.bich@university.edu.vn` | `password123` | Có lịch dạy hôm nay, đã duyệt nghỉ 3 ngày |
 | **Giảng Viên 2** | `giangvien.cuong@university.edu.vn` | `password123` | Có đơn xin nghỉ đang chờ duyệt (PENDING) |

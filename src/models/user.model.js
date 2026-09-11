@@ -35,6 +35,27 @@ const userSchema = new mongoose.Schema(
       required: true,
       default: true,
     },
+    isVerified: {
+      type: Boolean,
+      required: true,
+      default: false,
+    },
+    otpCode: {
+      type: String,
+      default: null,
+      select: false,
+    },
+    otpExpiresAt: {
+      type: Date,
+      default: null,
+      select: false,
+    },
+    otpType: {
+      type: String,
+      enum: ['VERIFY_ACCOUNT', 'FORGOT_PASSWORD'],
+      default: null,
+      select: false,
+    },
     annualLeaveQuota: {
       type: Number,
       default: 12,
@@ -46,12 +67,18 @@ const userSchema = new mongoose.Schema(
     toJSON: {
       transform: (doc, ret) => {
         delete ret.passwordHash;
+        delete ret.otpCode;
+        delete ret.otpExpiresAt;
+        delete ret.otpType;
         return ret;
       },
     },
     toObject: {
       transform: (doc, ret) => {
         delete ret.passwordHash;
+        delete ret.otpCode;
+        delete ret.otpExpiresAt;
+        delete ret.otpType;
         return ret;
       },
     },

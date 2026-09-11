@@ -7,14 +7,17 @@ const {
   updateSchedule,
   deleteSchedule,
 } = require('../controllers/schedule.controller');
-const { verifyToken, authorizeRoles } = require('../middlewares/auth.middleware');
+const { verifyToken, verifyRole } = require('../middlewares/auth.middleware');
 
 router.use(verifyToken);
 
-router.get('/', getSchedules);
-router.get('/:id', getScheduleById);
-router.post('/', authorizeRoles('admin', 'truongkhoa'), createSchedule);
-router.put('/:id', authorizeRoles('admin', 'truongkhoa'), updateSchedule);
-router.delete('/:id', authorizeRoles('admin', 'truongkhoa'), deleteSchedule);
+// Tất cả cán bộ/giảng viên/nhân viên có thể tra cứu lịch công tác và giảng dạy
+router.get('/', verifyRole(['admin', 'truongkhoa', 'giangvien', 'nhanvien']), getSchedules);
+router.get('/:id', verifyRole(['admin', 'truongkhoa', 'giangvien', 'nhanvien']), getScheduleById);
+
+// Thao tác phân lịch công tác/giảng dạy chỉ dành cho Admin và Trưởng khoa
+router.post('/', verifyRole(['admin', 'truongkhoa']), createSchedule);
+router.put('/:id', verifyRole(['admin', 'truongkhoa']), updateSchedule);
+router.delete('/:id', verifyRole(['admin', 'truongkhoa']), deleteSchedule);
 
 module.exports = router;

@@ -96,6 +96,7 @@ const createUser = async (req, res, next) => {
       departmentId,
       annualLeaveQuota: annualLeaveQuota !== undefined ? annualLeaveQuota : 12,
       isActive: true,
+      isVerified: true,
     });
 
     const populatedUser = await User.findById(newUser._id).populate('departmentId', 'name type');

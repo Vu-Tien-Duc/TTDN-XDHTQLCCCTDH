@@ -7,14 +7,17 @@ const {
   updateShiftConfig,
   deleteShiftConfig,
 } = require('../controllers/shiftConfig.controller');
-const { verifyToken, authorizeRoles } = require('../middlewares/auth.middleware');
+const { verifyToken, verifyRole } = require('../middlewares/auth.middleware');
 
 router.use(verifyToken);
 
-router.get('/', getAllShiftConfigs);
-router.get('/:id', getShiftConfigById);
-router.post('/', authorizeRoles('admin'), createShiftConfig);
-router.put('/:id', authorizeRoles('admin'), updateShiftConfig);
-router.delete('/:id', authorizeRoles('admin'), deleteShiftConfig);
+// Tất cả cán bộ/giảng viên/nhân viên có thể tra cứu thông tin ca làm việc chuẩn
+router.get('/', verifyRole(['admin', 'truongkhoa', 'giangvien', 'nhanvien']), getAllShiftConfigs);
+router.get('/:id', verifyRole(['admin', 'truongkhoa', 'giangvien', 'nhanvien']), getShiftConfigById);
+
+// Thao tác cấu hình ca chỉ dành cho Admin
+router.post('/', verifyRole(['admin']), createShiftConfig);
+router.put('/:id', verifyRole(['admin']), updateShiftConfig);
+router.delete('/:id', verifyRole(['admin']), deleteShiftConfig);
 
 module.exports = router;

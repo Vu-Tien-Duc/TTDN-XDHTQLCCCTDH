@@ -119,15 +119,16 @@ const seedData = async () => {
     const salt = await bcrypt.genSalt(12);
     const passwordHash = await bcrypt.hash(defaultPassword, salt);
 
-    // 1 Admin
+    // 1 Admin (Tài khoản quyền cao nhất của Trường Đại học)
     const adminUser = await User.create({
-      fullName: 'Quản Trị Viên Hệ Thống (Admin)',
-      email: 'admin@university.edu.vn',
+      fullName: 'Quản Trị Viên Hệ Thống (Admin Trường)',
+      email: 'daihocdtd@gmail.com',
       passwordHash,
       role: 'admin',
       departmentId: rootDept._id,
       annualLeaveQuota: 15,
       isActive: true,
+      isVerified: true,
     });
 
     // 1 Trưởng khoa
@@ -139,6 +140,7 @@ const seedData = async () => {
       departmentId: itFaculty._id,
       annualLeaveQuota: 14,
       isActive: true,
+      isVerified: true,
     });
 
     // Cập nhật managerId cho Khoa CNTT
@@ -154,6 +156,7 @@ const seedData = async () => {
       departmentId: seDept._id,
       annualLeaveQuota: 12,
       isActive: true,
+      isVerified: true,
     });
 
     const lecturerCuong = await User.create({
@@ -164,6 +167,7 @@ const seedData = async () => {
       departmentId: isDept._id,
       annualLeaveQuota: 12,
       isActive: true,
+      isVerified: true,
     });
 
     const lecturerLinh = await User.create({
@@ -174,6 +178,7 @@ const seedData = async () => {
       departmentId: itFaculty._id,
       annualLeaveQuota: 12,
       isActive: true,
+      isVerified: true,
     });
 
     // 1 Nhân viên
@@ -185,8 +190,9 @@ const seedData = async () => {
       departmentId: trainingDept._id,
       annualLeaveQuota: 12,
       isActive: true,
+      isVerified: true,
     });
-    console.log('✔ Đã tạo 6 tài khoản: 1 Admin, 1 Trưởng khoa, 3 Giảng viên, 1 Nhân viên (Mật khẩu: password123)');
+    console.log('✔ Đã tạo 6 tài khoản: 1 Admin, 1 Trưởng khoa, 3 Giảng viên, 1 Nhân viên (Mật khẩu: password123, isVerified: true)');
 
     console.log('\n--- 4. TẠO CÁC CA LÀM VIỆC CHUẨN (SHIFT_CONFIGS) ---');
     const shiftMorning = await ShiftConfig.create({
@@ -344,7 +350,7 @@ const seedData = async () => {
     console.log('🎉 KHỞI TẠO DỮ LIỆU MẪU (SEED DATA) HOÀN TẤT THÀNH CÔNG!');
     console.log('================================================================');
     console.log('Danh sách tài khoản đăng nhập kiểm thử:');
-    console.log('1. Admin:         admin@university.edu.vn            / password123');
+    console.log('1. Admin:         daihocdtd@gmail.com                / password123');
     console.log('2. Trưởng Khoa:   truongkhoa.cntt@university.edu.vn  / password123');
     console.log('3. Giảng Viên 1:  giangvien.bich@university.edu.vn   / password123 (Đã duyệt nghỉ 3 ngày)');
     console.log('4. Giảng Viên 2:  giangvien.cuong@university.edu.vn  / password123 (Có đơn PENDING)');

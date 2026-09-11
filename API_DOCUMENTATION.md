@@ -14,7 +14,7 @@ Tất cả tài khoản dùng chung mật khẩu: **`password123`**
 
 | Vai trò | Họ tên | Email | ID Người Dùng (Mẫu) |
 | :--- | :--- | :--- | :--- |
-| **Admin** | Quản Trị Viên Hệ Thống | `admin@university.edu.vn` | `6a9d57378cf3a6165de25dd6` |
+| **Admin** | Quản Trị Viên Hệ Thống | `daihocdtd@gmail.com` | `6a9d57378cf3a6165de25dd6` |
 | **Trưởng Khoa** | PGS. TS. Lê Hoàng Nam | `truongkhoa.cntt@university.edu.vn` | `6a9d57378cf3a6165de25dd7` |
 | **Giảng Viên 1** | TS. Trần Thị Bích (Có lịch hôm nay) | `giangvien.bich@university.edu.vn` | `6a9d57378cf3a6165de25dd8` |
 | **Giảng Viên 2** | ThS. Phạm Văn Cường (Có đơn PENDING) | `giangvien.cuong@university.edu.vn` | `6a9d57378cf3a6165de25dd9` |
@@ -39,8 +39,11 @@ Tất cả tài khoản dùng chung mật khẩu: **`password123`**
 
 | Method | Endpoint | Quyền truy cập | Mô tả |
 | :--- | :--- | :--- | :--- |
-| `POST` | `/api/auth/register` | Admin | Tạo tài khoản người dùng mới (mã hóa bcrypt cost 12). |
-| `POST` | `/api/auth/login` | Công khai | Đăng nhập hệ thống, cấp Access Token (15 phút) + Refresh Token (7 ngày) lưu trong `httpOnly cookie`. |
+| `POST` | `/api/auth/register` | Công khai | Đăng ký tài khoản mới, sinh mã OTP 6 chữ số gửi qua Email (thời hạn 10 phút, tài khoản ở trạng thái `isVerified: false`). |
+| `POST` | `/api/auth/verify-otp` | Công khai | Xác minh tài khoản qua mã OTP: Nếu quá 10 phút -> tự động xóa tài khoản; nếu hợp lệ (<10p) -> kích hoạt tài khoản và gửi email thông báo thành công. |
+| `POST` | `/api/auth/login` | Công khai | Đăng nhập hệ thống (yêu cầu tài khoản đã `isVerified: true`), cấp Access Token (15 phút) + Refresh Token (7 ngày) lưu trong `httpOnly cookie`. |
+| `POST` | `/api/auth/forgot-password` | Công khai | Quên mật khẩu: Gửi mã OTP 6 số (hạn 10 phút) đến email của người dùng. |
+| `POST` | `/api/auth/reset-password` | Công khai | Đặt lại mật khẩu mới: Xác thực mã OTP còn hạn (<10p) và cập nhật mật khẩu mới (mã hóa bcrypt cost 12, hủy các token cũ). |
 | `POST` | `/api/auth/refresh` | Công khai / Cookie | Cấp lại Access Token mới (15 phút) từ Refresh Token (nhận qua `httpOnly cookie` hoặc body). |
 | `POST` | `/api/auth/logout` | Đã đăng nhập | Đưa Access Token vào Blacklist, xóa Refresh Token khỏi CSDL và clear `httpOnly cookie`. |
 | `GET` | `/api/auth/me` | Đã đăng nhập | Lấy thông tin cá nhân hiện tại kèm đơn vị công tác (ẩn passwordHash). |
@@ -57,7 +60,7 @@ Tất cả tài khoản dùng chung mật khẩu: **`password123`**
 - **Body:**
 ```json
 {
-  "email": "admin@university.edu.vn",
+  "email": "daihocdtd@gmail.com",
   "password": "password123"
 }
 ```
@@ -71,8 +74,8 @@ Tất cả tài khoản dùng chung mật khẩu: **`password123`**
     "refreshToken": "eyJhbGciOiJIUzI1NiIsInR5cCI6...",
     "user": {
       "_id": "6a9d57378cf3a6165de25dd6",
-      "fullName": "Quản Trị Viên Hệ Thống (Admin)",
-      "email": "admin@university.edu.vn",
+      "fullName": "Quản Trị Viên Hệ Thống (Admin Trường)",
+      "email": "daihocdtd@gmail.com",
       "role": "admin",
       "departmentId": "6a9d57378cf3a6165de25dd0",
       "annualLeaveQuota": 15,
@@ -88,10 +91,10 @@ Tất cả tài khoản dùng chung mật khẩu: **`password123`**
 
 | Method | Endpoint | Quyền truy cập | Mô tả |
 | :--- | :--- | :--- | :--- |
-| `GET` | `/api/departments` | Đã đăng nhập | Danh sách khoa/bộ môn/phòng ban (dạng cây phân cấp `?tree=true`). |
-| `GET` | `/api/departments/:id` | Đã đăng nhập | Chi tiết một đơn vị trực thuộc. |
-| `POST` | `/api/departments` | Admin | Tạo đơn vị mới, gắn `parentId` và `managerId`. |
-| `PUT` | `/api/departments/:id` | Admin | Cập nhật tên, loại, tọa độ GPS hoặc người quản lý. |
+| `GET` | `/api/departments` | Đã đăng nhập (`verifyRole`) | Danh sách khoa/bộ môn/phòng ban (dạng cây phân cấp `?tree=true`). |
+| `GET` | `/api/departments/:id` | Đã đăng nhập (`verifyRole`) | Chi tiết một đơn vị trực thuộc. |
+| `POST` | `/api/departments` | Admin | Tạo đơn vị mới, gắn `parentId` (Khoa > Bộ môn) và `managerId`. |
+| `PUT` | `/api/departments/:id` | Admin / TrưởngKhoa | Cập nhật tên, loại, tọa độ GPS hoặc người quản lý (`managerId`). |
 | `DELETE` | `/api/departments/:id` | Admin | Xóa đơn vị (kiểm tra ràng buộc: từ chối xóa nếu còn nhân sự hoặc đơn vị con). |
 
 #### Ví dụ Tạo đơn vị mới (`POST /api/departments`):
@@ -100,6 +103,7 @@ Tất cả tài khoản dùng chung mật khẩu: **`password123`**
   "name": "Bộ môn An Toàn Thông Tin",
   "type": "bomon",
   "parentId": "6a9d57378cf3a6165de25dd1",
+  "managerId": "6a9d57378cf3a6165de25dd7",
   "location": {
     "lat": 21.028511,
     "lng": 105.854167
