@@ -275,10 +275,11 @@ DELETE {{baseUrl}}/schedules/{{scheduleId}} HTTP/1.1
 Authorization: Bearer {{token}}
 
 ### ------------------------------------------------------------------------------
-### 3.4 ATTENDANCE (TV B)
+### ------------------------------------------------------------------------------
+### 3.4 ATTENDANCE (TV B) - BỘ KIỂM THỬ 6 TEST CASES TOÀN DIỆN
 ### ------------------------------------------------------------------------------
 
-### 25. Chấm công Check-in (Backend tự suy luận ca theo giờ Asia/Ho_Chi_Minh)
+### TC01. [Thành công] Giảng viên Check-in tự động nhận diện ca theo lịch (Kỳ vọng: 201 Created, status ON_TIME)
 # Lưu ý: Đăng nhập bằng tài khoản Giảng viên (loginLecturer ở mục 2c) trước khi bấm
 POST {{baseUrl}}/attendance/check-in HTTP/1.1
 Authorization: Bearer {{token}}
@@ -293,22 +294,95 @@ Content-Type: application/json
   }
 }
 
-### 26. Chấm công Check-out (Tự tìm bản ghi mở hôm nay, không nhận ID từ client)
+### TC01b. [Thành công] Check-in thủ công chỉ định ca (shiftId & method: manual)
+POST {{baseUrl}}/attendance/check-in HTTP/1.1
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "shiftId": "{{shiftId}}",
+  "method": "manual",
+  "deviceId": "WEB_PORTAL",
+  "location": {
+    "lat": 21.028511,
+    "lng": 105.854167
+  }
+}
+
+### TC02. [Test Lỗi] Check-in ngoài khung ca hoặc không có lịch dạy hôm nay (Kỳ vọng: 400 Bad Request, Mã ATTENDANCE_004)
+# Thực hiện khi ngoài khung [startTime - 30p, endTime] hoặc dùng tài khoản nhân sự không có lịch hôm nay
+POST {{baseUrl}}/attendance/check-in HTTP/1.1
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "method": "gps",
+  "deviceId": "MOBILE_APP_01",
+  "location": {
+    "lat": 21.028511,
+    "lng": 105.854167
+  }
+}
+
+### TC03. [Test Lỗi] Bấm Check-in lần 2 trong cùng 1 ca hôm nay (Kỳ vọng: 409 Conflict, Mã ATTENDANCE_002)
+# Bấm lại ngay sau khi TC01 đã check-in thành công
+POST {{baseUrl}}/attendance/check-in HTTP/1.1
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "method": "face",
+  "deviceId": "KIOSK_GATE_A2"
+}
+
+### TC04. [Thành công] Check-out ca đang mở hôm nay (Kỳ vọng: 200 OK, cập nhật checkOutTime & tính workingDuration)
+# Backend tự tìm ca mở của chính user hôm nay, không cần truyền ID
 POST {{baseUrl}}/attendance/check-out HTTP/1.1
 Authorization: Bearer {{token}}
 Content-Type: application/json
 
 {}
 
-### 27. Lịch sử chấm công (Phân trang, lọc theo status/thời gian)
+### TC05. [Test Lỗi] Check-out khi chưa từng Check-in hoặc không còn ca mở (Kỳ vọng: 404 Not Found, Mã ATTENDANCE_003)
+# Bấm lại ngay sau TC04 (khi ca đã đóng) hoặc dùng tài khoản chưa từng check-in hôm nay
+POST {{baseUrl}}/attendance/check-out HTTP/1.1
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{}
+
+### TC06. [Thành công] Admin can thiệp sửa log chấm công (Kỳ vọng: 200 OK, isManualOverride: true, ghi audit_logs)
+# Đăng nhập Admin (loginAdmin ở mục 2a) lấy token rồi thực hiện
+PUT {{baseUrl}}/attendance/{{attendanceId}} HTTP/1.1
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "status": "ON_TIME",
+  "checkInTime": "2026-09-11T07:05:00.000Z"
+}
+
+### TC06b. [Kiểm tra DB/Audit] Kiểm tra nhật ký kiểm toán sau khi Admin can thiệp (Kỳ vọng: 200 OK, thấy action EDIT_ATTENDANCE)
+GET {{baseUrl}}/audit-logs?action=EDIT_ATTENDANCE HTTP/1.1
+Authorization: Bearer {{token}}
+
+### 27a. Lịch sử chấm công (Giảng viên / Nhân viên tự động ép lọc chỉ thấy của chính mình)
 GET {{baseUrl}}/attendance/history?page=1&limit=20 HTTP/1.1
 Authorization: Bearer {{token}}
 
-### 28. Xem chi tiết một bản ghi chấm công
+### 27b. Lịch sử chấm công (Admin lọc toàn trường theo status, from, to và phân trang)
+GET {{baseUrl}}/attendance/history?status=ON_TIME&from=2026-01-01&to=2026-12-31&page=1&limit=10 HTTP/1.1
+Authorization: Bearer {{token}}
+
+### 28a. Xem chi tiết một bản ghi chấm công (Phân quyền: GV/NV xem chính mình, TK xem khoa mình, Admin xem tất cả)
 GET {{baseUrl}}/attendance/{{attendanceId}} HTTP/1.1
 Authorization: Bearer {{token}}
 
-### 29. Admin can thiệp sửa log (Tự động set method=admin_override & ghi Audit Log)
+### 28b. [Test Lỗi] Giảng viên cố tình xem bản ghi của người khác (Kỳ vọng: 403 Forbidden)
+GET {{baseUrl}}/attendance/{{attendanceId}} HTTP/1.1
+Authorization: Bearer {{token}}
+
+### 29b. [Test Lỗi] Giảng viên cố tình gọi PUT sửa log chấm công (Kỳ vọng: 403 Forbidden)
 PUT {{baseUrl}}/attendance/{{attendanceId}} HTTP/1.1
 Authorization: Bearer {{token}}
 Content-Type: application/json

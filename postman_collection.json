@@ -739,7 +739,22 @@
       "name": "3.4 Attendance",
       "item": [
         {
-          "name": "1. Chấm công Check-in (Tự suy luận ca)",
+          "name": "TC01 - [Thành công] Giảng viên Check-in đúng giờ trong ca (201 ON_TIME)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "const res = pm.response.json();",
+                  "if (res.data && res.data._id) {",
+                  "    pm.collectionVariables.set('attendanceId', res.data._id);",
+                  "    console.log('✔ Đã tự động lưu attendanceId:', res.data._id);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
           "request": {
             "method": "POST",
             "header": [
@@ -769,7 +784,112 @@
           }
         },
         {
-          "name": "2. Chấm công Check-out (Tự tìm bản ghi hôm nay)",
+          "name": "TC01b - [Thành công] Check-in thủ công chỉ định ca (shiftId & method manual)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "const res = pm.response.json();",
+                  "if (res.data && res.data._id) {",
+                  "    pm.collectionVariables.set('attendanceId', res.data._id);",
+                  "    console.log('✔ Đã tự động lưu attendanceId:', res.data._id);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"shiftId\": \"{{shiftId}}\",\n  \"method\": \"manual\",\n  \"deviceId\": \"WEB_PORTAL\",\n  \"location\": {\n    \"lat\": 21.028511,\n    \"lng\": 105.854167\n  }\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/attendance/check-in",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "attendance",
+                "check-in"
+              ]
+            }
+          }
+        },
+        {
+          "name": "TC02 - [Test Lỗi] Check-in ngoài khung ca hoặc không có lịch (400 ATTENDANCE_004)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"method\": \"gps\",\n  \"deviceId\": \"MOBILE_APP_01\",\n  \"location\": {\n    \"lat\": 21.028511,\n    \"lng\": 105.854167\n  }\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/attendance/check-in",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "attendance",
+                "check-in"
+              ]
+            }
+          }
+        },
+        {
+          "name": "TC03 - [Test Lỗi] Check-in lần 2 trong cùng 1 ca hôm nay (409 ATTENDANCE_002)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"method\": \"face\",\n  \"deviceId\": \"KIOSK_GATE_A2\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/attendance/check-in",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "attendance",
+                "check-in"
+              ]
+            }
+          }
+        },
+        {
+          "name": "TC04 - [Thành công] Check-out ca đang mở hôm nay (200 OK & workingDuration)",
           "request": {
             "method": "POST",
             "header": [
@@ -799,7 +919,67 @@
           }
         },
         {
-          "name": "3. Lịch sử chấm công (Phân trang, lọc)",
+          "name": "TC05 - [Test Lỗi] Check-out khi chưa từng Check-in (404 ATTENDANCE_003)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/attendance/check-out",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "attendance",
+                "check-out"
+              ]
+            }
+          }
+        },
+        {
+          "name": "TC06 - [Thành công] Admin can thiệp sửa log (200 OK & Ghi Audit Log)",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"status\": \"ON_TIME\",\n  \"checkInTime\": \"2026-09-11T07:05:00.000Z\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/attendance/{{attendanceId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "attendance",
+                "{{attendanceId}}"
+              ]
+            }
+          }
+        },
+        {
+          "name": "7. Lịch sử chấm công (Phân quyền 4 cấp, phân trang, lọc)",
           "request": {
             "method": "GET",
             "header": [
@@ -831,7 +1011,7 @@
           }
         },
         {
-          "name": "4. Chi tiết một bản ghi chấm công",
+          "name": "8. Chi tiết một bản ghi chấm công (Bảo mật theo role)",
           "request": {
             "method": "GET",
             "header": [
@@ -840,36 +1020,6 @@
                 "value": "Bearer {{token}}"
               }
             ],
-            "url": {
-              "raw": "{{baseUrl}}/attendance/{{attendanceId}}",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "attendance",
-                "{{attendanceId}}"
-              ]
-            }
-          }
-        },
-        {
-          "name": "5. Admin sửa bản ghi chấm công (Ghi Audit Log)",
-          "request": {
-            "method": "PUT",
-            "header": [
-              {
-                "key": "Content-Type",
-                "value": "application/json"
-              },
-              {
-                "key": "Authorization",
-                "value": "Bearer {{token}}"
-              }
-            ],
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"status\": \"ON_TIME\"\n}"
-            },
             "url": {
               "raw": "{{baseUrl}}/attendance/{{attendanceId}}",
               "host": [

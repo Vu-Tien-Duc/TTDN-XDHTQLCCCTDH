@@ -30,6 +30,10 @@ const auditLogSchema = new mongoose.Schema(
       required: true,
       default: Date.now,
     },
+    details: {
+      type: mongoose.Schema.Types.Mixed,
+      default: null,
+    },
   },
   {
     timestamps: true,

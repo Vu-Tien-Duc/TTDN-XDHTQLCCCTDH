@@ -26,6 +26,12 @@ const options = {
           bearerFormat: 'JWT',
           description: 'Nhập Token JWT dưới dạng: Bearer <token>',
         },
+        bearerAuth: {
+          type: 'http',
+          scheme: 'bearer',
+          bearerFormat: 'JWT',
+          description: 'Nhập Token JWT dưới dạng: Bearer <token>',
+        },
       },
     },
     security: [
