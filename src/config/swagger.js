@@ -24,10 +24,30 @@ const options = {
     ],
     tags: swaggerTags,
     paths: swaggerPaths,
-    components: swaggerComponents,
+    components: {
+      ...swaggerComponents,
+      securitySchemes: {
+        ...(swaggerComponents?.securitySchemes || {}),
+        BearerAuth: {
+          type: 'http',
+          scheme: 'bearer',
+          bearerFormat: 'JWT',
+          description: 'Nhập Token JWT dưới dạng: Bearer <token>',
+        },
+        bearerAuth: {
+          type: 'http',
+          scheme: 'bearer',
+          bearerFormat: 'JWT',
+          description: 'Nhập Token JWT dưới dạng: Bearer <token>',
+        },
+      },
+    },
     security: [
       {
         BearerAuth: [],
+      },
+      {
+        bearerAuth: [],
       },
     ],
   },

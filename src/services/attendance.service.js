@@ -13,6 +13,24 @@ const getVietnamTime = (date = new Date()) => {
 };
 
 /**
+ * Xác định khoảng thời gian đầu ngày và cuối ngày [00:00:00.000, 23:59:59.999] theo chuẩn múi giờ UTC+7 (Asia/Ho_Chi_Minh)
+ * @param {Date} [date=new Date()]
+ * @returns {{ startOfDay: Date, endOfDay: Date, dateStr: string }}
+ */
+const getVietnamDayRange = (date = new Date()) => {
+  const formatter = new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Asia/Ho_Chi_Minh',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  });
+  const dateStr = formatter.format(date); // Định dạng YYYY-MM-DD
+  const startOfDay = new Date(`${dateStr}T00:00:00.000+07:00`);
+  const endOfDay = new Date(`${dateStr}T23:59:59.999+07:00`);
+  return { startOfDay, endOfDay, dateStr };
+};
+
+/**
  * Bóc tách chuỗi "HH:mm" thành tổng số phút trong ngày tính từ 00:00 để so sánh toán học
  * @param {string} timeStr - Chuỗi định dạng "HH:mm"
  * @returns {number} Số phút từ 00:00
@@ -62,6 +80,42 @@ const calculateAttendanceStatus = (checkInTime, shiftConfig, date = new Date()) 
 };
 
 /**
+ * Đánh giá trạng thái khi Check-out:
+ * - So sánh giờ check-out thực tế với endTime của ca làm việc
+ * - Nếu về trước endTime:
+ *   + Nếu trạng thái ban đầu là ON_TIME -> Chuyển thành EARLY_LEAVE
+ *   + Nếu trạng thái ban đầu là LATE -> Giữ nguyên LATE
+ * @param {Date} checkOutTime 
+ * @param {Object} shiftConfig 
+ * @param {String} initialStatus - 'ON_TIME' | 'LATE'
+ * @returns {Object} { finalStatus, isEarlyLeave, earlyMinutes }
+ */
+const calculateCheckOutStatus = (checkOutTime, shiftConfig, initialStatus = 'ON_TIME') => {
+  if (!shiftConfig || !shiftConfig.endTime) {
+    return { finalStatus: initialStatus, isEarlyLeave: false, earlyMinutes: 0 };
+  }
+
+  const vnDate = getVietnamTime(checkOutTime);
+  const checkOutMinutes = vnDate.getHours() * 60 + vnDate.getMinutes();
+  const shiftEndMinutes = timeStringToMinutes(shiftConfig.endTime);
+
+  const isEarlyLeave = checkOutMinutes < shiftEndMinutes;
+  const earlyMinutes = isEarlyLeave ? shiftEndMinutes - checkOutMinutes : 0;
+
+  // Quy tắc nghiệp vụ: Nếu ban đầu ON_TIME mà về sớm -> EARLY_LEAVE. Nếu ban đầu đã LATE -> giữ nguyên LATE
+  let finalStatus = initialStatus;
+  if (isEarlyLeave && initialStatus === 'ON_TIME') {
+    finalStatus = 'EARLY_LEAVE';
+  }
+
+  return {
+    finalStatus,
+    isEarlyLeave,
+    earlyMinutes,
+  };
+};
+
+/**
  * Lấy tổng hợp thống kê chấm công theo người dùng
  */
 const getAttendanceSummaryByUser = async (userId, startDate, endDate) => {
@@ -90,9 +144,10 @@ const getAttendanceSummaryByUser = async (userId, startDate, endDate) => {
 
 module.exports = {
   getVietnamTime,
+  getVietnamDayRange,
   timeStringToMinutes,
   getTodayScheduleWindow,
   calculateAttendanceStatus,
+  calculateCheckOutStatus,
   getAttendanceSummaryByUser,
 };
-

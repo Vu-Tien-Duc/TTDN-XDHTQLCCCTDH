@@ -1,5 +1,7 @@
 const mongoose = require('mongoose');
 const LeaveRequest = require('../models/leaveRequest.model');
+const AttendanceLog = require('../models/attendanceLog.model');
+const Schedule = require('../models/schedule.model');
 const User = require('../models/user.model');
 const AuditLog = require('../models/auditLog.model');
 const { sendSuccess, sendError } = require('../utils/responseHandler');
@@ -197,17 +199,48 @@ const approveLeaveRequest = async (req, res, next) => {
     request.rejectionReason = null;
     await request.save();
 
+    // Tích hợp chéo với Module Attendance (TV B):
+    // Khi đơn được duyệt (APPROVED), tự động tạo/cập nhật bản ghi attendance_logs với status = 'EXCUSED_ABSENCE' và gán leaveRequestId
+    const schedules = await Schedule.find({
+      userId: request.userId,
+      startDate: { $lte: request.endDate },
+      endDate: { $gte: request.startDate },
+    });
+
+    for (const sch of schedules) {
+      await AttendanceLog.findOneAndUpdate(
+        {
+          userId: request.userId,
+          scheduleId: sch._id,
+          leaveRequestId: request._id,
+        },
+        {
+          $set: {
+            userId: request.userId,
+            shiftId: sch.shiftId,
+            scheduleId: sch._id,
+            status: 'EXCUSED_ABSENCE',
+            leaveRequestId: request._id,
+            checkInTime: request.startDate,
+            isManualOverride: false,
+            method: 'manual',
+          },
+        },
+        { upsert: true, new: true }
+      );
+    }
+
     // Ghi audit log
     await AuditLog.create({
       actor: req.user.id,
       action: 'APPROVE_LEAVE',
       targetId: request._id.toString(),
       targetType: 'LeaveRequest',
-      ipAddress: req.ip || req.connection.remoteAddress,
+      ipAddress: req.ip || req.connection?.remoteAddress || null,
       timestamp: new Date(),
     });
 
-    return sendSuccess(res, 'Đã phê duyệt đơn thành công.', request);
+    return sendSuccess(res, 'Đã phê duyệt đơn thành công và đồng bộ chấm công có phép (EXCUSED_ABSENCE).', request);
   } catch (error) {
     next(error);
   }

@@ -156,6 +156,38 @@ Tất cả tài khoản dùng chung mật khẩu: **`password123`**
 5. Không có lịch nào thỏa mãn -> trả mã lỗi **`ATTENDANCE_004`**.
 6. Có lịch thỏa mãn -> Tự gán `scheduleId`, `shiftId` và so sánh giờ để tính trạng thái `ON_TIME` hoặc `LATE`.
 
+#### Quy trình tự động hóa Check-out & Đánh giá Về sớm (EARLY_LEAVE):
+1. Lấy `userId` từ token xác thực (Client không cần gửi bất kỳ tham số nào).
+2. Xác định khoảng thời gian ngày hôm nay `[00:00:00, 23:59:59]` theo múi giờ `Asia/Ho_Chi_Minh` (UTC+7).
+3. Tìm bản ghi check-in mở gần nhất trong ngày: `AttendanceLog.findOne({ userId, checkOutTime: null, checkInTime: { $gte: startOfDay, $lte: endOfDay } })`.
+4. Nếu không có bản ghi nào mở -> Trả về mã lỗi **404 ATTENDANCE_003** (*"Không tìm thấy bản ghi check-in nào còn mở trong ngày hôm nay"*).
+5. So sánh thời điểm Check-out thực tế với `shiftId.endTime`:
+   - Nếu thời điểm Check-out $< endTime$: Đánh dấu về sớm.
+   - **Quy tắc ưu tiên nghiệp vụ**:
+     - Nếu trạng thái ban đầu là `ON_TIME` $\rightarrow$ Chuyển thành `EARLY_LEAVE`.
+     - Nếu trạng thái ban đầu là `LATE` $\rightarrow$ Giữ nguyên trạng thái `LATE`.
+6. Cập nhật `checkOutTime = new Date()`, lưu CSDL và trả về:
+   - Thông tin bản ghi populate (`userId`, `shiftId`, `scheduleId`).
+   - `workingDuration`: `{ totalMinutes, formatted: "X giờ Y phút" }`.
+   - `earlyLeave`: `{ isEarlyLeave, earlyMinutes }`.
+
+#### Cơ chế Phân quyền 4 cấp trong Lịch sử Chấm công (`GET /api/attendance/history`):
+1. **Giảng viên / Nhân viên**: Hệ thống tự động ép điều kiện `query.userId = req.user.id` (chỉ xem được lịch sử của chính mình, chặn can thiệp qua query param).
+2. **Trưởng khoa**: Tự động lọc danh sách nhân sự thuộc khoa của mình (`departmentId`), không được phép xem nhân sự ngoài khoa (nếu cố tình truyền `userId` ngoài khoa $\rightarrow$ trả `403 Forbidden`).
+3. **Admin**: Xem toàn bộ lịch sử toàn trường; lọc linh hoạt theo `userId`, `departmentId`, `status`, `from`, `to`.
+4. **Phân trang**: Chuẩn `page`, `limit`, `skip`, trả về `total` và `totalPages`.
+
+#### Cơ chế Admin can thiệp điều chỉnh (Manual Override) & Ghi vết Audit (`PUT /api/attendance/:id`):
+- **Bảo vệ bởi role:** Chỉ `admin` được phép gọi (`authorizeRoles('admin')`).
+- **Các trường hỗ trợ sửa:** `status`, `checkInTime`, `checkOutTime`, `leaveRequestId`.
+- **Gán cờ bắt buộc:** `isManualOverride = true` và `method = 'admin_override'`.
+- **Ghi vết tự động vào `audit_logs`:**
+  - `actor`: ID của Admin.
+  - `action`: `'EDIT_ATTENDANCE'`.
+  - `targetId`: ID bản ghi chấm công.
+  - `targetType`: `'AttendanceLog'`.
+  - `details`: Lưu cả dữ liệu trước (`before`) và sau (`after`) khi can thiệp.
+
 ---
 
 ## 3.5 Phân hệ Đơn xin nghỉ phép & Đổi ca (Leave Request)
