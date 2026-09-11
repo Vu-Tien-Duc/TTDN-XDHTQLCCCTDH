@@ -57,6 +57,110 @@
       "name": "3.1 Auth & User",
       "item": [
         {
+          "name": "0a. Đăng ký tài khoản mới (Gửi OTP 10 phút)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"fullName\": \"Giảng Viên Mới\",\n  \"email\": \"test.giangvien@gmail.com\",\n  \"password\": \"password123\",\n  \"role\": \"giangvien\",\n  \"departmentId\": \"{{deptId}}\",\n  \"annualLeaveQuota\": 12\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/auth/register",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "auth",
+                "register"
+              ]
+            }
+          }
+        },
+        {
+          "name": "0b. Xác minh tài khoản qua mã OTP (Hạn 10 phút)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"test.giangvien@gmail.com\",\n  \"otp\": \"Điền_mã_OTP_vào_đây\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/auth/verify-otp",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "auth",
+                "verify-otp"
+              ]
+            }
+          }
+        },
+        {
+          "name": "0c. Quên mật khẩu (Gửi mã OTP qua Email)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"test.giangvien@gmail.com\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/auth/forgot-password",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "auth",
+                "forgot-password"
+              ]
+            }
+          }
+        },
+        {
+          "name": "0d. Đặt lại mật khẩu mới qua OTP",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"test.giangvien@gmail.com\",\n  \"otp\": \"Điền_mã_OTP_vào_đây\",\n  \"newPassword\": \"matkhau_moi_123\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/auth/reset-password",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "auth",
+                "reset-password"
+              ]
+            }
+          }
+        },
+        {
           "name": "1. Đăng nhập Admin (Auto-Save Token)",
           "event": [
             {
@@ -86,7 +190,7 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"email\": \"admin@university.edu.vn\",\n  \"password\": \"password123\"\n}"
+              "raw": "{\n  \"email\": \"daihocdtd@gmail.com\",\n  \"password\": \"password123\"\n}"
             },
             "url": {
               "raw": "{{baseUrl}}/auth/login",
@@ -427,7 +531,7 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"name\": \"Bộ môn Khoa Học Dữ Liệu\",\n  \"type\": \"bomon\",\n  \"parentId\": \"{{deptId}}\",\n  \"location\": {\n    \"lat\": 21.028511,\n    \"lng\": 105.854167\n  }\n}"
+              "raw": "{\n  \"name\": \"Bộ môn Khoa Học Dữ Liệu\",\n  \"type\": \"bomon\",\n  \"parentId\": \"{{deptId}}\",\n  \"managerId\": \"{{userId}}\",\n  \"location\": {\n    \"lat\": 21.028511,\n    \"lng\": 105.854167\n  }\n}"
             },
             "url": {
               "raw": "{{baseUrl}}/departments",
@@ -456,7 +560,7 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"name\": \"Khoa Công Nghệ Thông Tin & Truyền Thông\"\n}"
+              "raw": "{\n  \"name\": \"Khoa Công Nghệ Thông Tin & Truyền Thông\",\n  \"managerId\": \"{{userId}}\"\n}"
             },
             "url": {
               "raw": "{{baseUrl}}/departments/{{deptId}}",

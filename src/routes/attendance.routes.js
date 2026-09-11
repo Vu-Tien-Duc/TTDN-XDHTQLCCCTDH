@@ -7,7 +7,7 @@ const {
   getAttendanceById,
   updateAttendanceByAdmin,
 } = require('../controllers/attendance.controller');
-const { verifyToken, authorizeRoles } = require('../middlewares/auth.middleware');
+const { verifyToken, verifyRole } = require('../middlewares/auth.middleware');
 
 /**
  * @swagger

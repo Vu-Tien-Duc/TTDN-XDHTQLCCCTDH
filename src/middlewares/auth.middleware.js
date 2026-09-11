@@ -10,11 +10,19 @@ const verifyToken = async (req, res, next) => {
   try {
     const authHeader = req.headers.authorization;
 
-    if (!authHeader || !authHeader.startsWith('Bearer ')) {
-      return sendError(res, 'Truy cập bị từ chối. Token không tồn tại hoặc không đúng định dạng.', null, 401);
+    if (!authHeader) {
+      return sendError(res, 'Truy cập bị từ chối. Token không tồn tại.', null, 401);
     }
 
-    const token = authHeader.split(' ')[1];
+    // Chấp nhận cả "Bearer <token>" và token thô; xử lý tối đa 2 lần tiền tố Bearer
+    const token = authHeader
+      .replace(/^Bearer\s+/i, '')
+      .replace(/^Bearer\s+/i, '')
+      .trim();
+
+    if (!token) {
+      return sendError(res, 'Truy cập bị từ chối. Định dạng token không hợp lệ.', null, 401);
+    }
 
     // 1. Kiểm tra xem Access Token có nằm trong danh sách Blacklist (đã logout) hay không
     const isBlacklisted = await TokenBlacklist.findOne({ token });
@@ -57,10 +65,13 @@ const verifyToken = async (req, res, next) => {
 };
 
 /**
- * Middleware phân quyền người dùng (Role-based Authorization)
- * @param  {...string} allowedRoles Các vai trò được phép truy cập: 'admin', 'truongkhoa', 'giangvien', 'nhanvien'
+ * Middleware phân quyền người dùng (Role-Based Access Control - RBAC)
+ * Hỗ trợ truyền dạng mảng: verifyRole(['admin', 'truongkhoa'])
+ * hoặc danh sách đối số: verifyRole('admin', 'truongkhoa')
+ * @param {string[]|...string} roles Các vai trò được phép: 'admin', 'truongkhoa', 'giangvien', 'nhanvien'
  */
-const authorizeRoles = (...allowedRoles) => {
+const verifyRole = (...roles) => {
+  const allowedRoles = Array.isArray(roles[0]) ? roles[0] : roles;
   return (req, res, next) => {
     if (!req.user || !allowedRoles.includes(req.user.role)) {
       return sendError(res, 'Bạn không có quyền thực hiện hành động này.', null, 403);
@@ -69,7 +80,11 @@ const authorizeRoles = (...allowedRoles) => {
   };
 };
 
+// Alias hỗ trợ tương thích ngược
+const authorizeRoles = verifyRole;
+
 module.exports = {
   verifyToken,
+  verifyRole,
   authorizeRoles,
 };

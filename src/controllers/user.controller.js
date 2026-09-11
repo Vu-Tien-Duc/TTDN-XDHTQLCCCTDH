@@ -1,16 +1,17 @@
-const User = require('../models/user.model');
 const bcrypt = require('bcryptjs');
+const User = require('../models/user.model');
 const { sendSuccess, sendError } = require('../utils/responseHandler');
 
 /**
- * @desc Lấy danh sách tất cả người dùng (Có phân trang, lọc theo phòng ban, vai trò, trạng thái)
+ * @desc Lấy danh sách người dùng (Hỗ trợ lọc, tìm kiếm; Trưởng khoa chỉ xem thuộc khoa mình)
  * @route GET /api/v1/users
  */
 const getAllUsers = async (req, res, next) => {
   try {
-    const { departmentId, role, isActive, search } = req.query;
+    const { role, departmentId, isActive, search } = req.query;
     const query = {};
 
+    // 1. Phân quyền dữ liệu theo phạm vi (Scope RBAC):
     // Trưởng khoa chỉ được phép xem danh sách nhân sự thuộc khoa của mình
     if (req.user.role === 'truongkhoa') {
       if (!req.user.departmentId) {
@@ -54,35 +55,36 @@ const getUserById = async (req, res, next) => {
 
     // Nếu là Trưởng khoa, kiểm tra người dùng được xem có thuộc khoa mình phụ trách hay không
     if (req.user.role === 'truongkhoa') {
-      const userDeptId = user.departmentId ? user.departmentId._id.toString() : null;
+      const userDeptId = user.departmentId?._id ? user.departmentId._id.toString() : user.departmentId?.toString();
       if (userDeptId !== req.user.departmentId) {
         return sendError(res, 'Bạn chỉ có quyền xem thông tin nhân sự thuộc khoa của mình.', null, 403);
       }
     }
 
-    return sendSuccess(res, 'Lấy chi tiết người dùng thành công.', user);
+    return sendSuccess(res, 'Lấy thông tin người dùng thành công.', user);
   } catch (error) {
     next(error);
   }
 };
 
 /**
- * @desc Thêm người dùng mới (Chỉ dành cho Admin)
+ * @desc Thêm người dùng mới (Chỉ Admin)
  * @route POST /api/v1/users
  */
 const createUser = async (req, res, next) => {
   try {
     const { fullName, email, password, role, departmentId, annualLeaveQuota } = req.body;
 
-    if (!fullName || !email || !password) {
-      return sendError(res, 'Vui lòng cung cấp đầy đủ họ tên, email và mật khẩu.', null, 400);
+    if (!fullName || !email || !password || !departmentId) {
+      return sendError(res, 'Vui lòng cung cấp đầy đủ họ tên, email, mật khẩu và departmentId.', null, 400);
     }
 
     const existingUser = await User.findOne({ email });
     if (existingUser) {
-      return sendError(res, 'Email này đã được sử dụng trong hệ thống.', null, 400);
+      return sendError(res, 'Email đã tồn tại trên hệ thống.', null, 400);
     }
 
+    // Mã hóa mật khẩu bcrypt với cost 12
     const salt = await bcrypt.genSalt(12);
     const passwordHash = await bcrypt.hash(password, salt);
 
@@ -90,14 +92,16 @@ const createUser = async (req, res, next) => {
       fullName,
       email,
       passwordHash,
-      role: role || 'nhanvien',
-      departmentId: departmentId || null,
+      role: role || 'giangvien',
+      departmentId,
       annualLeaveQuota: annualLeaveQuota !== undefined ? annualLeaveQuota : 12,
+      isActive: true,
+      isVerified: true,
     });
 
     const populatedUser = await User.findById(newUser._id).populate('departmentId', 'name type');
 
-    return sendSuccess(res, 'Thêm người dùng mới thành công.', populatedUser, 201);
+    return sendSuccess(res, 'Tạo người dùng mới thành công.', populatedUser, 201);
   } catch (error) {
     next(error);
   }

@@ -3,8 +3,10 @@ const LeaveRequest = require('../models/leaveRequest.model');
 const AttendanceLog = require('../models/attendanceLog.model');
 const Schedule = require('../models/schedule.model');
 const User = require('../models/user.model');
+const Department = require('../models/department.model');
 const AuditLog = require('../models/auditLog.model');
 const { sendSuccess, sendError } = require('../utils/responseHandler');
+const { sendLeaveApprovedEmail, sendLeaveRejectedEmail } = require('../services/email.service');
 
 /**
  * @desc Tạo đơn xin nghỉ phép / dạy bù / đổi ca
@@ -21,14 +23,23 @@ const createLeaveRequest = async (req, res, next) => {
     const start = new Date(startDate);
     const end = new Date(endDate);
 
+    if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) {
+      return sendError(res, 'Ngày bắt đầu hoặc ngày kết thúc không hợp lệ.', null, 400);
+    }
+
     if (end < start) {
       return sendError(res, 'Ngày kết thúc không thể trước ngày bắt đầu.', null, 400);
+    }
+
+    const normalizedReason = reason.trim();
+    if (normalizedReason.length < 5 || normalizedReason.length > 500) {
+      return sendError(res, 'Lý do phải có từ 5 đến 500 ký tự.', null, 400);
     }
 
     const leaveRequest = await LeaveRequest.create({
       userId: req.user.id,
       type,
-      reason,
+      reason: normalizedReason,
       startDate: start,
       endDate: end,
       attachmentUrl: attachmentUrl || null,
@@ -42,7 +53,7 @@ const createLeaveRequest = async (req, res, next) => {
 };
 
 /**
- * @desc Lấy danh sách đơn xin nghỉ phép / công tác
+ * @desc Danh sách đơn xin nghỉ phép/dạy bù
  * @route GET /api/leave-requests
  */
 const getLeaveRequests = async (req, res, next) => {
@@ -58,7 +69,9 @@ const getLeaveRequests = async (req, res, next) => {
       query.userId = req.user.id;
     } else if (req.user.role === 'truongkhoa') {
       const myInfo = await User.findById(req.user.id);
-      const facultyUsers = await User.find({ departmentId: myInfo.departmentId }).select('_id');
+      const childDepts = await Department.find({ parentId: myInfo.departmentId }).select('_id');
+      const allDeptIds = [myInfo.departmentId, ...childDepts.map((d) => d._id)];
+      const facultyUsers = await User.find({ departmentId: { $in: allDeptIds } }).select('_id');
       const facultyUserIds = facultyUsers.map((u) => u._id);
 
       if (userId) {
@@ -105,7 +118,9 @@ const getLeaveRequestById = async (req, res, next) => {
       }
     } else if (req.user.role === 'truongkhoa') {
       const myInfo = await User.findById(req.user.id);
-      if (request.userId.departmentId && request.userId.departmentId.toString() !== myInfo.departmentId.toString()) {
+      const childDepts = await Department.find({ parentId: myInfo.departmentId }).select('_id');
+      const allDeptIds = [myInfo.departmentId.toString(), ...childDepts.map((d) => d._id.toString())];
+      if (request.userId.departmentId && !allDeptIds.includes(request.userId.departmentId.toString())) {
         return sendError(res, 'Bạn không có quyền xem đơn của nhân sự ngoài khoa.', null, 403);
       }
     }
@@ -194,8 +209,13 @@ const approveLeaveRequest = async (req, res, next) => {
       return sendError(res, 'Không tìm thấy đơn xin.', null, 404);
     }
 
+    if (request.status !== 'PENDING') {
+      return sendError(res, `Đơn đã được xử lý với trạng thái ${request.status}.`, null, 400);
+    }
+
     request.status = 'APPROVED';
     request.approvedBy = req.user.id;
+    request.approvalNote = typeof req.body.approvalNote === 'string' ? req.body.approvalNote.trim() : '';
     request.rejectionReason = null;
     await request.save();
 
@@ -240,6 +260,24 @@ const approveLeaveRequest = async (req, res, next) => {
       timestamp: new Date(),
     });
 
+    // Thông báo email là tùy chọn: lỗi mail không làm thất bại nghiệp vụ duyệt đơn.
+    const applicant = await User.findById(request.userId).select('email fullName');
+    const mailUser = process.env.MAIL_USER || process.env.EMAIL_USER;
+    const mailPass = process.env.MAIL_PASSWORD || process.env.EMAIL_PASS;
+    if (applicant?.email && mailUser && mailPass) {
+      try {
+        await sendLeaveApprovedEmail({
+          to: applicant.email,
+          fullName: applicant.fullName,
+          fromDate: request.startDate,
+          toDate: request.endDate,
+          approvalNote: request.approvalNote,
+        });
+      } catch (mailError) {
+        console.error('Gửi email duyệt đơn thất bại:', mailError.message);
+      }
+    }
+
     return sendSuccess(res, 'Đã phê duyệt đơn thành công và đồng bộ chấm công có phép (EXCUSED_ABSENCE).', request);
   } catch (error) {
     next(error);
@@ -263,9 +301,13 @@ const rejectLeaveRequest = async (req, res, next) => {
       return sendError(res, 'Không tìm thấy đơn xin.', null, 404);
     }
 
+    if (request.status !== 'PENDING') {
+      return sendError(res, `Đơn đã được xử lý với trạng thái ${request.status}.`, null, 400);
+    }
+
     request.status = 'REJECTED';
     request.approvedBy = req.user.id;
-    request.rejectionReason = rejectionReason;
+    request.rejectionReason = rejectionReason.trim();
     await request.save();
 
     // Ghi audit log
@@ -277,6 +319,23 @@ const rejectLeaveRequest = async (req, res, next) => {
       ipAddress: req.ip || req.connection.remoteAddress,
       timestamp: new Date(),
     });
+
+    const applicant = await User.findById(request.userId).select('email fullName');
+    const mailUser = process.env.MAIL_USER || process.env.EMAIL_USER;
+    const mailPass = process.env.MAIL_PASSWORD || process.env.EMAIL_PASS;
+    if (applicant?.email && mailUser && mailPass) {
+      try {
+        await sendLeaveRejectedEmail({
+          to: applicant.email,
+          fullName: applicant.fullName,
+          fromDate: request.startDate,
+          toDate: request.endDate,
+          rejectionReason: request.rejectionReason,
+        });
+      } catch (mailError) {
+        console.error('Gửi email từ chối đơn thất bại:', mailError.message);
+      }
+    }
 
     return sendSuccess(res, 'Đã từ chối đơn thành công.', request);
   } catch (error) {

@@ -4,26 +4,23 @@ const helmet = require('helmet');
 const morgan = require('morgan');
 const swaggerUi = require('swagger-ui-express');
 
-// Middleware phân tích cookies an toàn không phụ thuộc thư viện ngoài
-const cookieParserMiddleware = (req, res, next) => {
-  req.cookies = req.cookies || {};
-  const cookieHeader = req.headers.cookie;
-  if (cookieHeader) {
-    cookieHeader.split(';').forEach((cookie) => {
-      const parts = cookie.split('=');
-      const name = parts[0]?.trim();
-      const value = parts.slice(1).join('=').trim();
-      if (name) {
-        try {
-          req.cookies[name] = decodeURIComponent(value);
-        } catch {
-          req.cookies[name] = value;
+let cookieParser;
+try {
+  cookieParser = require('cookie-parser');
+} catch (e) {
+  cookieParser = () => (req, res, next) => {
+    req.cookies = {};
+    if (req.headers && req.headers.cookie) {
+      req.headers.cookie.split(';').forEach((cookie) => {
+        const parts = cookie.split('=');
+        if (parts.length >= 2) {
+          req.cookies[parts[0].trim()] = decodeURIComponent(parts.slice(1).join('=').trim());
         }
-      }
-    });
-  }
-  next();
-};
+      });
+    }
+    next();
+  };
+}
 
 const swaggerSpec = require('./config/swagger');
 const apiRoutes = require('./routes');
@@ -50,8 +47,7 @@ if (process.env.NODE_ENV === 'development') {
 }
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
-app.use(cookieParserMiddleware);
-
+app.use(cookieParser());
 
 // 3. Swagger UI Documentation Route
 const swaggerUiOptions = {
