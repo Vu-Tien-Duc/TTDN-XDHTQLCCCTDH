@@ -13,6 +13,7 @@ const {
   calculateCheckOutStatus,
   getAttendanceSummaryByUser,
 } = require('../services/attendance.service');
+const { runDailyAbsentCheck } = require('../services/cron.service');
 const { sendSuccess, sendError } = require('../utils/responseHandler');
 const ERROR_CODES = require('../utils/errorCodes');
 
@@ -448,10 +449,33 @@ const updateAttendanceByAdmin = async (req, res, next) => {
   }
 };
 
+/**
+ * Kích hoạt thủ công tiến trình quét kiểm tra vắng mặt ngày hôm nay (Dành cho Admin kiểm thử qua Postman)
+ * POST /api/attendance/cron/test-daily-check
+ */
+const triggerDailyAbsentCheck = async (req, res, next) => {
+  try {
+    const targetDate = req.query.date ? new Date(req.query.date) : new Date();
+    await runDailyAbsentCheck(targetDate);
+    return sendSuccess(
+      res,
+      'Kích hoạt tiến trình quét vắng mặt tự động thành công (Xem chi tiết log tại console máy chủ).',
+      {
+        triggeredAt: new Date().toISOString(),
+        checkedDate: targetDate.toISOString(),
+      }
+    );
+  } catch (error) {
+    next(error);
+  }
+};
+
 module.exports = {
   checkIn,
   checkOut,
   getAttendanceHistory,
   getAttendanceById,
   updateAttendanceByAdmin,
+  triggerDailyAbsentCheck,
 };
+

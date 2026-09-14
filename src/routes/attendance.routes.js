@@ -6,6 +6,7 @@ const {
   getAttendanceHistory,
   getAttendanceById,
   updateAttendanceByAdmin,
+  triggerDailyAbsentCheck,
 } = require('../controllers/attendance.controller');
 const { verifyToken, verifyRole, authorizeRoles } = require('../middlewares/auth.middleware');
 
@@ -357,6 +358,32 @@ router.post('/check-out', checkOut);
  *               $ref: '#/components/schemas/ErrorResponse'
  */
 router.get('/history', getAttendanceHistory);
+
+/**
+ * @swagger
+ * /api/attendance/cron/test-daily-check:
+ *   post:
+ *     summary: "[🔒 Admin] Kích hoạt thủ công tiến trình quét kiểm tra vắng mặt ngày hôm nay (Test Postman)"
+ *     description: Kích hoạt thủ công tiến trình cron kiểm tra vắng mặt ngay lập tức trên Postman mà không cần đợi lịch 23:59 đêm.
+ *     tags: [Attendance]
+ *     security:
+ *       - bearerAuth: []
+ *       - BearerAuth: []
+ *     parameters:
+ *       - in: query
+ *         name: date
+ *         schema:
+ *           type: string
+ *           format: date
+ *           example: "2026-09-14"
+ *         description: Ngày kiểm tra (YYYY-MM-DD). Mặc định là ngày hôm nay.
+ *     responses:
+ *       200:
+ *         description: Kích hoạt tiến trình quét kiểm tra vắng mặt thành công
+ *       403:
+ *         description: Không có quyền truy cập (Chỉ Admin)
+ */
+router.post('/cron/test-daily-check', authorizeRoles('admin'), triggerDailyAbsentCheck);
 
 /**
  * @swagger
