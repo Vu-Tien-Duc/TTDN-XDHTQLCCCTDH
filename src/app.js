@@ -28,15 +28,27 @@ const { errorHandler, notFoundHandler } = require('./middlewares/error.middlewar
 
 const app = express();
 
-// 1. Security Middlewares
+// 1. Security Middlewares (Helmet & CORS Whitelist)
 app.use(
   helmet({
-    contentSecurityPolicy: false,
+    contentSecurityPolicy: false, // Để Swagger UI hoạt động bình thường
+    crossOriginResourcePolicy: { policy: 'cross-origin' },
   })
 );
+
+const allowedOrigins = process.env.CORS_WHITELIST
+  ? process.env.CORS_WHITELIST.split(',').map((o) => o.trim())
+  : ['http://localhost:3000', 'http://localhost:5173', 'http://127.0.0.1:5500', 'http://localhost:5000'];
+
 app.use(
   cors({
-    origin: process.env.CLIENT_URL || true,
+    origin: function (origin, callback) {
+      if (!origin || allowedOrigins.includes(origin) || process.env.NODE_ENV === 'development') {
+        callback(null, true);
+      } else {
+        callback(new Error('Truy cập bị chặn bởi chính sách CORS Whitelist của máy chủ.'));
+      }
+    },
     credentials: true,
   })
 );
