@@ -1,6 +1,5 @@
 const bcrypt = require('bcryptjs');
 const User = require('../models/user.model');
-const AuditLog = require('../models/auditLog.model');
 const { sendSuccess, sendError } = require('../utils/responseHandler');
 
 /**
@@ -102,22 +101,6 @@ const createUser = async (req, res, next) => {
 
     const populatedUser = await User.findById(newUser._id).populate('departmentId', 'name type');
 
-    // Ghi nhận Audit Log tự động khi tạo người dùng (Thao tác nhạy cảm của Admin)
-    await AuditLog.create({
-      actor: req.user.id,
-      action: 'CREATE_USER',
-      targetId: newUser._id.toString(),
-      targetType: 'User',
-      ipAddress: req.ip || req.connection?.remoteAddress || null,
-      timestamp: new Date(),
-      details: {
-        email: newUser.email,
-        fullName: newUser.fullName,
-        role: newUser.role,
-        departmentId: newUser.departmentId,
-      },
-    });
-
     return sendSuccess(res, 'Tạo người dùng mới thành công.', populatedUser, 201);
   } catch (error) {
     next(error);
@@ -162,17 +145,6 @@ const updateUser = async (req, res, next) => {
       { returnDocument: 'after', runValidators: true }
     ).populate('departmentId', 'name type');
 
-    // Ghi nhận Audit Log tự động khi cập nhật thông tin người dùng
-    await AuditLog.create({
-      actor: req.user.id,
-      action: 'UPDATE_USER',
-      targetId: updatedUser._id.toString(),
-      targetType: 'User',
-      ipAddress: req.ip || req.connection?.remoteAddress || null,
-      timestamp: new Date(),
-      details: updateData,
-    });
-
     return sendSuccess(res, 'Cập nhật thông tin người dùng thành công.', updatedUser);
   } catch (error) {
     next(error);
@@ -193,22 +165,6 @@ const deleteUser = async (req, res, next) => {
     if (!softDeleted) {
       return sendError(res, 'Không tìm thấy người dùng để xóa.', null, 404);
     }
-
-    // Ghi nhận Audit Log tự động khi vô hiệu hóa người dùng (Soft delete)
-    await AuditLog.create({
-      actor: req.user.id,
-      action: 'DELETE_USER',
-      targetId: softDeleted._id.toString(),
-      targetType: 'User',
-      ipAddress: req.ip || req.connection?.remoteAddress || null,
-      timestamp: new Date(),
-      details: {
-        email: softDeleted.email,
-        fullName: softDeleted.fullName,
-        isActive: false,
-      },
-    });
-
     return sendSuccess(res, 'Vô hiệu hóa tài khoản người dùng thành công (soft delete).');
   } catch (error) {
     next(error);
