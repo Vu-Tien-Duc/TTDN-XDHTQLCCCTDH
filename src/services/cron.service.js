@@ -5,9 +5,13 @@ try {
   console.warn('[Cron Service] Thư viện node-cron chưa được tải:', err.message);
 }
 
+const mongoose = require('mongoose');
 const Schedule = require('../models/schedule.model');
 const AttendanceLog = require('../models/attendanceLog.model');
 const LeaveRequest = require('../models/leaveRequest.model');
+const AuditLog = require('../models/auditLog.model');
+const User = require('../models/user.model');
+const { sendAbsentWarningEmail } = require('./email.service');
 const { getVietnamTime, getVietnamDayRange } = require('./attendance.service');
 
 /**
@@ -117,6 +121,24 @@ const processScheduleAttendanceCheck = async (schedule, dayRange) => {
 
   console.log(`[Cron Service] [ĐÁNH VẮNG] Tự động ghi nhận '${finalStatus}' cho Giảng viên ${teacherName} (${shiftName}) - Log ID: ${newLog._id}`);
 
+  // 4. Gửi email cảnh báo vắng mặt không phép (#21)
+  // Đặt khối try/catch bọc gửi mail: Đảm bảo nếu mạng chập chờn hoặc lỗi gửi mail thì không làm gián đoạn tiến trình
+  let emailSent = false;
+  if (finalStatus === 'ABSENT' && schedule.userId?.email) {
+    try {
+      await sendAbsentWarningEmail({
+        to: schedule.userId.email,
+        fullName: teacherName,
+        shiftName: shiftName,
+        date: dayRange.dateStr,
+      });
+      emailSent = true;
+      console.log(`[Cron Service] [GỬI MAIL] Đã gửi email cảnh báo vắng mặt thành công tới: ${schedule.userId.email}`);
+    } catch (emailErr) {
+      console.error(`[Cron Service] [LỖI GỬI MAIL] Không thể gửi mail cảnh báo tới ${schedule.userId.email}:`, emailErr.message);
+    }
+  }
+
   return {
     scheduleId: schedule._id,
     userId,
@@ -126,6 +148,7 @@ const processScheduleAttendanceCheck = async (schedule, dayRange) => {
     status: finalStatus,
     logId: newLog._id,
     leaveRequestId,
+    emailSent,
     reason: approvedLeave
       ? 'Đã có đơn nghỉ phép được duyệt hợp lệ (EXCUSED_ABSENCE)'
       : 'Không phát sinh lượt check-in nào trong ngày (ABSENT)',
@@ -179,6 +202,39 @@ const runDailyAbsentCheck = async (targetDate = new Date()) => {
       skippedCount,
       details: results,
     };
+
+    // 5. Ghi nhận tự động vào Collection audit_logs (#21)
+    try {
+      const adminUser = await User.findOne({ role: 'admin' });
+      const actorId = adminUser ? adminUser._id : new mongoose.Types.ObjectId();
+
+      await AuditLog.create({
+        actor: actorId,
+        action: 'CRON_AUTO_ABSENT',
+        targetId: `CRON_${dayRange.dateStr}`,
+        targetType: 'AttendanceLog',
+        ipAddress: '127.0.0.1',
+        timestamp: new Date(),
+        details: {
+          scannedDate: dayRange.dateStr,
+          totalSchedules: activeSchedules.length,
+          presentCount: skippedCount, // số người đi làm / đã có log
+          excusedCount: excusedCreatedCount, // số người nghỉ có phép
+          absentCount: absentCreatedCount, // số người bị đánh vắng
+          results: results.map((r) => ({
+            scheduleId: r.scheduleId,
+            userId: r.userId,
+            teacherName: r.teacherName,
+            action: r.action,
+            status: r.status,
+            emailSent: r.emailSent || false,
+          })),
+        },
+      });
+      console.log(`[Cron Service] [AUDIT LOG] Đã ghi nhận vết thao tác tự động CRON_AUTO_ABSENT vào CSDL.`);
+    } catch (auditErr) {
+      console.error(`[Cron Service] [LỖI AUDIT LOG] Không thể ghi audit log:`, auditErr.message);
+    }
 
     console.log(`[Cron Service] Kết thúc quét điểm danh: Tổng ${activeSchedules.length} lịch | Đánh vắng ABSENT: ${absentCreatedCount} | Nghỉ phép EXCUSED: ${excusedCreatedCount} | Bỏ qua (Đã có log): ${skippedCount}`);
     console.log('------------------------------------------------------------');
