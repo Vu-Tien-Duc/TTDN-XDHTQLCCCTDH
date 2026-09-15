@@ -456,13 +456,13 @@ const updateAttendanceByAdmin = async (req, res, next) => {
 const triggerDailyAbsentCheck = async (req, res, next) => {
   try {
     const targetDate = req.query.date ? new Date(req.query.date) : new Date();
-    await runDailyAbsentCheck(targetDate);
+    const summary = await runDailyAbsentCheck(targetDate);
     return sendSuccess(
       res,
       'Kích hoạt tiến trình quét vắng mặt tự động thành công (Xem chi tiết log tại console máy chủ).',
       {
         triggeredAt: new Date().toISOString(),
-        checkedDate: targetDate.toISOString(),
+        summary,
       }
     );
   } catch (error) {

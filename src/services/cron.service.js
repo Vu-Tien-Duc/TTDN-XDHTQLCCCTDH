@@ -6,6 +6,8 @@ try {
 }
 
 const Schedule = require('../models/schedule.model');
+const AttendanceLog = require('../models/attendanceLog.model');
+const LeaveRequest = require('../models/leaveRequest.model');
 const { getVietnamTime, getVietnamDayRange } = require('./attendance.service');
 
 /**
@@ -47,26 +49,145 @@ const getTodayActiveSchedules = async (targetDate = new Date()) => {
 };
 
 /**
- * Tiến trình kiểm tra vắng mặt hàng ngày (quét vào cuối ngày 23:59)
- * Sẽ được mở rộng ở Ngày 2, 3, 4 để đối chiếu chấm công, đơn xin nghỉ và gửi email cảnh báo
+ * Xử lý đối chiếu điểm danh và tạo bản ghi vắng mặt (ABSENT) cho một ca dạy
+ * Đảm bảo tính Idempotent tuyệt đối (chống trùng lặp khi chạy lại cron hoặc restart server)
+ * 
+ * @param {Object} schedule Bản ghi lịch dạy (đã populate userId và shiftId)
+ * @param {{ startOfDay: Date, endOfDay: Date, dateStr: string }} dayRange Khoảng thời gian trong ngày
+ * @returns {Promise<Object>} Kết quả xử lý { scheduleId, userId, action: 'SKIPPED' | 'CREATED', status, reason }
+ */
+const processScheduleAttendanceCheck = async (schedule, dayRange) => {
+  const { startOfDay, endOfDay } = dayRange;
+  const userId = schedule.userId?._id || schedule.userId;
+  const shiftId = schedule.shiftId?._id || schedule.shiftId;
+  const teacherName = schedule.userId?.fullName || userId;
+  const shiftName = schedule.shiftId?.name || shiftId;
+
+  // 1. Kiểm tra đối chiếu xem giảng viên đã có bản ghi chấm công nào hôm nay cho ca/lịch này chưa
+  // Tính cả checkInTime hoặc createdAt nằm trong khoảng [00:00:00, 23:59:59] của ngày hôm nay
+  const existingLog = await AttendanceLog.findOne({
+    userId,
+    scheduleId: schedule._id,
+    $or: [
+      { checkInTime: { $gte: startOfDay, $lte: endOfDay } },
+      { createdAt: { $gte: startOfDay, $lte: endOfDay } },
+    ],
+  });
+
+  // Trường hợp bỏ qua: Nếu đã có log (dù là ON_TIME, LATE, EARLY_LEAVE, EXCUSED_ABSENCE, hoặc ABSENT đã tạo trước đó) -> Không can thiệp
+  if (existingLog) {
+    console.log(`[Cron Service] [BỎ QUA] Giảng viên ${teacherName} (${shiftName}): Đã có bản ghi chấm công với trạng thái '${existingLog.status}' (Log ID: ${existingLog._id}).`);
+    return {
+      scheduleId: schedule._id,
+      userId,
+      teacherName,
+      shiftName,
+      action: 'SKIPPED',
+      status: existingLog.status,
+      logId: existingLog._id,
+      reason: `Đã có bản ghi chấm công với trạng thái ${existingLog.status}`,
+    };
+  }
+
+  // 2. Kiểm tra xem giảng viên có đơn xin nghỉ phép đã được phê duyệt (APPROVED) trong ngày hôm nay không
+  const approvedLeave = await LeaveRequest.findOne({
+    userId,
+    status: 'APPROVED',
+    startDate: { $lte: endOfDay },
+    endDate: { $gte: startOfDay },
+  });
+
+  const finalStatus = approvedLeave ? 'EXCUSED_ABSENCE' : 'ABSENT';
+  const leaveRequestId = approvedLeave ? approvedLeave._id : null;
+
+  // 3. Cơ chế Idempotent (Chống trùng lặp tuyệt đối):
+  // Tạo bản ghi trong attendance_logs với status: 'ABSENT' (hoặc 'EXCUSED_ABSENCE' nếu có phép),
+  // method: 'manual', checkInTime: null, checkOutTime: null
+  const newLog = await AttendanceLog.create({
+    userId,
+    shiftId,
+    scheduleId: schedule._id,
+    status: finalStatus,
+    method: 'manual',
+    checkInTime: null,
+    checkOutTime: null,
+    leaveRequestId,
+    isManualOverride: false,
+  });
+
+  console.log(`[Cron Service] [ĐÁNH VẮNG] Tự động ghi nhận '${finalStatus}' cho Giảng viên ${teacherName} (${shiftName}) - Log ID: ${newLog._id}`);
+
+  return {
+    scheduleId: schedule._id,
+    userId,
+    teacherName,
+    shiftName,
+    action: 'CREATED',
+    status: finalStatus,
+    logId: newLog._id,
+    leaveRequestId,
+    reason: approvedLeave
+      ? 'Đã có đơn nghỉ phép được duyệt hợp lệ (EXCUSED_ABSENCE)'
+      : 'Không phát sinh lượt check-in nào trong ngày (ABSENT)',
+  };
+};
+
+/**
+ * Tiến trình kiểm tra vắng mặt hàng ngày (quét tự động vào cuối ngày 23:59)
  * 
  * @param {Date} [targetDate=new Date()]
+ * @returns {Promise<Object>} Tổng kết kết quả quét vắng mặt
  */
 const runDailyAbsentCheck = async (targetDate = new Date()) => {
   console.log('------------------------------------------------------------');
   console.log('[Cron Service] Bắt đầu tiến trình tự động quét điểm danh cuối ngày...');
   try {
+    const dayRange = getVietnamDayRange(targetDate);
     const activeSchedules = await getTodayActiveSchedules(targetDate);
     console.log(`[Cron Service] Tổng số lịch cần rà soát điểm danh: ${activeSchedules.length}`);
-    // Các bước tiếp theo:
-    // Ngày 2: Đối chiếu attendance_logs và leave_requests
-    // Ngày 3: Tự động tạo bản ghi ABSENT
-    // Ngày 4: Gửi email cảnh báo vắng mặt
+
+    const results = [];
+    let skippedCount = 0;
+    let absentCreatedCount = 0;
+    let excusedCreatedCount = 0;
+
+    for (const schedule of activeSchedules) {
+      try {
+        const itemResult = await processScheduleAttendanceCheck(schedule, dayRange);
+        results.push(itemResult);
+        if (itemResult.action === 'SKIPPED') {
+          skippedCount++;
+        } else if (itemResult.action === 'CREATED') {
+          if (itemResult.status === 'ABSENT') absentCreatedCount++;
+          else if (itemResult.status === 'EXCUSED_ABSENCE') excusedCreatedCount++;
+        }
+      } catch (err) {
+        console.error(`[Cron Service] Lỗi xử lý lịch ${schedule._id}:`, err);
+        results.push({
+          scheduleId: schedule._id,
+          action: 'ERROR',
+          error: err.message,
+        });
+      }
+    }
+
+    const summary = {
+      checkedDate: dayRange.dateStr,
+      totalSchedules: activeSchedules.length,
+      absentCreatedCount,
+      excusedCreatedCount,
+      skippedCount,
+      details: results,
+    };
+
+    console.log(`[Cron Service] Kết thúc quét điểm danh: Tổng ${activeSchedules.length} lịch | Đánh vắng ABSENT: ${absentCreatedCount} | Nghỉ phép EXCUSED: ${excusedCreatedCount} | Bỏ qua (Đã có log): ${skippedCount}`);
+    console.log('------------------------------------------------------------');
+    return summary;
   } catch (error) {
     console.error('[Cron Service] Lỗi trong tiến trình quét điểm danh:', error);
+    console.log('------------------------------------------------------------');
+    throw error;
   }
-  console.log('[Cron Service] Kết thúc tiến trình quét điểm danh.');
-  console.log('------------------------------------------------------------');
 };
 
 /**
