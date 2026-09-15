@@ -51,7 +51,7 @@ async function runTests() {
     const tokenDean = await login('truongkhoa.cntt@university.edu.vn');
     logPass('Đăng nhập Trưởng khoa PGS. TS. Lê Hoàng Nam thành công');
 
-    const tokenAdmin = await login('admin@university.edu.vn');
+    const tokenAdmin = await login('daihocdtd@gmail.com');
     logPass('Đăng nhập Quản trị viên Admin thành công');
 
     // 1. Tạo đơn xin nghỉ phép, dạy bù và đổi ca

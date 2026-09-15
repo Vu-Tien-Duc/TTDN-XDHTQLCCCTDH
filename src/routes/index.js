@@ -10,6 +10,7 @@ const attendanceRoutes = require('./attendance.routes');
 const leaveRequestRoutes = require('./leaveRequest.routes');
 const auditLogRoutes = require('./auditLog.routes');
 const reportRoutes = require('./report.routes');
+const uploadRoutes = require('./upload.routes');
 
 /**
  * Health check endpoint
@@ -18,7 +19,7 @@ router.get('/health', (req, res) => {
   res.status(200).json({
     status: 'OK',
     message: 'Hệ thống Quản lý Chấm công Trường Đại học đang hoạt động bình thường.',
-    collectionsCount: 8,
+    collectionsCount: 9,
     collections: [
       'users',
       'departments',
@@ -28,6 +29,7 @@ router.get('/health', (req, res) => {
       'leave_requests',
       'audit_logs',
       'refresh_tokens',
+      'token_blacklists',
     ],
     timestamp: new Date().toISOString(),
   });
@@ -44,5 +46,6 @@ router.use('/attendance', attendanceRoutes);
 router.use('/leave-requests', leaveRequestRoutes);
 router.use('/audit-logs', auditLogRoutes);
 router.use('/reports', reportRoutes);
+router.use('/upload', uploadRoutes);
 
 module.exports = router;

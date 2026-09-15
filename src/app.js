@@ -1,3 +1,4 @@
+const path = require('path');
 const express = require('express');
 const cors = require('cors');
 const helmet = require('helmet');
@@ -61,7 +62,10 @@ app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use(cookieParser());
 
-// 3. Swagger UI Documentation Route
+// 3. Static Files Serving (File minh chứng, tài liệu đính kèm)
+app.use('/uploads', express.static(path.join(__dirname, '../uploads')));
+
+// 4. Swagger UI Documentation Route
 const swaggerUiOptions = {
   customSiteTitle: 'Tài Liệu API - Hệ Thống Quản Lý Chấm Công',
   swaggerOptions: {
@@ -70,12 +74,32 @@ const swaggerUiOptions = {
 };
 app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec, swaggerUiOptions));
 
-// 4. Base Route / Welcome
+// 5. Base Route / Welcome & Health Check
 app.get('/', (req, res) => {
   res.json({
     message: 'Chào mừng đến với API Hệ thống Quản lý Chấm công Trường Đại học',
     swaggerDocs: '/api-docs',
     version: '1.0.0',
+  });
+});
+
+app.get('/health', (req, res) => {
+  res.status(200).json({
+    status: 'OK',
+    message: 'Hệ thống Quản lý Chấm công Trường Đại học đang hoạt động bình thường.',
+    collectionsCount: 9,
+    collections: [
+      'users',
+      'departments',
+      'shift_configs',
+      'schedules',
+      'attendance_logs',
+      'leave_requests',
+      'audit_logs',
+      'refresh_tokens',
+      'token_blacklists',
+    ],
+    timestamp: new Date().toISOString(),
   });
 });
 

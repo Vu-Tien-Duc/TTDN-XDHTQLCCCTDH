@@ -198,12 +198,13 @@ Tất cả tài khoản dùng chung mật khẩu: **`password123`**
 
 | Method | Endpoint | Quyền truy cập | Mô tả |
 | :--- | :--- | :--- | :--- |
-| `POST` | `/api/leave-requests` | Đã đăng nhập | Tạo đơn xin nghỉ/dạy bù/đổi ca, kèm URL minh chứng đính kèm. |
+| `POST` | `/api/leave-requests` | Đã đăng nhập | Tạo đơn xin nghỉ/dạy bù/đổi ca, hỗ trợ cả `application/json` kèm `attachmentUrl` hoặc `multipart/form-data` gửi file trực tiếp. |
+| `POST` | `/api/upload` | Đã đăng nhập | Tải file minh chứng (ảnh, PDF, tài liệu), trả về `fileUrl` (/uploads/...) có thể truy cập tĩnh. |
 | `GET` | `/api/leave-requests` | Cá nhân / TrưởngKhoa / Admin | Danh sách đơn, lọc theo trạng thái (`PENDING`, `APPROVED`, `REJECTED`). |
 | `GET` | `/api/leave-requests/:id` | Chủ đơn / TrưởngKhoa / Admin | Chi tiết một đơn xin. |
-| `PUT` | `/api/leave-requests/:id/approve` | TrưởngKhoa / Admin | Phê duyệt đơn xin, ghi nhận Audit Log. Không trừ trực tiếp vào trường lưu cứng. |
+| `PUT` | `/api/leave-requests/:id/approve` | TrưởngKhoa / Admin | Phê duyệt đơn xin, ghi nhận Audit Log, tự động đồng bộ sang chấm công `EXCUSED_ABSENCE`. |
 | `PUT` | `/api/leave-requests/:id/reject` | TrưởngKhoa / Admin | Từ chối đơn, **bắt buộc kèm `rejectionReason`**, ghi Audit Log. |
-| `GET` | `/api/leave-requests/balance` | Đã đăng nhập | **Số ngày phép còn lại** của bản thân — TÍNH ĐỘNG qua Aggregation pipeline/reduce (cộng dồn SỐ NGÀY, không đếm số lá đơn). |
+| `GET` | `/api/leave-requests/balance` | Đã đăng nhập (RBAC) | **Số ngày phép còn lại** — TÍNH ĐỘNG qua Aggregation pipeline (Giảng viên chỉ xem của mình; Trưởng khoa xem của khoa; Admin xem toàn trường). |
 
 #### Ví dụ Từ chối đơn (`PUT /api/leave-requests/:id/reject`):
 - **Body:**
@@ -227,7 +228,8 @@ Tất cả tài khoản dùng chung mật khẩu: **`password123`**
 
 | Method | Endpoint | Quyền truy cập | Mô tả |
 | :--- | :--- | :--- | :--- |
-| `GET` | `/api/reports/attendance` | Cá nhân / TrưởngKhoa / Admin | Thống kê số buổi `ON_TIME`, `LATE`, `EARLY_LEAVE`, `ABSENT`, `EXCUSED_ABSENCE` và số ngày nghỉ phép trong khoảng thời gian `from` đến `to`. |
+| `GET` | `/api/reports/attendance` | Cá nhân / TrưởngKhoa / Admin | Thống kê số buổi `ON_TIME`, `LATE`, `EARLY_LEAVE`, `ABSENT`, `EXCUSED_ABSENCE` và số ngày nghỉ phép trong khoảng thời gian `from` đến `to`. Cá nhân xem của mình, Trưởng khoa xem khoa, Admin xem toàn trường. |
+| `GET` | `/api/reports/monthly` | TrưởngKhoa / Admin | Báo cáo chi tiết số ngày làm việc và trạng thái chuyên cần theo tháng của từng nhân sự. |
 
 ---
 

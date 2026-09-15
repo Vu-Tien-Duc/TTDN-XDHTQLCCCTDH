@@ -36,13 +36,19 @@ const createLeaveRequest = async (req, res, next) => {
       return sendError(res, 'Lý do phải có từ 5 đến 500 ký tự.', null, 400);
     }
 
+    // Nếu người dùng tải file trực tiếp qua multipart/form-data thì lấy req.file, ngược lại dùng attachmentUrl
+    let finalAttachmentUrl = attachmentUrl || null;
+    if (req.file) {
+      finalAttachmentUrl = `/uploads/${req.file.filename}`;
+    }
+
     const leaveRequest = await LeaveRequest.create({
       userId: req.user.id,
       type,
       reason: normalizedReason,
       startDate: start,
       endDate: end,
-      attachmentUrl: attachmentUrl || null,
+      attachmentUrl: finalAttachmentUrl,
       status: 'PENDING',
     });
 
@@ -138,7 +144,34 @@ const getLeaveRequestById = async (req, res, next) => {
  */
 const getLeaveBalance = async (req, res, next) => {
   try {
-    const targetUserId = req.query.userId || req.user.id;
+    let targetUserId = req.user.id;
+
+    // Kiểm tra phân quyền: Giảng viên / Nhân viên chỉ xem của chính mình
+    if (req.query.userId && req.query.userId !== req.user.id) {
+      if (req.user.role === 'giangvien' || req.user.role === 'nhanvien') {
+        return sendError(res, 'Bạn chỉ có quyền tra cứu số dư ngày phép của chính mình.', null, 403);
+      }
+      if (req.user.role === 'truongkhoa') {
+        const myInfo = await User.findById(req.user.id).select('departmentId');
+        if (!myInfo || !myInfo.departmentId) {
+          return sendError(res, 'Tài khoản Trưởng khoa chưa được gán mã khoa trực thuộc.', null, 403);
+        }
+        const childDepts = await Department.find({ parentId: myInfo.departmentId }).select('_id');
+        const allDeptIds = [myInfo.departmentId.toString(), ...childDepts.map((d) => d._id.toString())];
+
+        const targetUser = await User.findById(req.query.userId).select('departmentId');
+        if (!targetUser) {
+          return sendError(res, 'Không tìm thấy người dùng.', null, 404);
+        }
+        const deptId = targetUser.departmentId ? targetUser.departmentId.toString() : null;
+        if (!deptId || !allDeptIds.includes(deptId)) {
+          return sendError(res, 'Bạn không có quyền xem số dư ngày phép của nhân sự ngoài khoa.', null, 403);
+        }
+        targetUserId = req.query.userId;
+      } else if (req.user.role === 'admin') {
+        targetUserId = req.query.userId;
+      }
+    }
 
     const user = await User.findById(targetUserId);
     if (!user) {

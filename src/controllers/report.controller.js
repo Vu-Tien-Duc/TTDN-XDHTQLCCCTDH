@@ -82,6 +82,36 @@ const getAttendanceReport = async (req, res, next) => {
   }
 };
 
+/**
+ * @desc Báo cáo thống kê chấm công theo tháng cho Admin và Trưởng khoa
+ * @route GET /api/reports/monthly
+ */
+const getMonthlyReport = async (req, res, next) => {
+  try {
+    const month = parseInt(req.query.month, 10) || new Date().getMonth() + 1;
+    const year = parseInt(req.query.year, 10) || new Date().getFullYear();
+    let departmentId = req.query.departmentId || null;
+
+    if (req.user.role === 'truongkhoa') {
+      const myInfo = await User.findById(req.user.id);
+      departmentId = myInfo.departmentId ? myInfo.departmentId.toString() : null;
+    }
+
+    const { generateMonthlyReport } = require('../services/report.service');
+    const data = await generateMonthlyReport(month, year, departmentId);
+
+    return sendSuccess(res, `Lấy báo cáo tổng hợp tháng ${month}/${year} thành công.`, {
+      month,
+      year,
+      totalUsers: data.length,
+      report: data,
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
 module.exports = {
   getAttendanceReport,
+  getMonthlyReport,
 };

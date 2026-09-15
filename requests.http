@@ -451,6 +451,18 @@ Content-Type: application/json
   "attachmentUrl": "https://storage.university.edu.vn/attachments/giay-di-duong.pdf"
 }
 
+### 30b. Upload file minh chứng thực tế (Multer multipart/form-data)
+POST {{baseUrl}}/upload HTTP/1.1
+Authorization: Bearer {{token}}
+Content-Type: multipart/form-data; boundary=----WebKitFormBoundary7MA4YWxkTrZu0gW
+
+------WebKitFormBoundary7MA4YWxkTrZu0gW
+Content-Disposition: form-data; name="file"; filename="giay_kham_benh.pdf"
+Content-Type: application/pdf
+
+< ./scratch_test_medical_report.pdf
+------WebKitFormBoundary7MA4YWxkTrZu0gW--
+
 ### 31. Danh sách đơn xin nghỉ phép
 GET {{baseUrl}}/leave-requests?status=PENDING HTTP/1.1
 Authorization: Bearer {{token}}
@@ -491,6 +503,10 @@ Authorization: Bearer {{token}}
 ### 3.7 BÁO CÁO THỐNG KÊ (TV C)
 ### ------------------------------------------------------------------------------
 
-### 37. Báo cáo thống kê chấm công và ngày nghỉ phép
+### 37. Báo cáo thống kê chấm công và ngày nghỉ phép (Cá nhân / Khoa / Toàn trường)
 GET {{baseUrl}}/reports/attendance?from=2026-01-01&to=2026-12-31 HTTP/1.1
+Authorization: Bearer {{token}}
+
+### 38. Báo cáo tổng hợp chi tiết theo tháng (Dành cho Admin / Trưởng Khoa)
+GET {{baseUrl}}/reports/monthly?month=10&year=2026 HTTP/1.1
 Authorization: Bearer {{token}}

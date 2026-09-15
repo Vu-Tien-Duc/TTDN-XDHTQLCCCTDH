@@ -1081,17 +1081,68 @@ const swaggerPaths = {
   },
 
   // -------------------------------------------------------------
+  // 3.5.1 UPLOAD ATTACHMENT
+  // -------------------------------------------------------------
+  '/api/upload': {
+    post: {
+      tags: ['3.5 - Đơn Nghỉ Phép & Đổi Ca (Leave Requests)'],
+      summary: '[🔒 Đã đăng nhập] Tải file minh chứng đính kèm (ảnh, PDF, tài liệu)',
+      description: 'Hỗ trợ tải lên file minh chứng (giấy khám sức khỏe, minh chứng đổi ca...) với định dạng PNG, JPG, WEBP, PDF, DOC, DOCX. Giới hạn 10MB.',
+      security: [{ BearerAuth: [] }],
+      requestBody: {
+        required: true,
+        content: {
+          'multipart/form-data': {
+            schema: {
+              type: 'object',
+              properties: {
+                file: {
+                  type: 'string',
+                  format: 'binary',
+                  description: 'File tài liệu hoặc ảnh cần tải lên',
+                },
+              },
+              required: ['file'],
+            },
+          },
+        },
+      },
+      responses: {
+        201: {
+          description: 'Tải lên file thành công',
+          content: {
+            'application/json': {
+              example: {
+                success: true,
+                message: 'Tải lên file thành công.',
+                data: {
+                  originalName: 'giay_kham_benh.pdf',
+                  filename: 'attachment-1726410000000-123456789.pdf',
+                  mimetype: 'application/pdf',
+                  size: 204800,
+                  fileUrl: '/uploads/attachment-1726410000000-123456789.pdf',
+                },
+              },
+            },
+          },
+        },
+        400: { description: 'File không hợp lệ hoặc vượt quá 10MB' },
+      },
+    },
+  },
+
+  // -------------------------------------------------------------
   // 3.7 REPORTS
   // -------------------------------------------------------------
   '/api/reports/attendance': {
     get: {
       tags: ['3.7 - Báo Cáo & Thống Kê (Reports)'],
-      summary: '[🔒 Admin / Trưởng khoa] Báo cáo tổng hợp số liệu chấm công và ngày phép',
-      description: 'Thống kê tổng số ca, số lượt đúng giờ, đi muộn, về sớm, vắng mặt và số ngày nghỉ phép đã duyệt trong kỳ.',
+      summary: '[🔒 Cá nhân / Trưởng khoa / Admin] Báo cáo tổng hợp số liệu chấm công và ngày phép',
+      description: 'Giảng viên/Nhân viên chỉ xem của chính mình; Trưởng khoa xem của khoa; Admin xem toàn trường.',
       security: [{ BearerAuth: [] }],
       parameters: [
-        { name: 'userId', in: 'query', schema: { type: 'string' }, description: 'Lọc theo giảng viên / nhân viên' },
-        { name: 'departmentId', in: 'query', schema: { type: 'string' }, description: 'Lọc theo khoa / phòng ban' },
+        { name: 'userId', in: 'query', schema: { type: 'string' }, description: 'Lọc theo giảng viên / nhân viên (chỉ dành cho Trưởng khoa và Admin)' },
+        { name: 'departmentId', in: 'query', schema: { type: 'string' }, description: 'Lọc theo khoa / phòng ban (chỉ dành cho Admin)' },
         { name: 'from', in: 'query', schema: { type: 'string', format: 'date' }, description: 'Từ ngày (YYYY-MM-DD)' },
         { name: 'to', in: 'query', schema: { type: 'string', format: 'date' }, description: 'Đến ngày (YYYY-MM-DD)' },
       ],
@@ -1111,6 +1162,54 @@ const swaggerPaths = {
                   absentCount: 0,
                   excusedAbsenceCount: 0,
                   approvedLeaveDays: 2,
+                },
+              },
+            },
+          },
+        },
+      },
+    },
+  },
+
+  '/api/reports/monthly': {
+    get: {
+      tags: ['3.7 - Báo Cáo & Thống Kê (Reports)'],
+      summary: '[🔒 Admin / Trưởng khoa] Báo cáo tổng hợp ngày công chi tiết theo tháng',
+      description: 'Tổng hợp chi tiết danh sách từng nhân sự trong tháng gồm: tổng buổi dạy, đúng giờ, đi muộn, về sớm, vắng mặt, nghỉ có phép.',
+      security: [{ BearerAuth: [] }],
+      parameters: [
+        { name: 'month', in: 'query', schema: { type: 'integer', example: 10 }, description: 'Tháng (1-12)' },
+        { name: 'year', in: 'query', schema: { type: 'integer', example: 2026 }, description: 'Năm (YYYY)' },
+        { name: 'departmentId', in: 'query', schema: { type: 'string' }, description: 'Lọc theo mã Khoa / Phòng ban (chỉ dành cho Admin)' },
+      ],
+      responses: {
+        200: {
+          description: 'Lấy báo cáo tháng thành công',
+          content: {
+            'application/json': {
+              example: {
+                success: true,
+                message: 'Lấy báo cáo tổng hợp tháng 10/2026 thành công.',
+                data: {
+                  month: 10,
+                  year: 2026,
+                  totalUsers: 5,
+                  report: [
+                    {
+                      user: {
+                        id: '6a9d57378cf3a6165de25dd8',
+                        fullName: 'TS. Trần Thị Bích',
+                        email: 'giangvien.bich@university.edu.vn',
+                        role: 'giangvien',
+                      },
+                      totalWorkingDays: 16,
+                      onTimeCount: 14,
+                      lateCount: 1,
+                      earlyLeaveCount: 1,
+                      absentCount: 0,
+                      excusedCount: 2,
+                    },
+                  ],
                 },
               },
             },

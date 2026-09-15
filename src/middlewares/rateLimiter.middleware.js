@@ -20,6 +20,8 @@ try {
 
     return (req, res, next) => {
       const clientIp = req.ip || req.connection?.remoteAddress || 'unknown';
+      const isLocalhost = clientIp === '127.0.0.1' || clientIp === '::1' || clientIp === '::ffff:127.0.0.1';
+      const effectiveMax = process.env.NODE_ENV === 'development' || isLocalhost ? 200 : max;
       const now = Date.now();
       let record = attempts.get(clientIp);
 
@@ -30,11 +32,11 @@ try {
       }
 
       record.count += 1;
-      if (record.count > max) {
+      if (record.count > effectiveMax) {
         res.setHeader('Retry-After', Math.ceil((record.firstAttempt + windowMs - now) / 1000));
         return res.status(429).json({
           success: false,
-          message: 'Bạn đã thử đăng nhập thất bại quá 5 lần. Vui lòng thử lại sau 15 phút để đảm bảo an toàn.',
+          message: 'Bạn đã thử đăng nhập thất bại quá nhiều lần. Vui lòng thử lại sau 15 phút để đảm bảo an toàn.',
           errorCode: 'AUTH_RATE_LIMIT_EXCEEDED',
           data: null,
         });
