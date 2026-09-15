@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const {
   getSchedules,
+  getTodaySchedules,
   getScheduleById,
   createSchedule,
   updateSchedule,
@@ -209,6 +210,36 @@ router.use(verifyToken);
  *         description: Chưa đăng nhập hoặc Token không hợp lệ
  */
 router.get('/', getSchedules);
+
+/**
+ * @swagger
+ * /api/schedules/today:
+ *   get:
+ *     summary: Lấy danh sách lịch giảng dạy/công tác có hiệu lực hôm nay (Test trực tiếp hàm Ngày 1 của Cron Service)
+ *     description: Lọc các lịch có weekday trùng với ngày chỉ định và nằm trong khoảng [startDate, endDate], tự động quy đổi múi giờ Asia/Ho_Chi_Minh và populate đầy đủ giảng viên, ca dạy.
+ *     tags: [Schedules]
+ *     security:
+ *       - BearerAuth: []
+ *     parameters:
+ *       - in: query
+ *         name: date
+ *         schema:
+ *           type: string
+ *           format: date
+ *           example: "2026-09-14"
+ *         description: Ngày kiểm tra (YYYY-MM-DD). Mặc định là ngày hiện tại.
+ *       - in: query
+ *         name: userId
+ *         schema:
+ *           type: string
+ *         description: Lọc theo ID giảng viên cụ thể (chỉ dành cho Admin / Trưởng khoa)
+ *     responses:
+ *       200:
+ *         description: Lấy danh sách lịch dạy hiệu lực trong ngày thành công
+ *       401:
+ *         description: Chưa xác thực hoặc token không hợp lệ
+ */
+router.get('/today', getTodaySchedules);
 
 /**
  * @swagger

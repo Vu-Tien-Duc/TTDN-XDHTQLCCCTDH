@@ -1,5 +1,6 @@
 const Schedule = require('../models/schedule.model');
 const ShiftConfig = require('../models/shiftConfig.model');
+const { getTodayActiveSchedules } = require('../services/cron.service');
 const { sendSuccess, sendError } = require('../utils/responseHandler');
 const ERROR_CODES = require('../utils/errorCodes');
 
@@ -401,10 +402,48 @@ const deleteSchedule = async (req, res, next) => {
   }
 };
 
+/**
+ * Lấy danh sách lịch phân công giảng dạy/công tác có hiệu lực trong ngày hôm nay
+ * Hỗ trợ kiểm thử trực tiếp trên Postman (có thể truyền ?date=YYYY-MM-DD để kiểm tra ngày bất kỳ)
+ * GET /api/schedules/today
+ */
+const getTodaySchedules = async (req, res, next) => {
+  try {
+    const targetDate = req.query.date ? new Date(req.query.date) : new Date();
+    const schedules = await getTodayActiveSchedules(targetDate);
+
+    // Phân quyền: Giảng viên / Nhân viên chỉ xem lịch của chính mình; Admin / Trưởng khoa xem tất cả
+    let filteredSchedules = schedules;
+    if (req.user && (req.user.role === 'giangvien' || req.user.role === 'nhanvien')) {
+      filteredSchedules = schedules.filter(
+        (s) => s.userId && s.userId._id.toString() === req.user.id.toString()
+      );
+    } else if (req.query.userId) {
+      filteredSchedules = schedules.filter(
+        (s) => s.userId && s.userId._id.toString() === req.query.userId.toString()
+      );
+    }
+
+    return sendSuccess(
+      res,
+      'Lấy danh sách lịch giảng dạy hiệu lực trong ngày thành công',
+      {
+        total: filteredSchedules.length,
+        checkedDate: targetDate.toISOString(),
+        schedules: filteredSchedules,
+      }
+    );
+  } catch (error) {
+    next(error);
+  }
+};
+
 module.exports = {
   getSchedules,
+  getTodaySchedules,
   getScheduleById,
   createSchedule,
   updateSchedule,
   deleteSchedule,
 };
+

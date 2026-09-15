@@ -328,10 +328,58 @@ const formatDate = (date) => {
     });
 };
 
+/**
+ * Gửi email cảnh báo ghi nhận vắng mặt không phép (Cron Auto Absent #21)
+ * @param {Object} params
+ * @param {string} params.to Email người nhận
+ * @param {string} params.fullName Họ tên giảng viên/nhân viên
+ * @param {string} params.shiftName Tên ca học/ca làm việc
+ * @param {string|Date} params.date Ngày vắng mặt
+ */
+const sendAbsentWarningEmail = async ({ to, fullName, shiftName, date }) => {
+  const transporter = createTransporter();
+  const dateStr = formatDate(date);
+
+  const mailOptions = {
+    from: `"Hệ thống Quản lý Chấm công Đại học" <${process.env.EMAIL_USER || process.env.MAIL_USER || 'no-reply@university.edu.vn'}>`,
+    to,
+    subject: `[CẢNH BÁO] Ghi nhận vắng mặt ca dạy ngày ${dateStr} - Hệ Thống Chấm Công`,
+    html: `
+      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; border: 1px solid #e0e0e0; border-radius: 8px; overflow: hidden; color: #333;">
+        <div style="background-color: #d32f2f; color: #ffffff; padding: 20px; text-align: center;">
+          <h2 style="margin: 0; font-size: 20px;">CẢNH BÁO GHI NHẬN VẮNG MẶT</h2>
+        </div>
+        <div style="padding: 24px; line-height: 1.6;">
+          <p>Kính gửi Thầy/Cô <strong>${fullName}</strong>,</p>
+          <p>Hệ thống quản lý chấm công tự động ghi nhận Thầy/Cô đã <strong>VẮNG MẶT (Không phát sinh dữ liệu chấm công)</strong> trong ca làm việc/giảng dạy:</p>
+          <div style="background-color: #fdf2f2; border-left: 4px solid #d32f2f; padding: 12px 16px; margin: 16px 0; border-radius: 4px;">
+            <p style="margin: 4px 0;"><strong>Ca làm việc / Tiết dạy:</strong> ${shiftName || 'Không xác định'}</p>
+            <p style="margin: 4px 0;"><strong>Ngày ghi nhận:</strong> ${dateStr}</p>
+            <p style="margin: 4px 0;"><strong>Trạng thái:</strong> <span style="color: #d32f2f; font-weight: bold;">VẮNG MẶT (ABSENT)</span></p>
+          </div>
+          <p><strong>Hướng dẫn xử lý giải trình:</strong></p>
+          <ul style="padding-left: 20px; color: #555;">
+            <li>Nếu có sự cố kỹ thuật về thiết bị chấm công hoặc lý do bất khả kháng, Thầy/Cô vui lòng đăng nhập vào cổng thông tin để <strong>Tạo đơn giải trình / Đơn xin dạy bù</strong> trong vòng 48 giờ.</li>
+            <li>Đơn giải trình sẽ được Trưởng Khoa / Ban Giám Hiệu xem xét và cập nhật lại trạng thái công nếu được phê duyệt.</li>
+          </ul>
+          <p style="margin-top: 24px;">Trân trọng,<br><strong>Phòng Đào tạo & Quản trị Nhân sự</strong></p>
+        </div>
+        <div style="background-color: #f5f5f5; color: #777; padding: 12px; text-align: center; font-size: 12px; border-top: 1px solid #eee;">
+          Email tự động được gửi từ Hệ thống Quản lý Chấm công Trường Đại học. Vui lòng không trả lời trực tiếp email này.
+        </div>
+      </div>
+    `,
+  };
+
+  return await transporter.sendMail(mailOptions);
+};
+
 module.exports = {
   sendOtpEmail,
   sendRegistrationSuccessEmail,
   sendLeaveApprovedEmail,
   sendLeaveRejectedEmail,
+  sendAbsentWarningEmail,
   formatDate,
 };
+

@@ -1,6 +1,7 @@
 require('dotenv').config();
 const app = require('./app');
 const connectDB = require('./config/db');
+const { initCronJobs } = require('./services/cron.service');
 
 const PORT = process.env.PORT || 27017;
 
@@ -8,6 +9,9 @@ const PORT = process.env.PORT || 27017;
 const startServer = async () => {
   try {
     await connectDB();
+
+    // Khởi tạo các tiến trình chạy nền (node-cron)
+    initCronJobs();
 
     app.listen(PORT, () => {
       console.log(`===================================================`);
