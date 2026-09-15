@@ -153,7 +153,7 @@ const swaggerPaths = {
   '/api/health': {
     get: {
       tags: ['3.8 - Hạ Tầng & Kiểm Tra Hệ Thống'],
-      summary: 'Kiểm tra trạng thái máy chủ và 8 Collections MongoDB',
+      summary: '[🔓 Public] Kiểm tra trạng thái máy chủ và 8 Collections MongoDB',
       responses: {
         200: {
           description: 'Hệ thống hoạt động bình thường',
@@ -188,8 +188,8 @@ const swaggerPaths = {
   '/api/auth/login': {
     post: {
       tags: ['3.1 - Xác Thực & Phiên Làm Việc (Auth)'],
-      summary: 'Đăng nhập người dùng (Trả về JWT Access Token & Refresh Token)',
-      description: 'Đăng nhập vào hệ thống bằng Email và Mật khẩu. Mặc định mật khẩu các tài khoản demo: password123',
+      summary: '[🔓 Public] Đăng nhập người dùng (Rate Limit 5 lần/15p, JWT Access & Refresh Token)',
+      description: 'Đăng nhập vào hệ thống bằng Email và Mật khẩu. Áp dụng giới hạn tối đa 5 lần thử/15 phút. Mặc định mật khẩu các tài khoản demo: password123',
       security: [],
       requestBody: {
         required: true,
@@ -239,7 +239,7 @@ const swaggerPaths = {
   '/api/auth/me': {
     get: {
       tags: ['3.1 - Xác Thực & Phiên Làm Việc (Auth)'],
-      summary: 'Lấy thông tin cá nhân hiện tại của người dùng đang đăng nhập',
+      summary: '[🔒 Cá nhân] Lấy thông tin cá nhân hiện tại của người dùng đang đăng nhập',
       security: [{ BearerAuth: [] }],
       responses: {
         200: {
@@ -258,7 +258,7 @@ const swaggerPaths = {
   '/api/auth/refresh': {
     post: {
       tags: ['3.1 - Xác Thực & Phiên Làm Việc (Auth)'],
-      summary: 'Cấp mới Access Token từ Refresh Token (Hỗ trợ Cookie & Request Body)',
+      summary: '[🔓 Public] Cấp mới Access Token từ Refresh Token (Hỗ trợ Cookie & Request Body)',
       description: 'Hệ thống tự động đọc Refresh Token từ httpOnly cookie hoặc JSON Request Body để cấp mới Access Token 15 phút.',
       security: [],
       requestBody: {
@@ -285,7 +285,7 @@ const swaggerPaths = {
   '/api/auth/logout': {
     post: {
       tags: ['3.1 - Xác Thực & Phiên Làm Việc (Auth)'],
-      summary: 'Đăng xuất khỏi hệ thống (Blacklist Access Token, xóa Refresh Token & clear Cookie)',
+      summary: '[🔒 Xác thực] Đăng xuất khỏi hệ thống (Blacklist Access Token, xóa Refresh Token & clear Cookie)',
       description: 'Đưa Access Token hiện tại vào Blacklist để vô hiệu hóa ngay lập tức, xóa Refresh Token trong CSDL và xóa httpOnly cookie.',
       security: [{ BearerAuth: [] }],
       requestBody: {
@@ -310,7 +310,7 @@ const swaggerPaths = {
   '/api/auth/register': {
     post: {
       tags: ['3.1 - Xác Thực & Phiên Làm Việc (Auth)'],
-      summary: 'Đăng ký tài khoản người dùng mới (Gửi mã OTP 6 chữ số qua Email, hạn 10 phút)',
+      summary: '[🔓 Public] Đăng ký tài khoản người dùng mới (Gửi mã OTP 6 chữ số qua Email, hạn 10 phút)',
       description: 'Đăng ký tài khoản mới và nhận mã OTP 6 số để kích hoạt tài khoản. Tài khoản ở trạng thái chưa xác minh (isVerified: false).',
       security: [],
       requestBody: {
@@ -342,7 +342,7 @@ const swaggerPaths = {
   '/api/auth/verify-otp': {
     post: {
       tags: ['3.1 - Xác Thực & Phiên Làm Việc (Auth)'],
-      summary: 'Xác minh tài khoản bằng mã OTP (Quá 10 phút -> Xóa tài khoản)',
+      summary: '[🔓 Public] Xác minh tài khoản bằng mã OTP (Quá 10 phút -> Xóa tài khoản)',
       description: 'Người dùng nhập mã OTP 6 chữ số nhận từ Email để kích hoạt tài khoản. Nếu quá 10 phút, hệ thống tự động xóa tài khoản và yêu cầu đăng ký lại.',
       security: [],
       requestBody: {
@@ -371,7 +371,7 @@ const swaggerPaths = {
   '/api/auth/forgot-password': {
     post: {
       tags: ['3.1 - Xác Thực & Phiên Làm Việc (Auth)'],
-      summary: 'Yêu cầu mã OTP đặt lại mật khẩu (Hạn 10 phút)',
+      summary: '[🔓 Public] Yêu cầu mã OTP đặt lại mật khẩu (Hạn 10 phút)',
       description: 'Gửi mã OTP 6 chữ số đến email để xác thực yêu cầu đổi mật khẩu mới.',
       security: [],
       requestBody: {
@@ -400,7 +400,7 @@ const swaggerPaths = {
   '/api/auth/reset-password': {
     post: {
       tags: ['3.1 - Xác Thực & Phiên Làm Việc (Auth)'],
-      summary: 'Xác thực OTP và đặt lại mật khẩu mới',
+      summary: '[🔓 Public] Xác thực OTP và đặt lại mật khẩu mới',
       description: 'Nhập mã OTP 6 số còn hiệu lực (< 10 phút) và mật khẩu mới để đổi mật khẩu (thu hồi các token cũ).',
       security: [],
       requestBody: {
@@ -433,7 +433,7 @@ const swaggerPaths = {
   '/api/users': {
     get: {
       tags: ['3.1 - Quản Lý Người Dùng (Users)'],
-      summary: 'Lấy danh sách người dùng (Admin xem toàn trường, Trưởng khoa chỉ xem khoa mình)',
+      summary: '[🔒 Admin / Trưởng khoa] Lấy danh sách người dùng (Admin xem toàn trường, Trưởng khoa chỉ xem khoa mình)',
       security: [{ BearerAuth: [] }],
       parameters: [
         { name: 'role', in: 'query', schema: { type: 'string', enum: ['admin', 'truongkhoa', 'giangvien', 'nhanvien'] }, description: 'Lọc theo chức vụ' },
@@ -448,7 +448,7 @@ const swaggerPaths = {
     },
     post: {
       tags: ['3.1 - Quản Lý Người Dùng (Users)'],
-      summary: 'Thêm người dùng mới (Chỉ Admin)',
+      summary: '[🔒 Admin] Thêm người dùng mới (Ghi Audit Log)',
       security: [{ BearerAuth: [] }],
       requestBody: {
         required: true,
@@ -480,7 +480,7 @@ const swaggerPaths = {
   '/api/users/{id}': {
     get: {
       tags: ['3.1 - Quản Lý Người Dùng (Users)'],
-      summary: 'Xem thông tin chi tiết một người dùng',
+      summary: '[🔒 Admin / Trưởng khoa] Xem thông tin chi tiết một người dùng',
       security: [{ BearerAuth: [] }],
       parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'string' } }],
       responses: {
@@ -490,7 +490,7 @@ const swaggerPaths = {
     },
     put: {
       tags: ['3.1 - Quản Lý Người Dùng (Users)'],
-      summary: 'Cập nhật thông tin người dùng (Admin / Trưởng khoa)',
+      summary: '[🔒 Admin / Trưởng khoa] Cập nhật thông tin người dùng (Ghi Audit Log)',
       security: [{ BearerAuth: [] }],
       parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'string' } }],
       requestBody: {
@@ -517,7 +517,7 @@ const swaggerPaths = {
     },
     delete: {
       tags: ['3.1 - Quản Lý Người Dùng (Users)'],
-      summary: 'Vô hiệu hóa người dùng (Soft Delete: isActive = false) (Chỉ Admin)',
+      summary: '[🔒 Admin] Vô hiệu hóa người dùng (Soft Delete: isActive = false, Ghi Audit Log)',
       security: [{ BearerAuth: [] }],
       parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'string' } }],
       responses: {
@@ -533,7 +533,7 @@ const swaggerPaths = {
   '/api/departments': {
     get: {
       tags: ['3.2 - Cơ Cấu Tổ Chức & Phòng Ban (Departments)'],
-      summary: 'Lấy danh sách Khoa / Viện / Phòng ban (Cây phân cấp)',
+      summary: '[🔒 Xác thực] Lấy danh sách Khoa / Viện / Phòng ban (Cây phân cấp)',
       security: [{ BearerAuth: [] }],
       parameters: [
         { name: 'tree', in: 'query', schema: { type: 'boolean', default: true }, description: 'Trả về cấu trúc dạng cây phân cấp (true/false)' },
@@ -546,7 +546,7 @@ const swaggerPaths = {
     },
     post: {
       tags: ['3.2 - Cơ Cấu Tổ Chức & Phòng Ban (Departments)'],
-      summary: 'Tạo mới Khoa / Phòng ban / Bộ môn (Chỉ Admin)',
+      summary: '[🔒 Admin] Tạo mới Khoa / Phòng ban / Bộ môn',
       security: [{ BearerAuth: [] }],
       requestBody: {
         required: true,
@@ -582,7 +582,7 @@ const swaggerPaths = {
   '/api/departments/{id}': {
     get: {
       tags: ['3.2 - Cơ Cấu Tổ Chức & Phòng Ban (Departments)'],
-      summary: 'Lấy chi tiết Khoa / Phòng ban',
+      summary: '[🔒 Xác thực] Lấy chi tiết Khoa / Phòng ban',
       security: [{ BearerAuth: [] }],
       parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'string' } }],
       responses: {
@@ -592,7 +592,7 @@ const swaggerPaths = {
     },
     put: {
       tags: ['3.2 - Cơ Cấu Tổ Chức & Phòng Ban (Departments)'],
-      summary: 'Cập nhật thông tin Khoa / Phòng ban (Admin / Trưởng khoa)',
+      summary: '[🔒 Admin / Trưởng khoa] Cập nhật thông tin Khoa / Phòng ban',
       security: [{ BearerAuth: [] }],
       parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'string' } }],
       requestBody: {
@@ -621,7 +621,7 @@ const swaggerPaths = {
     },
     delete: {
       tags: ['3.2 - Cơ Cấu Tổ Chức & Phòng Ban (Departments)'],
-      summary: 'Xóa Khoa / Phòng ban (Ràng buộc nhân sự & đơn vị con) (Chỉ Admin)',
+      summary: '[🔒 Admin] Xóa Khoa / Phòng ban (Ràng buộc nhân sự & đơn vị con)',
       security: [{ BearerAuth: [] }],
       parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'string' } }],
       responses: {
@@ -637,7 +637,7 @@ const swaggerPaths = {
   '/api/shifts': {
     get: {
       tags: ['3.3 - Ca Làm Việc & Tiết Học (Shifts)'],
-      summary: 'Danh sách cấu hình ca làm việc / tiết học',
+      summary: '[🔒 Xác thực] Danh sách cấu hình ca làm việc / tiết học',
       security: [{ BearerAuth: [] }],
       responses: {
         200: { description: 'Lấy danh sách thành công' },
@@ -645,7 +645,7 @@ const swaggerPaths = {
     },
     post: {
       tags: ['3.3 - Ca Làm Việc & Tiết Học (Shifts)'],
-      summary: 'Thêm mới ca làm việc / tiết dạy (Chỉ Admin)',
+      summary: '[🔒 Admin] Thêm mới ca làm việc / tiết dạy',
       security: [{ BearerAuth: [] }],
       requestBody: {
         required: true,
@@ -677,7 +677,7 @@ const swaggerPaths = {
   '/api/shifts/{id}': {
     get: {
       tags: ['3.3 - Ca Làm Việc & Tiết Học (Shifts)'],
-      summary: 'Chi tiết ca làm việc theo ID',
+      summary: '[🔒 Xác thực] Chi tiết ca làm việc theo ID',
       security: [{ BearerAuth: [] }],
       parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'string' } }],
       responses: {
@@ -687,7 +687,7 @@ const swaggerPaths = {
     },
     put: {
       tags: ['3.3 - Ca Làm Việc & Tiết Học (Shifts)'],
-      summary: 'Cập nhật ca làm việc (Chỉ Admin)',
+      summary: '[🔒 Admin] Cập nhật ca làm việc',
       security: [{ BearerAuth: [] }],
       parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'string' } }],
       requestBody: {
@@ -711,7 +711,7 @@ const swaggerPaths = {
     },
     delete: {
       tags: ['3.3 - Ca Làm Việc & Tiết Học (Shifts)'],
-      summary: 'Xóa ca làm việc (Chỉ Admin)',
+      summary: '[🔒 Admin] Xóa ca làm việc',
       security: [{ BearerAuth: [] }],
       parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'string' } }],
       responses: {
@@ -726,7 +726,7 @@ const swaggerPaths = {
   '/api/schedules': {
     get: {
       tags: ['3.3 - Lịch Phân Công Giảng Dạy (Schedules)'],
-      summary: 'Tra cứu lịch giảng dạy và lịch làm việc',
+      summary: '[🔒 Xác thực] Tra cứu lịch giảng dạy và lịch làm việc',
       security: [{ BearerAuth: [] }],
       parameters: [
         { name: 'userId', in: 'query', schema: { type: 'string' }, description: 'Lọc theo ID giảng viên' },
@@ -740,7 +740,7 @@ const swaggerPaths = {
     },
     post: {
       tags: ['3.3 - Lịch Phân Công Giảng Dạy (Schedules)'],
-      summary: 'Tạo mới lịch phân công giảng dạy (Admin / Trưởng khoa)',
+      summary: '[🔒 Admin / Trưởng khoa] Tạo mới lịch phân công giảng dạy',
       security: [{ BearerAuth: [] }],
       requestBody: {
         required: true,
@@ -772,7 +772,7 @@ const swaggerPaths = {
   '/api/schedules/{id}': {
     get: {
       tags: ['3.3 - Lịch Phân Công Giảng Dạy (Schedules)'],
-      summary: 'Xem chi tiết một lịch giảng dạy',
+      summary: '[🔒 Xác thực] Xem chi tiết một lịch giảng dạy',
       security: [{ BearerAuth: [] }],
       parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'string' } }],
       responses: {
@@ -781,7 +781,7 @@ const swaggerPaths = {
     },
     put: {
       tags: ['3.3 - Lịch Phân Công Giảng Dạy (Schedules)'],
-      summary: 'Cập nhật lịch giảng dạy (Admin / Trưởng khoa)',
+      summary: '[🔒 Admin / Trưởng khoa] Cập nhật lịch giảng dạy',
       security: [{ BearerAuth: [] }],
       parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'string' } }],
       requestBody: {
@@ -803,7 +803,7 @@ const swaggerPaths = {
     },
     delete: {
       tags: ['3.3 - Lịch Phân Công Giảng Dạy (Schedules)'],
-      summary: 'Xóa lịch giảng dạy (Admin / Trưởng khoa)',
+      summary: '[🔒 Admin / Trưởng khoa] Xóa lịch giảng dạy',
       security: [{ BearerAuth: [] }],
       parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'string' } }],
       responses: {
@@ -818,7 +818,7 @@ const swaggerPaths = {
   '/api/attendance/check-in': {
     post: {
       tags: ['3.4 - Quản Lý Chấm Công (Attendance)'],
-      summary: 'Điểm danh đầu ca (Check-in GPS / QR / Manual)',
+      summary: '[🔒 Cá nhân] Điểm danh đầu ca (Check-in GPS / QR / Manual)',
       description: 'Hệ thống tự động tìm lịch dạy phù hợp của người dùng trong khoảng [startTime - 30p, endTime] và đánh giá trạng thái Đúng giờ / Đi muộn.',
       security: [{ BearerAuth: [] }],
       requestBody: {
@@ -851,7 +851,7 @@ const swaggerPaths = {
   '/api/attendance/check-out': {
     post: {
       tags: ['3.4 - Quản Lý Chấm Công (Attendance)'],
-      summary: 'Điểm danh kết thúc ca (Check-out)',
+      summary: '[🔒 Cá nhân] Điểm danh kết thúc ca (Check-out)',
       description: 'Tự động tìm kiếm bản ghi check-in mở gần nhất trong ngày để đóng ca và cập nhật thời gian check-out.',
       security: [{ BearerAuth: [] }],
       responses: {
@@ -864,7 +864,7 @@ const swaggerPaths = {
   '/api/attendance/history': {
     get: {
       tags: ['3.4 - Quản Lý Chấm Công (Attendance)'],
-      summary: 'Lịch sử chấm công (Phân quyền: Giảng viên chỉ xem của mình, Trưởng khoa xem khoa mình, Admin xem tất cả)',
+      summary: '[🔒 Xác thực] Lịch sử chấm công (Phân quyền: GV cá nhân, Trưởng khoa xem khoa, Admin toàn trường)',
       security: [{ BearerAuth: [] }],
       parameters: [
         { name: 'userId', in: 'query', schema: { type: 'string' }, description: 'Lọc theo nhân sự' },
@@ -884,7 +884,7 @@ const swaggerPaths = {
   '/api/attendance/{id}': {
     get: {
       tags: ['3.4 - Quản Lý Chấm Công (Attendance)'],
-      summary: 'Xem chi tiết bản ghi chấm công',
+      summary: '[🔒 Xác thực] Xem chi tiết bản ghi chấm công',
       security: [{ BearerAuth: [] }],
       parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'string' } }],
       responses: {
@@ -893,7 +893,7 @@ const swaggerPaths = {
     },
     put: {
       tags: ['3.4 - Quản Lý Chấm Công (Attendance)'],
-      summary: 'Điều chỉnh bản ghi chấm công (Chỉ Admin - Có ghi Audit Log)',
+      summary: '[🔒 Admin] Điều chỉnh bản ghi chấm công (Ghi Audit Log)',
       security: [{ BearerAuth: [] }],
       parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'string' } }],
       requestBody: {
@@ -925,7 +925,7 @@ const swaggerPaths = {
   '/api/leave-requests': {
     post: {
       tags: ['3.5 - Đơn Nghỉ Phép & Đổi Ca (Leave Requests)'],
-      summary: 'Tạo đơn xin nghỉ phép / dạy bù / đổi ca',
+      summary: '[🔒 Cá nhân] Tạo đơn xin nghỉ phép / dạy bù / đổi ca',
       security: [{ BearerAuth: [] }],
       requestBody: {
         required: true,
@@ -952,7 +952,7 @@ const swaggerPaths = {
     },
     get: {
       tags: ['3.5 - Đơn Nghỉ Phép & Đổi Ca (Leave Requests)'],
-      summary: 'Danh sách đơn xin nghỉ phép (Phân quyền theo vai trò)',
+      summary: '[🔒 Xác thực] Danh sách đơn xin nghỉ phép (Phân quyền theo vai trò)',
       security: [{ BearerAuth: [] }],
       parameters: [
         { name: 'status', in: 'query', schema: { type: 'string', enum: ['PENDING', 'APPROVED', 'REJECTED'] }, description: 'Lọc trạng thái' },
@@ -968,7 +968,7 @@ const swaggerPaths = {
   '/api/leave-requests/balance': {
     get: {
       tags: ['3.5 - Đơn Nghỉ Phép & Đổi Ca (Leave Requests)'],
-      summary: 'Xem số ngày phép còn lại trong năm (Leave Balance)',
+      summary: '[🔒 Cá nhân / Xác thực] Xem số ngày phép còn lại trong năm (Leave Balance)',
       description: 'Dùng Aggregate pipeline tính tổng ngày phép tiêu chuẩn, ngày đã sử dụng và ngày còn lại.',
       security: [{ BearerAuth: [] }],
       parameters: [
@@ -1000,7 +1000,7 @@ const swaggerPaths = {
   '/api/leave-requests/{id}': {
     get: {
       tags: ['3.5 - Đơn Nghỉ Phép & Đổi Ca (Leave Requests)'],
-      summary: 'Xem chi tiết một đơn xin nghỉ',
+      summary: '[🔒 Xác thực] Xem chi tiết một đơn xin nghỉ',
       security: [{ BearerAuth: [] }],
       parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'string' } }],
       responses: {
@@ -1013,7 +1013,7 @@ const swaggerPaths = {
   '/api/leave-requests/{id}/approve': {
     put: {
       tags: ['3.5 - Đơn Nghỉ Phép & Đổi Ca (Leave Requests)'],
-      summary: 'Phê duyệt đơn xin nghỉ (Trưởng khoa / Admin)',
+      summary: '[🔒 Admin / Trưởng khoa] Phê duyệt đơn xin nghỉ',
       security: [{ BearerAuth: [] }],
       parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'string' } }],
       requestBody: {
@@ -1037,7 +1037,7 @@ const swaggerPaths = {
   '/api/leave-requests/{id}/reject': {
     put: {
       tags: ['3.5 - Đơn Nghỉ Phép & Đổi Ca (Leave Requests)'],
-      summary: 'Từ chối đơn xin nghỉ (Trưởng khoa / Admin)',
+      summary: '[🔒 Admin / Trưởng khoa] Từ chối đơn xin nghỉ',
       security: [{ BearerAuth: [] }],
       parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'string' } }],
       requestBody: {
@@ -1064,7 +1064,7 @@ const swaggerPaths = {
   '/api/audit-logs': {
     get: {
       tags: ['3.6 - Nhật Ký Kiểm Toán An Toàn (Audit Logs)'],
-      summary: 'Tra cứu nhật ký kiểm toán hệ thống (Chỉ dành cho Admin)',
+      summary: '[🔒 Admin] Tra cứu nhật ký kiểm toán hệ thống',
       security: [{ BearerAuth: [] }],
       parameters: [
         { name: 'actor', in: 'query', schema: { type: 'string' }, description: 'Lọc theo ID người thao tác' },
@@ -1086,7 +1086,7 @@ const swaggerPaths = {
   '/api/reports/attendance': {
     get: {
       tags: ['3.7 - Báo Cáo & Thống Kê (Reports)'],
-      summary: 'Báo cáo tổng hợp số liệu chấm công và ngày phép',
+      summary: '[🔒 Admin / Trưởng khoa] Báo cáo tổng hợp số liệu chấm công và ngày phép',
       description: 'Thống kê tổng số ca, số lượt đúng giờ, đi muộn, về sớm, vắng mặt và số ngày nghỉ phép đã duyệt trong kỳ.',
       security: [{ BearerAuth: [] }],
       parameters: [

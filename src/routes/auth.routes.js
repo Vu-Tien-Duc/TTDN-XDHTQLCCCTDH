@@ -11,6 +11,7 @@ const {
   getMe,
 } = require('../controllers/auth.controller');
 const { verifyToken } = require('../middlewares/auth.middleware');
+const { loginLimiter } = require('../middlewares/rateLimiter.middleware');
 
 // Hướng dẫn nếu vô tình gọi GET /login
 router.get('/login', (req, res) => {
@@ -21,8 +22,8 @@ router.get('/login', (req, res) => {
   });
 });
 
-// 1. Xác thực & Đăng nhập
-router.post('/login', login);
+// 1. Xác thực & Đăng nhập (Áp dụng Rate Limiting tối đa 5 lần / 15 phút)
+router.post('/login', loginLimiter, login);
 
 // 2. Đăng ký tài khoản & Xác thực OTP 10 phút
 router.post('/register', register);
