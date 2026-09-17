@@ -919,6 +919,27 @@ const swaggerPaths = {
     },
   },
 
+  '/api/attendance/cron/test-daily-check': {
+    post: {
+      tags: ['3.4 - Quản Lý Chấm Công (Attendance)'],
+      summary: '[🔒 Admin] Kích hoạt thủ công tiến trình quét vắng mặt (Test Demo)',
+      description: 'Kích hoạt thủ công tiến trình cron kiểm tra vắng mặt ngay lập tức mà không cần đợi 23:59 đêm để phục vụ test demo.',
+      security: [{ BearerAuth: [] }],
+      parameters: [
+        {
+          name: 'date',
+          in: 'query',
+          schema: { type: 'string', format: 'date', example: '2026-09-14' },
+          description: 'Ngày cần kiểm tra (YYYY-MM-DD). Mặc định là hôm nay.',
+        },
+      ],
+      responses: {
+        200: { description: 'Kích hoạt tiến trình quét vắng mặt thành công' },
+        403: { description: 'Không có quyền truy cập (Chỉ Admin)' },
+      },
+    },
+  },
+
   // -------------------------------------------------------------
   // 3.5 LEAVE REQUESTS
   // -------------------------------------------------------------

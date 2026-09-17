@@ -6,6 +6,8 @@
   "scripts": {
     "start": "node src/server.js",
     "dev": "nodemon src/server.js",
+    "build:frontend": "npm run build --prefix frontend",
+    "build": "npm run build --prefix frontend",
     "seed": "node src/utils/seeder.js",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
