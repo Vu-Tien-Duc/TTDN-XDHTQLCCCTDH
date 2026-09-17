@@ -48,13 +48,13 @@ Content-Type: application/json
   "password": "password123"
 }
 
-### 2c. Đăng nhập Giảng viên (TS. Bích)
+### 2c. Đăng nhập Giảng viên (ThS. Linh)
 # @name loginLecturer
 POST {{baseUrl}}/auth/login HTTP/1.1
 Content-Type: application/json
 
 {
-  "email": "giangvien.bich@university.edu.vn",
+  "email": "giangvien.linh@university.edu.vn",
   "password": "password123"
 }
 
@@ -432,6 +432,62 @@ Content-Type: application/json
 
 {
   "status": "ON_TIME"
+}
+
+### ==============================================================================
+### TUẦN 4 - KIỂM THỬ TOÀN DIỆN 5 CA NGHIỆP VỤ BIÊN (TC07 - TC11)
+### ==============================================================================
+
+### TC07. [Thành công] Giảng viên có lịch hôm nay nhưng không check-in -> Kích hoạt Cron -> Nhận trạng thái ABSENT
+# Đăng nhập Admin trước, sau đó kích hoạt trigger-absent-cron
+# Kỳ vọng: 200 OK, newlyMarkedAbsent >= 1
+POST {{baseUrl}}/attendance/trigger-absent-cron HTTP/1.1
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "date": "2026-09-15"
+}
+
+### TC08. [Thành công] Giảng viên có đơn xin nghỉ phép đã duyệt (EXCUSED_ABSENCE) -> Kích hoạt Cron -> Không bị đè thành ABSENT
+# Kỳ vọng: 200 OK, giữ nguyên EXCUSED_ABSENCE không bị đè thành ABSENT
+POST {{baseUrl}}/attendance/trigger-absent-cron HTTP/1.1
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "date": "2026-09-15"
+}
+
+### TC09. [Thành công] Giảng viên đã check-in đúng giờ (ON_TIME) -> Kích hoạt Cron -> Giữ nguyên ON_TIME
+# Kỳ vọng: 200 OK, ca đã check-in được tính vào alreadyAttended, không bị đổi thành ABSENT
+POST {{baseUrl}}/attendance/trigger-absent-cron HTTP/1.1
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "date": "2026-09-15"
+}
+
+### TC10. [Thành công] Chạy lại Cron lần 2 trong cùng một ngày -> Xác nhận không sinh bản ghi trùng lặp (Idempotent PASS)
+# Kỳ vọng: 200 OK, newlyMarkedAbsent = 0, alreadyAttended = tổng số ca đã xử lý (không sinh bản ghi trùng lặp)
+POST {{baseUrl}}/attendance/trigger-absent-cron HTTP/1.1
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "date": "2026-09-15"
+}
+
+### TC11. [Bảo mật] Tài khoản không phải Admin (Giảng viên / Nhân viên) cố tình gọi trigger Cron -> Trả về 403 Forbidden
+# Đăng nhập bằng tài khoản Giảng viên (loginLecturer ở mục 2c) rồi bấm request này
+# Kỳ vọng: 403 Forbidden
+POST {{baseUrl}}/attendance/trigger-absent-cron HTTP/1.1
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "date": "2026-09-15"
 }
 
 ### ------------------------------------------------------------------------------

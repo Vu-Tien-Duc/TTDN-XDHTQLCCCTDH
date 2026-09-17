@@ -361,28 +361,71 @@ router.get('/history', getAttendanceHistory);
 
 /**
  * @swagger
- * /api/attendance/cron/test-daily-check:
+ * /api/attendance/trigger-absent-cron:
  *   post:
- *     summary: "[🔒 Admin] Kích hoạt thủ công tiến trình quét kiểm tra vắng mặt ngày hôm nay (Test Postman)"
- *     description: Kích hoạt thủ công tiến trình cron kiểm tra vắng mặt ngay lập tức trên Postman mà không cần đợi lịch 23:59 đêm.
+ *     summary: "[🔒 Admin] Kích hoạt thủ công tiến trình quét vắng mặt tự động (trigger-absent-cron)"
+ *     description: Dành riêng cho Quản trị viên (Admin) hoặc người chấm đồ án có thể kích hoạt tiến trình quét vắng mặt ngay tức thì mà không cần đợi đến 23:59 đêm. Cho phép truyền body hoặc query ?date=YYYY-MM-DD để quét bù các ngày trong quá khứ.
  *     tags: [Attendance]
  *     security:
  *       - bearerAuth: []
  *       - BearerAuth: []
+ *     requestBody:
+ *       required: false
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               date:
+ *                 type: string
+ *                 format: date
+ *                 example: "2026-09-15"
+ *                 description: Ngày cần quét vắng mặt (YYYY-MM-DD). Mặc định là ngày hôm nay.
  *     parameters:
  *       - in: query
  *         name: date
  *         schema:
  *           type: string
  *           format: date
- *           example: "2026-09-14"
- *         description: Ngày kiểm tra (YYYY-MM-DD). Mặc định là ngày hôm nay.
+ *           example: "2026-09-15"
+ *         description: Ngày cần quét vắng mặt (nếu truyền qua query string)
  *     responses:
  *       200:
- *         description: Kích hoạt tiến trình quét kiểm tra vắng mặt thành công
+ *         description: Tiến trình quét vắng mặt hoàn tất thành công
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 message:
+ *                   type: string
+ *                   example: "Tiến trình quét vắng mặt hoàn tất."
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     scannedSchedules:
+ *                       type: integer
+ *                       example: 12
+ *                     alreadyAttended:
+ *                       type: integer
+ *                       example: 10
+ *                     excusedAbsences:
+ *                       type: integer
+ *                       example: 1
+ *                     newlyMarkedAbsent:
+ *                       type: integer
+ *                       example: 1
+ *       400:
+ *         description: Định dạng ngày không hợp lệ
+ *       401:
+ *         description: Chưa xác thực hoặc Token không hợp lệ
  *       403:
- *         description: Không có quyền truy cập (Chỉ Admin)
+ *         description: Quyền truy cập bị từ chối (Chỉ Admin)
  */
+router.post('/trigger-absent-cron', authorizeRoles('admin'), triggerDailyAbsentCheck);
 router.post('/cron/test-daily-check', authorizeRoles('admin'), triggerDailyAbsentCheck);
 
 /**

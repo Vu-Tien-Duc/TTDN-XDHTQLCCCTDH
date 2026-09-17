@@ -117,6 +117,7 @@ const processScheduleAttendanceCheck = async (schedule, dayRange) => {
     checkOutTime: null,
     leaveRequestId,
     isManualOverride: false,
+    createdAt: endOfDay,
   });
 
   console.log(`[Cron Service] [ĐÁNH VẮNG] Tự động ghi nhận '${finalStatus}' cho Giảng viên ${teacherName} (${shiftName}) - Log ID: ${newLog._id}`);

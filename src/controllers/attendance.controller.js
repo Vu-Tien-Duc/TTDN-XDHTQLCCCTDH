@@ -450,20 +450,35 @@ const updateAttendanceByAdmin = async (req, res, next) => {
 };
 
 /**
- * Kích hoạt thủ công tiến trình quét kiểm tra vắng mặt ngày hôm nay (Dành cho Admin kiểm thử qua Postman)
+ * Kích hoạt thủ công tiến trình quét kiểm tra vắng mặt ngày hôm nay (Dành cho Admin kiểm thử Swagger / Postman)
+ * POST /api/attendance/trigger-absent-cron
  * POST /api/attendance/cron/test-daily-check
  */
 const triggerDailyAbsentCheck = async (req, res, next) => {
   try {
-    const targetDate = req.query.date ? new Date(req.query.date) : new Date();
+    const inputDate = req.body?.date || req.query?.date;
+    let targetDate = new Date();
+    if (inputDate) {
+      targetDate = new Date(inputDate);
+      if (isNaN(targetDate.getTime())) {
+        return sendError(res, 'Định dạng ngày không hợp lệ. Vui lòng truyền YYYY-MM-DD.', null, 400);
+      }
+    }
+
     const summary = await runDailyAbsentCheck(targetDate);
+
+    // Chuẩn hóa đúng cấu trúc nghiệp vụ Ngày 4
+    const responseData = {
+      scannedSchedules: summary.totalSchedules,
+      alreadyAttended: summary.skippedCount,
+      excusedAbsences: summary.excusedCreatedCount,
+      newlyMarkedAbsent: summary.absentCreatedCount,
+    };
+
     return sendSuccess(
       res,
-      'Kích hoạt tiến trình quét vắng mặt tự động thành công (Xem chi tiết log tại console máy chủ).',
-      {
-        triggeredAt: new Date().toISOString(),
-        summary,
-      }
+      'Tiến trình quét vắng mặt hoàn tất.',
+      responseData
     );
   } catch (error) {
     next(error);

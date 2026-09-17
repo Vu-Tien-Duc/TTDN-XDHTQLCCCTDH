@@ -190,7 +190,7 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"email\": \"daihocdtd@gmail.com\",\n  \"password\": \"password123\"\n}"
+              "raw": "{\n  \"email\": \"admin@university.edu.vn\",\n  \"password\": \"password123\"\n}"
             },
             "url": {
               "raw": "{{baseUrl}}/auth/login",
@@ -623,7 +623,29 @@
           }
         },
         {
-          "name": "2. Tạo ca làm việc mới",
+          "name": "2. Chi tiết một ca làm việc",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/shifts/{{shiftId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "shifts",
+                "{{shiftId}}"
+              ]
+            }
+          }
+        },
+        {
+          "name": "3. Tạo ca làm việc mới",
           "request": {
             "method": "POST",
             "header": [
@@ -652,7 +674,7 @@
           }
         },
         {
-          "name": "3. Cập nhật ca làm việc",
+          "name": "4. Cập nhật ca làm việc",
           "request": {
             "method": "PUT",
             "header": [
@@ -682,7 +704,7 @@
           }
         },
         {
-          "name": "4. Xóa ca làm việc",
+          "name": "5. Xóa ca làm việc",
           "request": {
             "method": "DELETE",
             "header": [
@@ -704,7 +726,7 @@
           }
         },
         {
-          "name": "5. Danh sách lịch công tác / giảng dạy (Học kỳ)",
+          "name": "6. Danh sách lịch công tác / giảng dạy (Học kỳ)",
           "request": {
             "method": "GET",
             "header": [
@@ -735,7 +757,7 @@
           }
         },
         {
-          "name": "6. Chi tiết một lịch",
+          "name": "7. Chi tiết một lịch",
           "request": {
             "method": "GET",
             "header": [
@@ -757,7 +779,7 @@
           }
         },
         {
-          "name": "7. Tạo lịch mới (Validate chống trùng giờ)",
+          "name": "8. Tạo lịch mới (Validate chống trùng giờ)",
           "request": {
             "method": "POST",
             "header": [
@@ -786,7 +808,7 @@
           }
         },
         {
-          "name": "8. Cập nhật lịch (Đổi phòng / gia hạn)",
+          "name": "9. Cập nhật lịch (Đổi phòng / gia hạn)",
           "request": {
             "method": "PUT",
             "header": [
@@ -816,7 +838,7 @@
           }
         },
         {
-          "name": "9. Xóa lịch",
+          "name": "10. Xóa lịch",
           "request": {
             "method": "DELETE",
             "header": [
@@ -833,6 +855,28 @@
               "path": [
                 "schedules",
                 "{{scheduleId}}"
+              ]
+            }
+          }
+        },
+        {
+          "name": "11. Lịch giảng dạy có hiệu lực hôm nay (Ngày 1 Tuần 4 - Cron Service)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/schedules/today",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "schedules",
+                "today"
               ]
             }
           }
@@ -1132,6 +1176,156 @@
               "path": [
                 "attendance",
                 "{{attendanceId}}"
+              ]
+            }
+          }
+        },
+        {
+          "name": "TC07 - [Thành công] Kích hoạt Cron đánh vắng giảng viên không check-in (200 OK & ABSENT)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"date\": \"2026-09-15\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/attendance/trigger-absent-cron",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "attendance",
+                "trigger-absent-cron"
+              ]
+            }
+          }
+        },
+        {
+          "name": "TC08 - [Thành công] Giảng viên có đơn nghỉ phép đã duyệt -> Kích hoạt Cron không bị đè ABSENT",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"date\": \"2026-09-15\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/attendance/trigger-absent-cron",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "attendance",
+                "trigger-absent-cron"
+              ]
+            }
+          }
+        },
+        {
+          "name": "TC09 - [Thành công] Giảng viên đã check-in đúng giờ -> Kích hoạt Cron giữ nguyên ON_TIME",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"date\": \"2026-09-15\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/attendance/trigger-absent-cron",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "attendance",
+                "trigger-absent-cron"
+              ]
+            }
+          }
+        },
+        {
+          "name": "TC10 - [Thành công] Chạy lại Cron lần 2 trong ngày -> Idempotent PASS (Không nhân đôi bản ghi)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"date\": \"2026-09-15\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/attendance/trigger-absent-cron",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "attendance",
+                "trigger-absent-cron"
+              ]
+            }
+          }
+        },
+        {
+          "name": "TC11 - [Bảo mật] Tài khoản Giảng viên cố tình gọi trigger Cron -> 403 Forbidden",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"date\": \"2026-09-15\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/attendance/trigger-absent-cron",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "attendance",
+                "trigger-absent-cron"
               ]
             }
           }
