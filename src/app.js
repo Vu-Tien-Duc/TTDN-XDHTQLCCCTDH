@@ -1,4 +1,5 @@
 const path = require('path');
+const fs = require('fs');
 const express = require('express');
 const cors = require('cors');
 const helmet = require('helmet');
@@ -74,15 +75,7 @@ const swaggerUiOptions = {
 };
 app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec, swaggerUiOptions));
 
-// 5. Base Route / Welcome & Health Check
-app.get('/', (req, res) => {
-  res.json({
-    message: 'Chào mừng đến với API Hệ thống Quản lý Chấm công Trường Đại học',
-    swaggerDocs: '/api-docs',
-    version: '1.0.0',
-  });
-});
-
+// 5. Health Check Route
 app.get('/health', (req, res) => {
   res.status(200).json({
     status: 'OK',
@@ -103,9 +96,41 @@ app.get('/health', (req, res) => {
   });
 });
 
-// 5. Main API Routes (Hỗ trợ cả /api và /api/v1)
+// 6. Main API Routes (Hỗ trợ cả /api và /api/v1)
 app.use('/api', apiRoutes);
 app.use('/api/v1', apiRoutes);
+
+// 7. Phục vụ Frontend tĩnh (Production Single-Port Deployment)
+const distPath = path.join(__dirname, '../frontend/dist');
+if (fs.existsSync(distPath)) {
+  app.use(express.static(distPath));
+
+  // SPA Fallback: Mọi URL giao diện (ngoại trừ API, uploads, Swagger) đều trả về index.html
+  app.get('*', (req, res, next) => {
+    if (
+      req.path.startsWith('/api') ||
+      req.path.startsWith('/uploads') ||
+      req.path.startsWith('/api-docs') ||
+      req.path.startsWith('/health')
+    ) {
+      return next();
+    }
+    const indexHtml = path.join(distPath, 'index.html');
+    if (fs.existsSync(indexHtml)) {
+      return res.sendFile(indexHtml);
+    }
+    next();
+  });
+} else {
+  // Khi chưa build frontend (môi trường dev chỉ chạy backend)
+  app.get('/', (req, res) => {
+    res.json({
+      message: 'Chào mừng đến với API Hệ thống Quản lý Chấm công Trường Đại học',
+      swaggerDocs: '/api-docs',
+      version: '1.0.0',
+    });
+  });
+}
 
 // 6. Error & 404 Handling Middlewares
 app.use(notFoundHandler);

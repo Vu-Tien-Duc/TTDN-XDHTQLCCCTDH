@@ -153,7 +153,6 @@ router.use(verifyToken);
  *     description: Lấy userId từ JWT. Client chỉ cần gửi method, deviceId, location. Backend tự động quy đổi giờ Asia/Ho_Chi_Minh (UTC+7), tìm lịch dạy khớp hôm nay trong khung [startTime - 30p, endTime] và đánh giá ON_TIME hoặc LATE.
  *     tags: [Attendance]
  *     security:
- *       - bearerAuth: []
  *       - BearerAuth: []
  *     requestBody:
  *       required: false
@@ -206,7 +205,6 @@ router.post('/check-in', checkIn);
  *     description: Tự động tìm bản ghi Check-in đang mở trong ngày hôm nay theo giờ UTC+7. So khớp với endTime của ca; nếu ra sớm và ban đầu là ON_TIME thì chuyển sang EARLY_LEAVE (nếu ban đầu đã LATE thì giữ nguyên). Trả về workingDuration thực tế.
  *     tags: [Attendance]
  *     security:
- *       - bearerAuth: []
  *       - BearerAuth: []
  *     requestBody:
  *       required: false
@@ -273,7 +271,6 @@ router.post('/check-out', checkOut);
  *     description: Giảng viên/Nhân viên chỉ xem của chính mình. Trưởng khoa tự động lọc theo khoa mình (departmentId). Admin xem toàn trường và lọc theo userId, departmentId, status, from, to.
  *     tags: [Attendance]
  *     security:
- *       - bearerAuth: []
  *       - BearerAuth: []
  *     parameters:
  *       - in: query
@@ -367,7 +364,6 @@ router.get('/history', getAttendanceHistory);
  *     description: Dành riêng cho Quản trị viên (Admin) hoặc người chấm đồ án có thể kích hoạt tiến trình quét vắng mặt ngay tức thì mà không cần đợi đến 23:59 đêm. Cho phép truyền body hoặc query ?date=YYYY-MM-DD để quét bù các ngày trong quá khứ.
  *     tags: [Attendance]
  *     security:
- *       - bearerAuth: []
  *       - BearerAuth: []
  *     requestBody:
  *       required: false
@@ -436,7 +432,6 @@ router.post('/cron/test-daily-check', authorizeRoles('admin'), triggerDailyAbsen
  *     description: Kiểm tra phân quyền truy cập. Giảng viên chỉ xem được bản ghi của mình, Trưởng khoa xem của khoa mình, Admin xem toàn bộ.
  *     tags: [Attendance]
  *     security:
- *       - bearerAuth: []
  *       - BearerAuth: []
  *     parameters:
  *       - in: path
@@ -480,7 +475,6 @@ router.get('/:id', getAttendanceById);
  *     description: Chỉ Admin có quyền can thiệp. Bắt buộc hệ thống tự động gán isManualOverride = true và method = 'admin_override'. Tự động lưu vết dữ liệu trước và sau khi sửa vào Collection audit_logs.
  *     tags: [Attendance]
  *     security:
- *       - bearerAuth: []
  *       - BearerAuth: []
  *     parameters:
  *       - in: path
