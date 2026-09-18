@@ -19,6 +19,9 @@ import {
   Users,
   Eye,
   Info,
+  ChevronLeft,
+  ChevronRight,
+  CalendarDays,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { useAuth } from '../contexts/AuthContext';
@@ -59,6 +62,23 @@ const SHIFT_THEMES: Record<string, { bg: string; border: string; text: string; b
   'ca hành chính': { bg: 'bg-emerald-50/60 hover:bg-emerald-50', border: 'border-emerald-200', text: 'text-emerald-800', badge: 'bg-emerald-100 text-emerald-700' },
 };
 
+// Danh sách học kỳ chuẩn
+const SEMESTERS = [
+  { id: 'hk1_2026', name: 'Học kỳ 1 (2026 - 2027)' },
+  { id: 'hk2_2026', name: 'Học kỳ 2 (2026 - 2027)' },
+  { id: 'hk3_2026', name: 'Học kỳ Hè (2026 - 2027)' },
+];
+
+// Hàm lấy ngày Thứ Hai đầu tuần
+const getMonday = (d: Date) => {
+  const date = new Date(d);
+  const day = date.getDay();
+  const diff = date.getDate() - day + (day === 0 ? -6 : 1);
+  date.setHours(0, 0, 0, 0);
+  date.setDate(diff);
+  return date;
+};
+
 export const SchedulesPage: React.FC = () => {
   const { user } = useAuth();
 
@@ -76,6 +96,34 @@ export const SchedulesPage: React.FC = () => {
 
   // Chế độ hiển thị: 'grid' (Bảng tuần) hoặc 'table' (Danh sách)
   const [viewMode, setViewMode] = useState<'grid' | 'table'>('grid');
+
+  // Học kỳ & Điều hướng tuần
+  const [selectedSemester, setSelectedSemester] = useState<string>('hk1_2026');
+  const [currentWeekStart, setCurrentWeekStart] = useState<Date>(() => getMonday(new Date()));
+
+  // 7 ngày trong tuần được chọn
+  const weekDaysWithDates = useMemo(() => {
+    return WEEKDAYS.map((wd, index) => {
+      const dayDate = new Date(currentWeekStart);
+      dayDate.setDate(currentWeekStart.getDate() + index);
+      const dateFormatted = `${String(dayDate.getDate()).padStart(2, '0')}/${String(dayDate.getMonth() + 1).padStart(2, '0')}`;
+      const isToday = dayDate.toDateString() === new Date().toDateString();
+      return {
+        ...wd,
+        date: dayDate,
+        dateFormatted,
+        isToday,
+      };
+    });
+  }, [currentWeekStart]);
+
+  // Chuỗi hiển thị khoảng ngày của tuần
+  const weekRangeText = useMemo(() => {
+    const monday = new Date(currentWeekStart);
+    const sunday = new Date(currentWeekStart);
+    sunday.setDate(monday.getDate() + 6);
+    return `${String(monday.getDate()).padStart(2, '0')}/${String(monday.getMonth() + 1).padStart(2, '0')} - ${String(sunday.getDate()).padStart(2, '0')}/${String(sunday.getMonth() + 1).padStart(2, '0')}/${sunday.getFullYear()}`;
+  }, [currentWeekStart]);
 
   // Bộ lọc
   const [selectedDeptId, setSelectedDeptId] = useState<string>('all');
@@ -757,6 +805,54 @@ export const SchedulesPage: React.FC = () => {
       {/* 4. Nội dung chính: Chế độ Bảng tuần (Weekly Grid View) */}
       {viewMode === 'grid' ? (
         <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+          {/* Thanh Điều Hướng Tuần & Chọn Học Kỳ */}
+          <div className="bg-slate-50/80 border-b border-gray-200 px-4 py-3 flex flex-wrap items-center justify-between gap-3">
+            <div className="flex items-center gap-2">
+              <CalendarDays className="w-4 h-4 text-blue-600" />
+              <span className="text-xs font-bold text-gray-700">Học kỳ:</span>
+              <select
+                value={selectedSemester}
+                onChange={(e) => setSelectedSemester(e.target.value)}
+                className="px-2.5 py-1 text-xs bg-white border border-gray-300 rounded-lg font-semibold text-gray-800 focus:ring-2 focus:ring-blue-500 focus:outline-none"
+              >
+                {SEMESTERS.map((sem) => (
+                  <option key={sem.id} value={sem.id}>
+                    {sem.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => setCurrentWeekStart((prev) => new Date(prev.getTime() - 7 * 24 * 60 * 60 * 1000))}
+                className="p-1.5 text-gray-600 hover:bg-white hover:shadow-xs rounded-lg border border-gray-200 transition"
+                title="Tuần trước"
+              >
+                <ChevronLeft className="w-4 h-4" />
+              </button>
+
+              <div className="text-xs font-bold text-gray-900 bg-white px-3 py-1 rounded-lg border border-gray-200 shadow-2xs">
+                <span>Tuần: {weekRangeText}</span>
+              </div>
+
+              <button
+                onClick={() => setCurrentWeekStart((prev) => new Date(prev.getTime() + 7 * 24 * 60 * 60 * 1000))}
+                className="p-1.5 text-gray-600 hover:bg-white hover:shadow-xs rounded-lg border border-gray-200 transition"
+                title="Tuần sau"
+              >
+                <ChevronRight className="w-4 h-4" />
+              </button>
+
+              <button
+                onClick={() => setCurrentWeekStart(getMonday(new Date()))}
+                className="text-xs font-bold text-blue-600 hover:bg-blue-50 px-2.5 py-1 rounded-lg transition"
+              >
+                Tuần Hiện Tại
+              </button>
+            </div>
+          </div>
+
           {loading ? (
             <div className="py-20 text-center">
               <RefreshCw className="w-8 h-8 text-blue-500 animate-spin mx-auto mb-2" />
@@ -765,24 +861,26 @@ export const SchedulesPage: React.FC = () => {
           ) : (
             <div className="overflow-x-auto">
               <table className="w-full min-w-[1000px] border-collapse">
-                {/* Header Bảng: Các Thứ trong tuần */}
+                {/* Header Bảng: Các Thứ trong tuần kèm ngày cụ thể */}
                 <thead>
                   <tr className="bg-gray-50/80 border-b border-gray-200 text-gray-700">
                     <th className="w-36 py-3.5 px-3 text-left text-xs font-bold uppercase tracking-wider border-r border-gray-200 bg-gray-100/50">
                       Ca Giảng Dạy
                     </th>
-                    {WEEKDAYS.map((wd) => {
-                      const isToday = wd.value === currentWeekday;
+                    {weekDaysWithDates.map((wd) => {
                       return (
                         <th
                           key={wd.value}
-                          className={`py-3.5 px-3 text-center border-r border-gray-200 last:border-r-0 transition-colors ${
-                            isToday ? 'bg-blue-50/70 text-blue-700 font-bold ring-1 ring-inset ring-blue-200' : ''
+                          className={`py-3 px-3 text-center border-r border-gray-200 last:border-r-0 transition-colors ${
+                            wd.isToday ? 'bg-blue-50/70 text-blue-700 font-bold ring-1 ring-inset ring-blue-200' : ''
                           }`}
                         >
                           <div className="flex flex-col items-center">
                             <span className="text-xs font-semibold uppercase">{wd.label}</span>
-                            {isToday && (
+                            <span className="text-[11px] font-mono font-medium text-gray-500 mt-0.5">
+                              {wd.dateFormatted}
+                            </span>
+                            {wd.isToday && (
                               <span className="mt-0.5 px-2 py-0.2 bg-blue-600 text-white text-[10px] font-bold rounded-full uppercase tracking-wider">
                                 Hôm nay
                               </span>

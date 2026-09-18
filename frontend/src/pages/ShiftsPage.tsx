@@ -1,4 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
+import { useForm } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
+import { z } from 'zod';
 import { toast } from 'react-hot-toast';
 import {
   Clock,
@@ -13,10 +16,43 @@ import {
   Loader2,
   RefreshCw,
   Info,
+  Building,
 } from 'lucide-react';
 import { ShiftConfig } from '../types';
-import { shiftService, ShiftPayload } from '../services/shiftService';
+import { shiftConfigApi, CreateShiftPayload, UpdateShiftPayload } from '../api';
 import { useAuth } from '../contexts/AuthContext';
+
+// Schema validate form bằng Zod
+const shiftSchema = z
+  .object({
+    name: z
+      .string()
+      .trim()
+      .min(2, 'Tên ca phải có ít nhất 2 ký tự')
+      .max(100, 'Tên ca không được vượt quá 100 ký tự'),
+    startTime: z
+      .string()
+      .regex(/^([0-1]?[0-9]|2[0-3]):[0-5][0-9]$/, 'Giờ bắt đầu phải có định dạng HH:mm'),
+    endTime: z
+      .string()
+      .regex(/^([0-1]?[0-9]|2[0-3]):[0-5][0-9]$/, 'Giờ kết thúc phải có định dạng HH:mm'),
+    lateThresholdMinutes: z
+      .number()
+      .min(0, 'Ngưỡng trễ không được âm')
+      .max(120, 'Ngưỡng trễ tối đa 120 phút'),
+    earlyExitThresholdMinutes: z
+      .number()
+      .min(0, 'Ngưỡng về sớm không được âm')
+      .max(120, 'Ngưỡng về sớm tối đa 120 phút')
+      .optional(),
+    isActive: z.boolean(),
+  })
+  .refine((data) => data.startTime < data.endTime, {
+    message: 'Giờ bắt đầu ca phải diễn ra trước giờ kết thúc ca',
+    path: ['endTime'],
+  });
+
+type ShiftFormData = z.infer<typeof shiftSchema>;
 
 export const ShiftsPage: React.FC = () => {
   const { user: currentUser } = useAuth();
@@ -25,34 +61,43 @@ export const ShiftsPage: React.FC = () => {
   const [shifts, setShifts] = useState<ShiftConfig[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
-  // Modal Thêm / Sửa
+  // Trạng thái Modal Thêm / Sửa
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [modalMode, setModalMode] = useState<'create' | 'edit'>('create');
   const [selectedShift, setSelectedShift] = useState<ShiftConfig | null>(null);
 
-  const [formData, setFormData] = useState<ShiftPayload>({
-    name: '',
-    startTime: '07:00',
-    endTime: '11:30',
-    lateThresholdMinutes: 15,
-    earlyExitThresholdMinutes: 15,
-    isActive: true,
-  });
-  const [isSubmitting, setIsSubmitting] = useState(false);
-
-  // Modal Xóa
+  // Trạng thái Modal Xóa
   const [deleteModalOpen, setDeleteModalOpen] = useState(false);
   const [shiftToDelete, setShiftToDelete] = useState<ShiftConfig | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
 
+  // Hook Form với Zod Resolver
+  const {
+    register,
+    handleSubmit,
+    reset,
+    formState: { errors, isSubmitting },
+  } = useForm<ShiftFormData>({
+    resolver: zodResolver(shiftSchema),
+    defaultValues: {
+      name: '',
+      startTime: '07:00',
+      endTime: '11:30',
+      lateThresholdMinutes: 15,
+      earlyExitThresholdMinutes: 15,
+      isActive: true,
+    },
+  });
+
+  // Tải danh sách ca làm việc từ API
   const fetchShifts = useCallback(async () => {
     try {
       setIsLoading(true);
-      const data = await shiftService.getAllShifts();
-      setShifts(data || []);
-    } catch (err) {
+      const res = await shiftConfigApi.getAll();
+      setShifts(res.data || []);
+    } catch (err: unknown) {
       console.error('[ShiftsPage] Lỗi tải ca làm việc:', err);
-      toast.error('Không thể tải danh sách ca làm việc.');
+      toast.error('Không thể tải danh sách ca làm việc từ máy chủ.');
     } finally {
       setIsLoading(false);
     }
@@ -62,10 +107,11 @@ export const ShiftsPage: React.FC = () => {
     fetchShifts();
   }, [fetchShifts]);
 
+  // Mở modal thêm ca mới
   const handleOpenCreateModal = () => {
     setModalMode('create');
     setSelectedShift(null);
-    setFormData({
+    reset({
       name: '',
       startTime: '07:00',
       endTime: '11:30',
@@ -76,64 +122,70 @@ export const ShiftsPage: React.FC = () => {
     setIsModalOpen(true);
   };
 
+  // Mở modal sửa ca
   const handleOpenEditModal = (shift: ShiftConfig) => {
     setModalMode('edit');
     setSelectedShift(shift);
-    setFormData({
+    reset({
       name: shift.name,
       startTime: shift.startTime,
       endTime: shift.endTime,
-      lateThresholdMinutes: shift.lateThresholdMinutes || 15,
-      earlyExitThresholdMinutes: shift.earlyExitThresholdMinutes || 15,
+      lateThresholdMinutes: shift.lateThresholdMinutes ?? 15,
+      earlyExitThresholdMinutes: shift.earlyExitThresholdMinutes ?? 15,
       isActive: shift.isActive !== undefined ? shift.isActive : true,
     });
     setIsModalOpen(true);
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-
-    if (!formData.name.trim() || !formData.startTime || !formData.endTime) {
-      toast.error('Vui lòng điền đầy đủ tên ca, giờ bắt đầu và giờ kết thúc.');
-      return;
-    }
-
-    if (formData.startTime >= formData.endTime) {
-      toast.error('Giờ bắt đầu ca phải trước giờ kết thúc ca.');
-      return;
-    }
-
+  // Xử lý gửi Form (Thêm hoặc Cập nhật)
+  const onSubmit = async (data: ShiftFormData) => {
     try {
-      setIsSubmitting(true);
       if (modalMode === 'create') {
-        await shiftService.createShift(formData);
-        toast.success(`Đã tạo mới ca "${formData.name}" thành công!`);
+        const payload: CreateShiftPayload = {
+          name: data.name,
+          startTime: data.startTime,
+          endTime: data.endTime,
+          lateThresholdMinutes: data.lateThresholdMinutes,
+          earlyExitThresholdMinutes: data.earlyExitThresholdMinutes,
+        };
+        await shiftConfigApi.create(payload);
+        toast.success(`Đã thêm mới ca "${data.name}" thành công!`);
       } else if (selectedShift) {
-        await shiftService.updateShift(selectedShift._id, formData);
-        toast.success(`Đã cập nhật ca "${formData.name}" thành công!`);
+        const payload: UpdateShiftPayload = {
+          name: data.name,
+          startTime: data.startTime,
+          endTime: data.endTime,
+          lateThresholdMinutes: data.lateThresholdMinutes,
+          earlyExitThresholdMinutes: data.earlyExitThresholdMinutes,
+          isActive: data.isActive,
+        };
+        await shiftConfigApi.update(selectedShift._id, payload);
+        toast.success(`Đã cập nhật ca "${data.name}" thành công!`);
       }
       setIsModalOpen(false);
       fetchShifts();
     } catch (err: unknown) {
       const apiErr = err as { response?: { data?: { message?: string } } };
-      toast.error(apiErr.response?.data?.message || 'Không thể lưu ca làm việc.');
-    } finally {
-      setIsSubmitting(false);
+      toast.error(apiErr.response?.data?.message || 'Lỗi khi lưu thông tin ca làm việc.');
     }
   };
 
+  // Xử lý Xóa ca làm việc
   const handleDelete = async () => {
     if (!shiftToDelete) return;
     try {
       setIsDeleting(true);
-      await shiftService.deleteShift(shiftToDelete._id);
+      await shiftConfigApi.delete(shiftToDelete._id);
       toast.success(`Đã xóa ca "${shiftToDelete.name}" thành công.`);
       setDeleteModalOpen(false);
       setShiftToDelete(null);
       fetchShifts();
     } catch (err: unknown) {
       const apiErr = err as { response?: { data?: { message?: string } } };
-      toast.error(apiErr.response?.data?.message || 'Không thể xóa ca này (có thể do đang gắn với Lịch học).');
+      toast.error(
+        apiErr.response?.data?.message ||
+          'Không thể xóa ca này (có thể do đang có Lịch giảng dạy liên kết).'
+      );
     } finally {
       setIsDeleting(false);
     }
@@ -146,6 +198,8 @@ export const ShiftsPage: React.FC = () => {
       return <Sun className="w-5 h-5 text-amber-500" />;
     } else if (name.toLowerCase().includes('chiều') || (hour >= 12 && hour < 18)) {
       return <Sunset className="w-5 h-5 text-orange-500" />;
+    } else if (name.toLowerCase().includes('hành chính')) {
+      return <Building className="w-5 h-5 text-emerald-500" />;
     }
     return <Moon className="w-5 h-5 text-indigo-400" />;
   };
@@ -157,20 +211,20 @@ export const ShiftsPage: React.FC = () => {
         <div>
           <div className="flex items-center gap-2 text-xs font-bold text-blue-600 uppercase tracking-wider mb-1">
             <Clock className="w-4 h-4" />
-            <span>Thời Khóa Biểu & Khung Giờ</span>
+            <span>Thời Khóa Biểu & Khung Giờ Làm Việc</span>
           </div>
           <h1 className="text-2xl font-extrabold text-slate-900 tracking-tight">
-            Danh Mục Ca Dạy & Ca Làm Việc
+            Cấu Hình Ca Làm Việc (Shift Config)
           </h1>
           <p className="text-xs sm:text-sm text-slate-500 mt-1">
-            Cấu hình thời gian chuẩn cho các tiết học, ngưỡng trễ và quy tắc chấm công điểm danh.
+            Định nghĩa thời gian ca giảng dạy/hành chính, ngưỡng trễ và quy tắc tự động đánh giá điểm danh.
           </p>
         </div>
 
         <div className="flex items-center gap-3">
           <button
             onClick={fetchShifts}
-            className="p-2.5 rounded-xl border border-slate-200 hover:bg-slate-50 text-slate-600 transition"
+            className="p-2.5 rounded-xl border border-slate-200 hover:bg-slate-50 text-slate-600 transition shadow-xs"
             title="Tải lại danh sách"
           >
             <RefreshCw className={`w-4 h-4 ${isLoading ? 'animate-spin' : ''}`} />
@@ -188,8 +242,8 @@ export const ShiftsPage: React.FC = () => {
         </div>
       </div>
 
-      {/* Cards Tóm Tắt Nhanh */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+      {/* Cards Tóm Tắt Nhanh Khung Giờ Chuẩn */}
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
         <div className="bg-gradient-to-br from-amber-50 to-orange-50/50 p-5 rounded-3xl border border-amber-200/80 flex items-center gap-4">
           <div className="w-12 h-12 rounded-2xl bg-amber-500/20 text-amber-600 flex items-center justify-center">
             <Sun className="w-6 h-6" />
@@ -197,7 +251,7 @@ export const ShiftsPage: React.FC = () => {
           <div>
             <span className="text-xs font-bold text-amber-800 uppercase tracking-wider">Ca Sáng</span>
             <p className="text-sm font-extrabold text-slate-900 mt-0.5">Tiết 1 - 4 (07:00 - 11:30)</p>
-            <p className="text-[11px] text-slate-500 mt-0.5">Ngưỡng tính muộn: 15 phút</p>
+            <p className="text-[11px] text-slate-500 mt-0.5">Ngưỡng trễ: 15 phút</p>
           </div>
         </div>
 
@@ -207,8 +261,8 @@ export const ShiftsPage: React.FC = () => {
           </div>
           <div>
             <span className="text-xs font-bold text-orange-800 uppercase tracking-wider">Ca Chiều</span>
-            <p className="text-sm font-extrabold text-slate-900 mt-0.5">Tiết 5 - 8 (12:30 - 17:00)</p>
-            <p className="text-[11px] text-slate-500 mt-0.5">Ngưỡng tính muộn: 15 phút</p>
+            <p className="text-sm font-extrabold text-slate-900 mt-0.5">Tiết 5 - 8 (13:00 - 17:30)</p>
+            <p className="text-[11px] text-slate-500 mt-0.5">Ngưỡng trễ: 15 phút</p>
           </div>
         </div>
 
@@ -217,20 +271,35 @@ export const ShiftsPage: React.FC = () => {
             <Moon className="w-6 h-6" />
           </div>
           <div>
-            <span className="text-xs font-bold text-indigo-800 uppercase tracking-wider">Ca Tối / Tự Học</span>
-            <p className="text-sm font-extrabold text-slate-900 mt-0.5">Tiết 9 - 12 (17:30 - 21:00)</p>
-            <p className="text-[11px] text-slate-500 mt-0.5">Dành cho lớp văn bằng 2 & cao học</p>
+            <span className="text-xs font-bold text-indigo-800 uppercase tracking-wider">Ca Tối</span>
+            <p className="text-sm font-extrabold text-slate-900 mt-0.5">Tiết 9 - 12 (18:00 - 21:30)</p>
+            <p className="text-[11px] text-slate-500 mt-0.5">Học kỳ phụ / VB2</p>
+          </div>
+        </div>
+
+        <div className="bg-gradient-to-br from-emerald-50 to-teal-50/50 p-5 rounded-3xl border border-emerald-200/80 flex items-center gap-4">
+          <div className="w-12 h-12 rounded-2xl bg-emerald-500/20 text-emerald-600 flex items-center justify-center">
+            <Building className="w-6 h-6" />
+          </div>
+          <div>
+            <span className="text-xs font-bold text-emerald-800 uppercase tracking-wider">Hành Chính</span>
+            <p className="text-sm font-extrabold text-slate-900 mt-0.5">08:00 - 17:00</p>
+            <p className="text-[11px] text-slate-500 mt-0.5">Phòng ban & Chuyên viên</p>
           </div>
         </div>
       </div>
 
       {/* Bảng Danh Sách Ca Làm Việc */}
       <div className="bg-white rounded-3xl border border-slate-200 overflow-hidden shadow-xs">
-        <div className="p-4 border-b border-slate-100 flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <h3 className="font-bold text-sm text-slate-800">Danh Sách Ca Học Chuẩn ({shifts.length})</h3>
+        <div className="p-5 border-b border-slate-100 flex items-center justify-between">
+          <div>
+            <h3 className="font-bold text-sm text-slate-800">
+              Danh Sách Ca Làm Việc Hiện Hữu ({shifts.length})
+            </h3>
+            <p className="text-xs text-slate-400 mt-0.5">
+              Hệ thống tự động đối chiếu khung ca để xác định trạng thái Check-in (Đúng giờ / Muộn)
+            </p>
           </div>
-          <span className="text-xs text-slate-400">Sắp xếp theo giờ bắt đầu sớm nhất</span>
         </div>
 
         {isLoading ? (
@@ -239,19 +308,19 @@ export const ShiftsPage: React.FC = () => {
             <p className="text-sm text-slate-500">Đang tải danh sách ca...</p>
           </div>
         ) : shifts.length === 0 ? (
-          <div className="text-center py-12 text-slate-400 text-sm">
-            Chưa có ca làm việc nào. Bấm &quot;Thêm Ca Mới&quot; để thiết lập.
+          <div className="text-center py-16 text-slate-400 text-sm">
+            Chưa có cấu hình ca làm việc nào. Bấm &quot;Thêm Ca Mới&quot; để tạo ca đầu tiên.
           </div>
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full text-left text-xs text-slate-700">
               <thead className="bg-slate-50/80 text-slate-500 uppercase tracking-wider font-bold border-b border-slate-200">
                 <tr>
-                  <th className="py-3.5 px-6">Tên Ca Làm Việc</th>
-                  <th className="py-3.5 px-6">Khung Giờ Bắt Đầu - Kết Thúc</th>
-                  <th className="py-3.5 px-6">Ngưỡng Trễ Cho Phép</th>
-                  <th className="py-3.5 px-6">Trạng Thái</th>
-                  {isAdmin && <th className="py-3.5 px-6 text-right">Thao Tác</th>}
+                  <th className="py-4 px-6">Tên Ca Làm Việc</th>
+                  <th className="py-4 px-6">Khung Giờ Bắt Đầu - Kết Thúc</th>
+                  <th className="py-4 px-6">Ngưỡng Trễ Cho Phép</th>
+                  <th className="py-4 px-6">Trạng Thái</th>
+                  {isAdmin && <th className="py-4 px-6 text-right">Thao Tác</th>}
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
@@ -259,18 +328,20 @@ export const ShiftsPage: React.FC = () => {
                   <tr key={shift._id} className="hover:bg-slate-50/60 transition">
                     <td className="py-4 px-6">
                       <div className="flex items-center gap-3">
-                        <div className="p-2 rounded-xl bg-slate-50 border border-slate-200">
+                        <div className="p-2.5 rounded-2xl bg-slate-50 border border-slate-200">
                           {getShiftIcon(shift.name, shift.startTime)}
                         </div>
                         <div>
                           <p className="font-bold text-slate-900 text-sm">{shift.name}</p>
-                          <p className="text-[11px] text-slate-400 font-mono mt-0.5">ID: {shift._id.slice(-6)}</p>
+                          <p className="text-[11px] text-slate-400 font-mono mt-0.5">
+                            Mã: {shift._id.slice(-6).toUpperCase()}
+                          </p>
                         </div>
                       </div>
                     </td>
 
                     <td className="py-4 px-6">
-                      <div className="inline-flex items-center gap-2 px-3 py-1 rounded-xl bg-slate-100 border border-slate-200 font-mono font-bold text-xs text-slate-800">
+                      <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-xl bg-slate-100 border border-slate-200 font-mono font-bold text-xs text-slate-800">
                         <span>{shift.startTime}</span>
                         <span className="text-slate-400">⟶</span>
                         <span>{shift.endTime}</span>
@@ -279,19 +350,21 @@ export const ShiftsPage: React.FC = () => {
 
                     <td className="py-4 px-6">
                       <div className="flex items-center gap-1.5">
-                        <span className="font-bold text-slate-800">{shift.lateThresholdMinutes || 15}</span>
-                        <span className="text-slate-500 text-[11px]">phút tính từ giờ bắt đầu</span>
+                        <span className="font-bold text-slate-900 text-sm">
+                          {shift.lateThresholdMinutes ?? 15}
+                        </span>
+                        <span className="text-slate-500 text-[11px]">phút (Grace Period)</span>
                       </div>
                     </td>
 
                     <td className="py-4 px-6">
                       {shift.isActive !== false ? (
-                        <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200 text-[11px] font-bold">
+                        <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200 text-[11px] font-bold">
                           <CheckCircle2 className="w-3.5 h-3.5" />
                           <span>Đang Áp Dụng</span>
                         </span>
                       ) : (
-                        <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-slate-100 text-slate-500 border border-slate-200 text-[11px] font-bold">
+                        <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-slate-100 text-slate-500 border border-slate-200 text-[11px] font-bold">
                           <span>Tạm Ngưng</span>
                         </span>
                       )}
@@ -329,7 +402,7 @@ export const ShiftsPage: React.FC = () => {
       </div>
 
       {/* ======================================================= */}
-      {/* MODAL THÊM / CẬP NHẬT CA LÀM VIỆC */}
+      {/* MODAL THÊM / CẬP NHẬT CA LÀM VIỆC (REACT-HOOK-FORM + ZOD) */}
       {/* ======================================================= */}
       {isModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-in fade-in">
@@ -339,6 +412,7 @@ export const ShiftsPage: React.FC = () => {
                 {modalMode === 'create' ? 'Tạo Mới Ca Làm Việc' : 'Cập Nhật Cấu Hình Ca'}
               </h3>
               <button
+                type="button"
                 onClick={() => setIsModalOpen(false)}
                 className="text-slate-400 hover:text-slate-600 text-lg leading-none"
               >
@@ -346,7 +420,7 @@ export const ShiftsPage: React.FC = () => {
               </button>
             </div>
 
-            <form onSubmit={handleSubmit} className="p-6 space-y-4">
+            <form onSubmit={handleSubmit(onSubmit)} className="p-6 space-y-4">
               {/* Tên ca */}
               <div>
                 <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
@@ -354,12 +428,13 @@ export const ShiftsPage: React.FC = () => {
                 </label>
                 <input
                   type="text"
-                  value={formData.name}
-                  onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                  {...register('name')}
                   placeholder="Ví dụ: Ca Sáng (Tiết 1 - 4)"
-                  required
                   className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500"
                 />
+                {errors.name && (
+                  <p className="text-rose-500 text-[11px] mt-1 font-medium">{errors.name.message}</p>
+                )}
               </div>
 
               {/* Giờ bắt đầu & kết thúc */}
@@ -370,11 +445,14 @@ export const ShiftsPage: React.FC = () => {
                   </label>
                   <input
                     type="time"
-                    value={formData.startTime}
-                    onChange={(e) => setFormData({ ...formData, startTime: e.target.value })}
-                    required
+                    {...register('startTime')}
                     className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 font-mono focus:outline-none focus:ring-2 focus:ring-blue-500"
                   />
+                  {errors.startTime && (
+                    <p className="text-rose-500 text-[11px] mt-1 font-medium">
+                      {errors.startTime.message}
+                    </p>
+                  )}
                 </div>
                 <div>
                   <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
@@ -382,11 +460,12 @@ export const ShiftsPage: React.FC = () => {
                   </label>
                   <input
                     type="time"
-                    value={formData.endTime}
-                    onChange={(e) => setFormData({ ...formData, endTime: e.target.value })}
-                    required
+                    {...register('endTime')}
                     className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 font-mono focus:outline-none focus:ring-2 focus:ring-blue-500"
                   />
+                  {errors.endTime && (
+                    <p className="text-rose-500 text-[11px] mt-1 font-medium">{errors.endTime.message}</p>
+                  )}
                 </div>
               </div>
 
@@ -394,27 +473,28 @@ export const ShiftsPage: React.FC = () => {
               <div>
                 <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5 flex items-center justify-between">
                   <span>Số Phút Cho Phép Đi Muộn *</span>
-                  <span className="text-[11px] font-normal text-slate-400">Ngưỡng Grace Period</span>
+                  <span className="text-[11px] font-normal text-slate-400">Grace Period</span>
                 </label>
                 <div className="relative rounded-xl shadow-xs">
                   <input
                     type="number"
                     min="0"
                     max="120"
-                    value={formData.lateThresholdMinutes}
-                    onChange={(e) =>
-                      setFormData({ ...formData, lateThresholdMinutes: parseInt(e.target.value, 10) || 0 })
-                    }
-                    required
+                    {...register('lateThresholdMinutes', { valueAsNumber: true })}
                     className="w-full pl-3.5 pr-12 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500"
                   />
                   <div className="absolute inset-y-0 right-0 pr-3 flex items-center pointer-events-none text-xs font-bold text-slate-400">
                     phút
                   </div>
                 </div>
+                {errors.lateThresholdMinutes && (
+                  <p className="text-rose-500 text-[11px] mt-1 font-medium">
+                    {errors.lateThresholdMinutes.message}
+                  </p>
+                )}
                 <p className="text-[11px] text-slate-400 mt-1 flex items-center gap-1">
                   <Info className="w-3 h-3 text-blue-500" />
-                  <span>Sau thời gian này, hệ thống sẽ tự động tính trạng thái ĐI MUỘN (LATE).</span>
+                  <span>Sau ngưỡng này, hệ thống sẽ tự động chuyển trạng thái sang ĐI MUỘN (LATE).</span>
                 </p>
               </div>
 
@@ -423,8 +503,7 @@ export const ShiftsPage: React.FC = () => {
                 <input
                   type="checkbox"
                   id="isActiveShift"
-                  checked={formData.isActive}
-                  onChange={(e) => setFormData({ ...formData, isActive: e.target.checked })}
+                  {...register('isActive')}
                   className="w-4 h-4 text-blue-600 rounded border-slate-300 focus:ring-blue-500"
                 />
                 <label htmlFor="isActiveShift" className="text-xs font-semibold text-slate-700 cursor-pointer">
@@ -432,7 +511,7 @@ export const ShiftsPage: React.FC = () => {
                 </label>
               </div>
 
-              {/* Buttons */}
+              {/* Action Buttons */}
               <div className="pt-4 flex items-center justify-end gap-2 border-t border-slate-100">
                 <button
                   type="button"
@@ -465,18 +544,21 @@ export const ShiftsPage: React.FC = () => {
             </div>
             <h3 className="text-lg font-bold text-slate-900">Xác nhận xóa ca làm việc?</h3>
             <p className="text-xs text-slate-500 mt-2 leading-relaxed">
-              Bạn có chắc chắn muốn xóa <span className="font-bold text-slate-800">&quot;{shiftToDelete.name}&quot;</span>?
-              Hệ thống sẽ chặn xóa nếu ca này đang được xếp lịch cho giảng viên.
+              Bạn có chắc chắn muốn xóa{' '}
+              <span className="font-bold text-slate-800">&quot;{shiftToDelete.name}&quot;</span>?
+              Hệ thống sẽ chặn thao tác nếu ca này đang có Lịch giảng dạy liên kết trong học kỳ.
             </p>
 
             <div className="mt-6 flex items-center justify-center gap-3">
               <button
+                type="button"
                 onClick={() => setDeleteModalOpen(false)}
                 className="px-4 py-2 rounded-xl text-xs font-bold text-slate-600 hover:bg-slate-100 transition"
               >
                 Hủy Bỏ
               </button>
               <button
+                type="button"
                 onClick={handleDelete}
                 disabled={isDeleting}
                 className="px-5 py-2 rounded-xl bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold shadow-md shadow-rose-500/20 transition disabled:opacity-50"
