@@ -107,6 +107,42 @@ app.get('/health', (req, res) => {
 app.use('/api', apiRoutes);
 app.use('/api/v1', apiRoutes);
 
+<<<<<<< Updated upstream
+=======
+// 7. Phục vụ Frontend tĩnh (Production Single-Port Deployment)
+const distPath = path.join(__dirname, '../frontend/dist');
+if (fs.existsSync(distPath)) {
+  app.use(express.static(distPath));
+
+  // SPA Fallback: Mọi URL giao diện (ngoại trừ API, uploads, Swagger) đều trả về index.html (Chuẩn Express 5)
+  app.use((req, res, next) => {
+    if (req.method !== 'GET') return next();
+    if (
+      req.path.startsWith('/api') ||
+      req.path.startsWith('/uploads') ||
+      req.path.startsWith('/api-docs') ||
+      req.path.startsWith('/health')
+    ) {
+      return next();
+    }
+    const indexHtml = path.join(distPath, 'index.html');
+    if (fs.existsSync(indexHtml)) {
+      return res.sendFile(indexHtml);
+    }
+    next();
+  });
+} else {
+  // Khi chưa build frontend (môi trường dev chỉ chạy backend)
+  app.get('/', (req, res) => {
+    res.json({
+      message: 'Chào mừng đến với API Hệ thống Quản lý Chấm công Trường Đại học',
+      swaggerDocs: '/api-docs',
+      version: '1.0.0',
+    });
+  });
+}
+
+>>>>>>> Stashed changes
 // 6. Error & 404 Handling Middlewares
 app.use(notFoundHandler);
 app.use(errorHandler);
