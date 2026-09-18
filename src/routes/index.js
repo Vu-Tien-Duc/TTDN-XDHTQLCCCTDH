@@ -11,6 +11,7 @@ const leaveRequestRoutes = require('./leaveRequest.routes');
 const auditLogRoutes = require('./auditLog.routes');
 const reportRoutes = require('./report.routes');
 const uploadRoutes = require('./upload.routes');
+const aiRoutes = require('./ai.routes');
 
 /**
  * Health check endpoint
@@ -47,5 +48,6 @@ router.use('/leave-requests', leaveRequestRoutes);
 router.use('/audit-logs', auditLogRoutes);
 router.use('/reports', reportRoutes);
 router.use('/upload', uploadRoutes);
+router.use('/ai', aiRoutes);
 
 module.exports = router;

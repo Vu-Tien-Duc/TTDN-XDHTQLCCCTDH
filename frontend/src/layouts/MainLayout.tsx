@@ -6,9 +6,11 @@ import {
   Users,
   Clock,
   CalendarDays,
-  CheckCircle2,
+  FilePlus2,
   FileText,
+  FileCheck2,
   BarChart3,
+  Bot,
   ShieldAlert,
   Bell,
   LogOut,
@@ -20,9 +22,11 @@ import {
   ExternalLink,
 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
+import { axiosClient } from '../api/axiosClient';
 import { Role } from '../types';
 import { ROLE_LABELS, cn } from '../utils';
 import { toast } from 'react-hot-toast';
+import AiChatWidget from '../components/ai/AiChatWidget';
 
 interface SidebarMenuItem {
   title: string;
@@ -31,6 +35,7 @@ interface SidebarMenuItem {
   badge?: string;
   allowedRoles: Role[];
   description: string;
+  highlight?: boolean;
 }
 
 const MENU_ITEMS: SidebarMenuItem[] = [
@@ -70,18 +75,26 @@ const MENU_ITEMS: SidebarMenuItem[] = [
     description: 'Thời khóa biểu & lịch học kỳ',
   },
   {
-    title: 'Nhật Ký Chấm Công',
-    path: '/attendance',
-    icon: CheckCircle2,
-    allowedRoles: ['admin', 'truongkhoa', 'giangvien', 'nhanvien'],
-    description: 'Điểm danh, vào/ra & đi muộn',
-  },
-  {
-    title: 'Quản Lý Đơn Từ',
-    path: '/leave-requests',
-    icon: FileText,
+    title: 'Tạo Đơn Xin Nghỉ',
+    path: '/leave/create',
+    icon: FilePlus2,
     allowedRoles: ['admin', 'truongkhoa', 'giangvien', 'nhanvien'],
     description: 'Nghỉ phép, dạy bù & đổi ca',
+  },
+  {
+    title: 'Đơn Nghỉ Của Tôi',
+    path: '/leave/my-requests',
+    icon: FileText,
+    allowedRoles: ['admin', 'truongkhoa', 'giangvien', 'nhanvien'],
+    description: 'Theo dõi tiến độ duyệt đơn',
+  },
+  {
+    title: 'Hộp Duyệt Đơn',
+    path: '/leave/approvals',
+    icon: FileCheck2,
+    badge: 'Quản lý',
+    allowedRoles: ['admin', 'truongkhoa'],
+    description: 'Phê duyệt đơn nghỉ của khoa',
   },
   {
     title: 'Báo Cáo & Thống Kê',
@@ -89,6 +102,15 @@ const MENU_ITEMS: SidebarMenuItem[] = [
     icon: BarChart3,
     allowedRoles: ['admin', 'truongkhoa'],
     description: 'Tổng hợp công tháng & tỷ lệ',
+  },
+  {
+    title: 'Trợ Lý Thanh Tra AI',
+    path: '/ai-assistant',
+    icon: Bot,
+    badge: 'AI ✨',
+    highlight: true,
+    allowedRoles: ['admin', 'truongkhoa', 'giangvien', 'nhanvien'],
+    description: 'Giám sát & truy vấn thông minh',
   },
   {
     title: 'Nhật Ký Kiểm Toán',
@@ -100,13 +122,61 @@ const MENU_ITEMS: SidebarMenuItem[] = [
 ];
 
 export const MainLayout: React.FC = () => {
-  const { user, logout } = useAuth();
+  const { user, login, logout } = useAuth();
   const location = useLocation();
   const navigate = useNavigate();
 
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [showNotifications, setShowNotifications] = useState(false);
   const [showUserMenu, setShowUserMenu] = useState(false);
+  const [isSwitchingAccount, setIsSwitchingAccount] = useState(false);
+
+  // Danh sách tài khoản demo phục vụ hội đồng nghiệm thu & kiểm thử
+  const demoAccounts = [
+    {
+      role: 'admin',
+      name: 'Ban Giám Hiệu (Admin)',
+      email: 'daihocdtd@gmail.com',
+      badge: 'Admin',
+    },
+    {
+      role: 'truongkhoa',
+      name: 'Trưởng Khoa CNTT',
+      email: 'truongkhoa.cntt@university.edu.vn',
+      badge: 'Trưởng Khoa',
+    },
+    {
+      role: 'giangvien',
+      name: 'TS. Trần Thị Bích',
+      email: 'giangvien.bich@university.edu.vn',
+      badge: 'Giảng Viên',
+    },
+  ];
+
+  const handleQuickSwitch = async (email: string) => {
+    setIsSwitchingAccount(true);
+    try {
+      const res = (await axiosClient.post('/auth/login', {
+        email,
+        password: 'password123',
+      })) as unknown as {
+        success: boolean;
+        message?: string;
+        data?: { accessToken: string; user: import('../types').User };
+      };
+
+      if (res.success && res.data) {
+        login(res.data.accessToken, res.data.user);
+        toast.success(`Đã chuyển sang: ${res.data.user.fullName} (${res.data.user.role})`, {
+          icon: '🔄',
+        });
+      }
+    } catch {
+      toast.error('Không thể chuyển đổi tài khoản demo. Vui lòng kiểm tra backend.');
+    } finally {
+      setIsSwitchingAccount(false);
+    }
+  };
 
   // Lọc danh sách menu dựa theo vai trò của người dùng
   const visibleMenuItems = MENU_ITEMS.filter(
@@ -125,7 +195,8 @@ export const MainLayout: React.FC = () => {
 
   // Xác định tiêu đề trang hiện tại
   const currentMenuItem = MENU_ITEMS.find((item) =>
-    location.pathname.startsWith(item.path)
+    location.pathname === item.path ||
+    (item.path !== '/' && item.path !== '/dashboard' && location.pathname.startsWith(item.path))
   );
   const pageTitle = currentMenuItem ? currentMenuItem.title : 'Bảng Điều Khiển';
 
@@ -162,14 +233,14 @@ export const MainLayout: React.FC = () => {
       {/* Backdrop mờ khi mở Sidebar trên Mobile */}
       {isSidebarOpen && (
         <div
-          className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-40 lg:hidden transition-opacity"
+          className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-40 lg:hidden transition-opacity print:hidden"
           onClick={() => setIsSidebarOpen(false)}
         />
       )}
 
       <aside
         className={cn(
-          'fixed lg:static inset-y-0 left-0 z-50 w-72 bg-slate-900 text-slate-200 flex flex-col transition-transform duration-300 ease-in-out border-r border-slate-800 shadow-xl lg:shadow-none',
+          'fixed lg:static inset-y-0 left-0 z-50 w-72 bg-slate-900 text-slate-200 flex flex-col transition-transform duration-300 ease-in-out border-r border-slate-800 shadow-xl lg:shadow-none print:hidden',
           isSidebarOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'
         )}
       >
@@ -211,6 +282,33 @@ export const MainLayout: React.FC = () => {
           </div>
         </div>
 
+        {/* Quick Demo Switcher inside Sidebar for Mobile/Tablet */}
+        <div className="px-3 pb-2 xl:hidden">
+          <div className="p-2.5 rounded-xl bg-slate-800/40 border border-slate-700/40 space-y-1.5">
+            <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Chuyển tài khoản demo:</p>
+            <div className="grid grid-cols-3 gap-1">
+              {demoAccounts.map((acc) => {
+                const isActive = user?.email === acc.email;
+                return (
+                  <button
+                    key={acc.email}
+                    disabled={isSwitchingAccount || isActive}
+                    onClick={() => handleQuickSwitch(acc.email)}
+                    className={cn(
+                      'px-2 py-1 rounded-lg text-[10px] font-bold text-center transition',
+                      isActive
+                        ? 'bg-blue-600 text-white'
+                        : 'bg-slate-700/50 text-slate-300 hover:bg-slate-700 hover:text-white'
+                    )}
+                  >
+                    {acc.badge}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        </div>
+
         {/* Navigation Menu List */}
         <div className="flex-1 overflow-y-auto px-3 py-2 space-y-1 custom-scrollbar">
           <div className="px-3 pb-2 text-[10px] font-bold text-slate-400 uppercase tracking-wider">
@@ -229,6 +327,8 @@ export const MainLayout: React.FC = () => {
                     'group flex items-center justify-between px-3.5 py-2.5 rounded-xl text-xs font-medium transition-all',
                     isActive
                       ? 'bg-blue-600 text-white font-semibold shadow-md shadow-blue-600/30'
+                      : item.highlight
+                      ? 'text-indigo-300 bg-indigo-950/40 border border-indigo-500/20 hover:bg-indigo-900/40 hover:text-white'
                       : 'text-slate-300 hover:text-white hover:bg-slate-800/80'
                   )
                 }
@@ -237,7 +337,22 @@ export const MainLayout: React.FC = () => {
                   <Icon className="w-4 h-4 transition-transform group-hover:scale-110" />
                   <span>{item.title}</span>
                 </div>
-                <ChevronRight className="w-3.5 h-3.5 opacity-0 group-hover:opacity-100 transition-opacity" />
+
+                <div className="flex items-center gap-1.5">
+                  {item.badge && (
+                    <span
+                      className={cn(
+                        'px-1.5 py-0.5 rounded text-[9px] font-bold',
+                        item.highlight
+                          ? 'bg-indigo-500/20 text-indigo-300 border border-indigo-400/30'
+                          : 'bg-amber-400/20 text-amber-300 border border-amber-400/30'
+                      )}
+                    >
+                      {item.badge}
+                    </span>
+                  )}
+                  <ChevronRight className="w-3.5 h-3.5 opacity-0 group-hover:opacity-100 transition-opacity" />
+                </div>
               </NavLink>
             );
           })}
@@ -257,7 +372,7 @@ export const MainLayout: React.FC = () => {
               className="flex items-center gap-1 hover:text-blue-400 transition"
               title="Mở tài liệu Swagger API"
             >
-              <span>API</span>
+              <span>API Docs</span>
               <ExternalLink className="w-3 h-3" />
             </a>
           </div>
@@ -271,7 +386,7 @@ export const MainLayout: React.FC = () => {
         {/* ========================================================= */}
         {/* HEADER (Thanh điều hướng trên) */}
         {/* ========================================================= */}
-        <header className="h-16 bg-white border-b border-slate-200 px-4 sm:px-6 flex items-center justify-between sticky top-0 z-30 shadow-xs">
+        <header className="h-16 bg-white border-b border-slate-200 px-4 sm:px-6 flex items-center justify-between sticky top-0 z-30 shadow-xs print:hidden">
           {/* Trái: Nút bật Sidebar trên Mobile & Tiêu đề Trang */}
           <div className="flex items-center gap-3">
             <button
@@ -287,8 +402,30 @@ export const MainLayout: React.FC = () => {
             </div>
           </div>
 
-          {/* Phải: Chuông thông báo + Profile User + Nút Đăng xuất */}
-          <div className="flex items-center gap-2 sm:gap-4">
+          {/* Phải: Demo Quick Switcher + Chuông thông báo + Profile User + Nút Đăng xuất */}
+          <div className="flex items-center gap-2 sm:gap-3">
+            {/* Demo Account Switcher (Header) */}
+            <div className="hidden xl:flex items-center gap-1.5 p-1 bg-slate-100 rounded-xl border border-slate-200">
+              <span className="text-[10px] uppercase font-bold text-slate-400 px-2">Demo:</span>
+              {demoAccounts.map((acc) => {
+                const isActive = user?.email === acc.email;
+                return (
+                  <button
+                    key={acc.email}
+                    disabled={isSwitchingAccount || isActive}
+                    onClick={() => handleQuickSwitch(acc.email)}
+                    className={`px-2.5 py-1 rounded-lg text-[11px] font-bold transition-all ${
+                      isActive
+                        ? 'bg-blue-600 text-white shadow-sm'
+                        : 'text-slate-600 hover:text-slate-900 hover:bg-white'
+                    }`}
+                  >
+                    {acc.badge}
+                  </button>
+                );
+              })}
+            </div>
+
             {/* Chuông Thông Báo */}
             <div className="relative">
               <button
@@ -314,7 +451,7 @@ export const MainLayout: React.FC = () => {
                     <div className="flex items-center justify-between pb-3 border-b border-slate-100 mb-3">
                       <h4 className="text-sm font-bold text-slate-900">Thông báo mới</h4>
                       <span className="text-[11px] font-semibold text-blue-600 bg-blue-50 px-2 py-0.5 rounded-full">
-                        3 chưa đọc
+                        2 chưa đọc
                       </span>
                     </div>
                     <div className="space-y-3 text-xs">
@@ -341,13 +478,13 @@ export const MainLayout: React.FC = () => {
                   setShowUserMenu(!showUserMenu);
                   setShowNotifications(false);
                 }}
-                className="flex items-center gap-3 p-1.5 sm:px-3 sm:py-1.5 rounded-xl hover:bg-slate-100 transition border border-transparent hover:border-slate-200"
+                className="flex items-center gap-2 p-1.5 sm:px-3 sm:py-1.5 rounded-xl hover:bg-slate-100 transition border border-transparent hover:border-slate-200"
               >
                 <div className="w-8 h-8 rounded-lg bg-blue-600 text-white font-bold text-xs flex items-center justify-center shadow-sm">
                   {getInitials(user?.fullName)}
                 </div>
                 <div className="hidden md:flex flex-col text-left">
-                  <span className="text-xs font-bold text-slate-800 leading-tight truncate max-w-[140px]">
+                  <span className="text-xs font-bold text-slate-800 leading-tight truncate max-w-[130px]">
                     {user?.fullName || 'Người dùng'}
                   </span>
                   <span className="text-[11px] text-slate-500 leading-tight">
@@ -409,6 +546,13 @@ export const MainLayout: React.FC = () => {
         <main className="flex-1 overflow-y-auto p-4 sm:p-6 lg:p-8 bg-slate-50">
           <Outlet />
         </main>
+      </div>
+
+      {/* ========================================================= */}
+      {/* 3. TRỢ LÝ AI NỔI (Floating AI Chat Widget) */}
+      {/* ========================================================= */}
+      <div className="print:hidden">
+        <AiChatWidget />
       </div>
     </div>
   );

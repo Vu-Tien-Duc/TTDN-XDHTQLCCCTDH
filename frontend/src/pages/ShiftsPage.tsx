@@ -47,7 +47,7 @@ const shiftSchema = z
       .optional(),
     isActive: z.boolean(),
   })
-  .refine((data) => data.startTime < data.endTime, {
+  .refine((data: { startTime: string; endTime: string }) => data.startTime < data.endTime, {
     message: 'Giờ bắt đầu ca phải diễn ra trước giờ kết thúc ca',
     path: ['endTime'],
   });

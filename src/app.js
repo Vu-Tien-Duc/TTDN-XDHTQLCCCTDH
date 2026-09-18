@@ -107,11 +107,9 @@ const distPath = path.join(__dirname, '../frontend/dist');
 if (fs.existsSync(distPath)) {
   app.use(express.static(distPath));
 
-  // SPA Fallback: Mọi URL giao diện (ngoại trừ API, uploads, Swagger) đều trả về index.html
+  // SPA Fallback: Mọi URL giao diện (ngoại trừ API, uploads, Swagger) đều trả về index.html (Chuẩn Express 5)
   app.use((req, res, next) => {
-    if (req.method !== 'GET') {
-      return next();
-    }
+    if (req.method !== 'GET') return next();
     if (
       req.path.startsWith('/api') ||
       req.path.startsWith('/uploads') ||
