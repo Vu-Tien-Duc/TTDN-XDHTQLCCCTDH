@@ -27,7 +27,9 @@ export interface AuthResponse {
   message?: string;
   data: {
     user: User;
-    accessToken: string;
+    token?: string;
+    accessToken?: string;
+    refreshToken?: string;
   };
 }
 
@@ -42,10 +44,14 @@ export interface LoginPayload {
 export interface Department {
   _id: string;
   name: string;
-  code: string;
-  type?: 'truong' | 'khoa' | 'bomon';
+  code?: string;
+  type?: 'truong' | 'khoa' | 'bomon' | 'phongban';
   parentId?: string | null | Department;
   managerId?: string | null | User;
+  location?: {
+    lat?: number;
+    lng?: number;
+  };
   description?: string;
   children?: Department[];
   createdAt?: string;
@@ -73,15 +79,22 @@ export interface Schedule {
   userId: string | User;
   shiftId: string | ShiftConfig;
   departmentId?: string | Department;
-  dayOfWeek: number; // 0: Chủ Nhật, 1: Thứ Hai, ..., 6: Thứ Bảy
-  room?: string;
+  weekday: number; // 0: Chủ Nhật, 1: Thứ Hai, ..., 6: Thứ Bảy
+  dayOfWeek?: number; // alias
+  roomId?: string;
+  room?: string; // alias
+  startTime?: string;
+  endTime?: string;
+  isRecurring?: boolean;
+  startDate?: string;
+  endDate?: string;
   subjectName?: string;
   subjectCode?: string;
   academicYear?: string;
   semester?: number;
-  startDate?: string;
-  endDate?: string;
   note?: string;
+  createdAt?: string;
+  updatedAt?: string;
 }
 
 // =======================================================
