@@ -24,12 +24,12 @@ import {
   CalendarDays,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
-import { useAuth } from '../contexts/AuthContext';
-import { scheduleService, CreateSchedulePayload, UpdateSchedulePayload } from '../services/scheduleService';
-import { shiftService } from '../services/shiftService';
-import { departmentService } from '../services/departmentService';
-import { userService } from '../services/userService';
-import { Schedule, ShiftConfig, Department, User } from '../types';
+import { useAuth } from '../../contexts/AuthContext';
+import { scheduleService, CreateSchedulePayload, UpdateSchedulePayload } from '../../services/scheduleService';
+import { shiftService } from '../../services/shiftService';
+import { departmentService } from '../../services/departmentService';
+import { userService } from '../../services/userService';
+import { Schedule, ShiftConfig, Department, User } from '../../types';
 
 // Danh sách các thứ trong tuần chuẩn (Bắt đầu từ Thứ 2 đến Chủ Nhật)
 const WEEKDAYS = [

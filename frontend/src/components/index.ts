@@ -5,3 +5,4 @@ export * from './Badge';
 export * from './Modal';
 export * from './Pagination';
 export * from './Table';
+export * from './EmptyState';

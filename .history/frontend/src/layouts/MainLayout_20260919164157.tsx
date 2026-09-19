@@ -43,7 +43,7 @@ const MENU_ITEMS: SidebarMenuItem[] = [
     title: 'Bảng Điều Khiển',
     path: '/dashboard',
     icon: LayoutDashboard,
-    allowedRoles: ['admin', 'truongkhoa', 'giangvien', 'nhanvien'],
+    allowedRoles: ['truongkhoa', 'giangvien', 'nhanvien'],
     description: 'Tổng quan chỉ số & lịch trình',
   },
   {
@@ -71,21 +71,21 @@ const MENU_ITEMS: SidebarMenuItem[] = [
     title: 'Lịch Giảng Dạy & Công Tác',
     path: '/schedules',
     icon: CalendarDays,
-    allowedRoles: ['admin', 'truongkhoa', 'giangvien', 'nhanvien'],
+    allowedRoles: ['truongkhoa', 'giangvien', 'nhanvien'],
     description: 'Thời khóa biểu & lịch học kỳ',
   },
   {
     title: 'Tạo Đơn Xin Nghỉ',
     path: '/leave/create',
     icon: FilePlus2,
-    allowedRoles: ['truongkhoa', 'giangvien', 'nhanvien'],
+    allowedRoles: ['admin', 'truongkhoa', 'giangvien', 'nhanvien'],
     description: 'Nghỉ phép, dạy bù & đổi ca',
   },
   {
     title: 'Đơn Nghỉ Của Tôi',
     path: '/leave/my-requests',
     icon: FileText,
-    allowedRoles: ['truongkhoa', 'giangvien', 'nhanvien'],
+    allowedRoles: ['admin', 'truongkhoa', 'giangvien', 'nhanvien'],
     description: 'Theo dõi tiến độ duyệt đơn',
   },
   {

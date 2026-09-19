@@ -4,6 +4,8 @@ const Department = require('../models/department.model');
 const AuditLog = require('../models/auditLog.model');
 const { sendSuccess, sendError } = require('../utils/responseHandler');
 
+const ADMIN_ROLE = 'admin';
+
 const getDeanDepartmentIds = async (user) => {
   if (!user.departmentId) return [];
   const childIds = await Department.find({ parentId: user.departmentId }).distinct('_id');
@@ -94,6 +96,11 @@ const createUser = async (req, res, next) => {
       return sendError(res, 'Email đã tồn tại trên hệ thống.', null, 400);
     }
 
+    const requestedRole = role || 'giangvien';
+    if (requestedRole === ADMIN_ROLE) {
+      return sendError(res, 'Không thể bổ nhiệm quyền Quản trị viên qua chức năng quản lý cán bộ.', null, 403);
+    }
+
     // Mã hóa mật khẩu bcrypt với cost 12
     const salt = await bcrypt.genSalt(12);
     const passwordHash = await bcrypt.hash(password, salt);
@@ -102,7 +109,7 @@ const createUser = async (req, res, next) => {
       fullName,
       email,
       passwordHash,
-      role: role || 'giangvien',
+      role: requestedRole,
       departmentId,
       annualLeaveQuota: annualLeaveQuota !== undefined ? annualLeaveQuota : 12,
       isActive: true,
@@ -158,6 +165,10 @@ const updateUser = async (req, res, next) => {
       if (fullName !== undefined) updateData.fullName = fullName;
       if (annualLeaveQuota !== undefined) updateData.annualLeaveQuota = annualLeaveQuota;
     } else {
+      if (role === ADMIN_ROLE && targetUser.role !== ADMIN_ROLE) {
+        return sendError(res, 'Không thể bổ nhiệm quyền Quản trị viên cho người dùng.', null, 403);
+      }
+
       // Admin có toàn quyền sửa đổi
       if (fullName !== undefined) updateData.fullName = fullName;
       if (departmentId !== undefined) updateData.departmentId = departmentId;

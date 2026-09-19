@@ -16,10 +16,10 @@ import {
   AlertTriangle,
   RefreshCw,
 } from 'lucide-react';
-import { Department, User as UserType } from '../types';
-import { departmentService, DepartmentPayload } from '../services/departmentService';
-import { userService } from '../services/userService';
-import { useAuth } from '../contexts/AuthContext';
+import { Department, User as UserType } from '../../types';
+import { departmentService, DepartmentPayload } from '../../services/departmentService';
+import { userService } from '../../services/userService';
+import { useAuth } from '../../contexts/AuthContext';
 
 export const DepartmentsPage: React.FC = () => {
   const { user: currentUser } = useAuth();

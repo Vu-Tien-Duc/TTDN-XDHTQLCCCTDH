@@ -579,6 +579,17 @@ const swaggerPaths = {
     },
   },
 
+  '/api/departments/tree': {
+    get: {
+      tags: ['3.2 - Cơ Cấu Tổ Chức & Phòng Ban (Departments)'],
+      summary: '[🔒 Xác thực] Lấy cây cơ cấu tổ chức phân cấp (Trường > Khoa > Bộ môn)',
+      security: [{ BearerAuth: [] }],
+      responses: {
+        200: { description: 'Lấy cây tổ chức thành công' },
+      },
+    },
+  },
+
   '/api/departments/{id}': {
     get: {
       tags: ['3.2 - Cơ Cấu Tổ Chức & Phòng Ban (Departments)'],
@@ -769,6 +780,21 @@ const swaggerPaths = {
     },
   },
 
+  '/api/schedules/today': {
+    get: {
+      tags: ['3.3 - Lịch Phân Công Giảng Dạy (Schedules)'],
+      summary: '[🔒 Xác thực] Lấy danh sách lịch giảng dạy hiệu lực trong ngày hôm nay',
+      security: [{ BearerAuth: [] }],
+      parameters: [
+        { name: 'date', in: 'query', schema: { type: 'string', format: 'date' }, description: 'Ngày cần tra cứu (mặc định là hôm nay)' },
+        { name: 'userId', in: 'query', schema: { type: 'string' }, description: 'Lọc theo ID giảng viên (Dành cho Admin/Trưởng khoa)' },
+      ],
+      responses: {
+        200: { description: 'Lấy danh sách lịch trong ngày thành công' },
+      },
+    },
+  },
+
   '/api/schedules/{id}': {
     get: {
       tags: ['3.3 - Lịch Phân Công Giảng Dạy (Schedules)'],
@@ -924,6 +950,27 @@ const swaggerPaths = {
       tags: ['3.4 - Quản Lý Chấm Công (Attendance)'],
       summary: '[🔒 Admin] Kích hoạt thủ công tiến trình quét vắng mặt (Test Demo)',
       description: 'Kích hoạt thủ công tiến trình cron kiểm tra vắng mặt ngay lập tức mà không cần đợi 23:59 đêm để phục vụ test demo.',
+      security: [{ BearerAuth: [] }],
+      parameters: [
+        {
+          name: 'date',
+          in: 'query',
+          schema: { type: 'string', format: 'date', example: '2026-09-14' },
+          description: 'Ngày cần kiểm tra (YYYY-MM-DD). Mặc định là hôm nay.',
+        },
+      ],
+      responses: {
+        200: { description: 'Kích hoạt tiến trình quét vắng mặt thành công' },
+        403: { description: 'Không có quyền truy cập (Chỉ Admin)' },
+      },
+    },
+  },
+
+  '/api/attendance/trigger-absent-cron': {
+    post: {
+      tags: ['3.4 - Quản Lý Chấm Công (Attendance)'],
+      summary: '[🔒 Admin] Kích hoạt thủ công tiến trình quét vắng mặt (Alias URL)',
+      description: 'Kích hoạt thủ công tiến trình cron kiểm tra vắng mặt ngay lập tức (Alias của /api/attendance/cron/test-daily-check).',
       security: [{ BearerAuth: [] }],
       parameters: [
         {
@@ -1239,6 +1286,48 @@ const swaggerPaths = {
       },
     },
   },
+
+  // -------------------------------------------------------------
+  // 3.9 AI ASSISTANT
+  // -------------------------------------------------------------
+  '/api/ai/chat': {
+    post: {
+      tags: ['3.9 - Trợ Lý Thông Minh AI (AI Assistant)'],
+      summary: '[🔒 Xác thực] Hỏi đáp & Tra cứu thống kê chấm công thông minh qua AI Chatbot (Gemini / Analytics Engine)',
+      security: [{ BearerAuth: [] }],
+      requestBody: {
+        required: true,
+        content: {
+          'application/json': {
+            schema: {
+              type: 'object',
+              required: ['question'],
+              properties: {
+                question: { type: 'string', example: 'Hôm nay có bao nhiêu giảng viên đi muộn và vắng mặt?' },
+              },
+            },
+          },
+        },
+      },
+      responses: {
+        200: {
+          description: 'Phản hồi từ AI Assistant',
+          content: {
+            'application/json': {
+              example: {
+                success: true,
+                message: 'Phản hồi từ AI thành công.',
+                data: {
+                  reply: '### Báo cáo nhanh hôm nay:\n- **Đi muộn:** 1 trường hợp\n- **Vắng mặt:** 0 trường hợp',
+                  source: 'gemini-1.5-flash',
+                },
+              },
+            },
+          },
+        },
+      },
+    },
+  },
 };
 
 const swaggerTags = [
@@ -1252,6 +1341,7 @@ const swaggerTags = [
   { name: '3.5 - Đơn Nghỉ Phép & Đổi Ca (Leave Requests)', description: 'Quy trình tạo đơn, tính hạn mức nghỉ phép (balance) và phê duyệt' },
   { name: '3.6 - Nhật Ký Kiểm Toán An Toàn (Audit Logs)', description: 'Lưu vết lịch sử thao tác quan trọng để giám sát' },
   { name: '3.7 - Báo Cáo & Thống Kê (Reports)', description: 'Thống kê tổng hợp số giờ dạy, đi muộn, nghỉ phép' },
+  { name: '3.9 - Trợ Lý Thông Minh AI (AI Assistant)', description: 'Chatbot AI hỗ trợ thanh tra đào tạo & truy vấn dữ liệu chấm công' },
 ];
 
 module.exports = {

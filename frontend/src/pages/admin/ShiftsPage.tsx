@@ -18,9 +18,9 @@ import {
   Info,
   Building,
 } from 'lucide-react';
-import { ShiftConfig } from '../types';
-import { shiftConfigApi, CreateShiftPayload, UpdateShiftPayload } from '../api';
-import { useAuth } from '../contexts/AuthContext';
+import { ShiftConfig } from '../../types';
+import { shiftConfigApi, CreateShiftPayload, UpdateShiftPayload } from '../../api';
+import { useAuth } from '../../contexts/AuthContext';
 
 // Schema validate form bằng Zod
 const shiftSchema = z

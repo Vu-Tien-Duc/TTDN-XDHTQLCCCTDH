@@ -16,8 +16,8 @@ import {
   Building2,
   Users,
 } from 'lucide-react';
-import { useAuth } from '../contexts/AuthContext';
-import { authService } from '../services/authService';
+import { useAuth } from '../../contexts/AuthContext';
+import { authService } from '../../services/authService';
 
 interface QuickAccount {
   label: string;
