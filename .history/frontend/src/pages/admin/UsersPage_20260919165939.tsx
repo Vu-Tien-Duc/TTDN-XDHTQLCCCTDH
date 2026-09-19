@@ -17,10 +17,10 @@ import {
   Mail,
   Award,
 } from 'lucide-react';
-import { Department, Role, User as UserType } from '../types';
-import { userService, CreateUserPayload, UpdateUserPayload } from '../services/userService';
-import { departmentService } from '../services/departmentService';
-import { useAuth } from '../contexts/AuthContext';
+import { Department, Role, User as UserType } from '../../types';
+import { userService, CreateUserPayload, UpdateUserPayload } from '../../services/userService';
+import { departmentService } from '../../services/departmentService';
+import { useAuth } from '../../contexts/AuthContext';
 
 export const UsersPage: React.FC = () => {
   const { user: currentUser } = useAuth();

@@ -1,241 +1,394 @@
-# TÀI LIỆU ĐẶC TẢ API - HỆ THỐNG QUẢN LÝ CHẤM CÔNG TRƯỜNG ĐẠI HỌC
+# 📡 Tài Liệu API — Hệ Thống Quản Lý Chấm Công Trường Đại Học
 
-> **Phiên bản:** 1.0.0  
-> **Môi trường cục bộ:** `http://localhost:5000/api` hoặc `http://localhost:5000/api/v1`  
-> **Cơ sở dữ liệu:** MongoDB (Đúng chuẩn 8 collections)  
-> **Định dạng dữ liệu:** JSON (Content-Type: `application/json`)  
-> **Xác thực:** JWT Bearer Token (`Authorization: Bearer <token>`)
+> **Base URL:** `http://localhost:5000/api` (development) hoặc `/api` (production)
+> **Swagger UI:** `http://localhost:5000/api-docs`
+> **Format Response:** `{ success: boolean, message: string, data: any }`
 
 ---
 
-## 🔑 TÀI KHOẢN DÙNG THỬ (ĐÃ SEED SẴN VÀO CSDL)
+## 🔑 Xác Thực (Authentication)
 
-Tất cả tài khoản dùng chung mật khẩu: **`password123`**
-
-| Vai trò | Họ tên | Email | ID Người Dùng (Mẫu) |
-| :--- | :--- | :--- | :--- |
-| **Admin** | Quản Trị Viên Hệ Thống | `daihocdtd@gmail.com` | `6a9d57378cf3a6165de25dd6` |
-| **Trưởng Khoa** | PGS. TS. Lê Hoàng Nam | `truongkhoa.cntt@university.edu.vn` | `6a9d57378cf3a6165de25dd7` |
-| **Giảng Viên 1** | TS. Trần Thị Bích (Có lịch hôm nay) | `giangvien.bich@university.edu.vn` | `6a9d57378cf3a6165de25dd8` |
-| **Giảng Viên 2** | ThS. Phạm Văn Cường (Có đơn PENDING) | `giangvien.cuong@university.edu.vn` | `6a9d57378cf3a6165de25dd9` |
-| **Giảng Viên 3** | ThS. Hoàng Diệu Linh | `giangvien.linh@university.edu.vn` | `6a9d57378cf3a6165de25dda` |
-| **Nhân Viên** | Đỗ Thu Hà | `nhanvien.ha@university.edu.vn` | `6a9d57378cf3a6165de25ddb` |
+Tất cả API (trừ Auth) yêu cầu Header:
+```
+Authorization: Bearer <access_token>
+```
 
 ---
 
-## MỤC LỤC CÁC PHÂN HỆ
-- [3.1 Phân hệ Xác thực & Người dùng (Auth & User)](#31-phân-hệ-xác-thực--người-dùng-auth--user)
-- [3.2 Phân hệ Cơ cấu Tổ chức (Department)](#32-phân-hệ-cơ-cấu-tổ-chức-department)
-- [3.3 Phân hệ Ca làm việc & Lịch công tác (Schedule & Shift Config)](#33-phân-hệ-ca-làm-việc--lịch-công-tác-schedule--shift-config)
-- [3.4 Phân hệ Chấm công (Attendance)](#34-phân-hệ-chấm-công-attendance)
-- [3.5 Phân hệ Đơn xin nghỉ phép & Đổi ca (Leave Request)](#35-phân-hệ-đơn-xin-nghỉ-phép--đổi-ca-leave-request)
-- [3.6 Phân hệ Nhật ký Kiểm toán (Audit Log)](#36-phân-hệ-nhật-ký-kiểm-toán-audit-log)
-- [3.7 Phân hệ Báo cáo Thống kê (Reports)](#37-phân-hệ-báo-cáo-thống-kê-reports)
-- [3.8 Hạ tầng Kỹ thuật (Swagger UI & Health Check)](#38-hạ-tầng-kỹ-thuật-swagger-ui--health-check)
+## 1. Auth — `/api/auth`
 
----
-
-## 3.1 Phân hệ Xác thực & Người dùng (Auth & User)
-
-| Method | Endpoint | Quyền truy cập | Mô tả |
-| :--- | :--- | :--- | :--- |
-| `POST` | `/api/auth/register` | Công khai | Đăng ký tài khoản mới, sinh mã OTP 6 chữ số gửi qua Email (thời hạn 10 phút, tài khoản ở trạng thái `isVerified: false`). |
-| `POST` | `/api/auth/verify-otp` | Công khai | Xác minh tài khoản qua mã OTP: Nếu quá 10 phút -> tự động xóa tài khoản; nếu hợp lệ (<10p) -> kích hoạt tài khoản và gửi email thông báo thành công. |
-| `POST` | `/api/auth/login` | Công khai | Đăng nhập hệ thống (yêu cầu tài khoản đã `isVerified: true`), cấp Access Token (15 phút) + Refresh Token (7 ngày) lưu trong `httpOnly cookie`. |
-| `POST` | `/api/auth/forgot-password` | Công khai | Quên mật khẩu: Gửi mã OTP 6 số (hạn 10 phút) đến email của người dùng. |
-| `POST` | `/api/auth/reset-password` | Công khai | Đặt lại mật khẩu mới: Xác thực mã OTP còn hạn (<10p) và cập nhật mật khẩu mới (mã hóa bcrypt cost 12, hủy các token cũ). |
-| `POST` | `/api/auth/refresh` | Công khai / Cookie | Cấp lại Access Token mới (15 phút) từ Refresh Token (nhận qua `httpOnly cookie` hoặc body). |
-| `POST` | `/api/auth/logout` | Đã đăng nhập | Đưa Access Token vào Blacklist, xóa Refresh Token khỏi CSDL và clear `httpOnly cookie`. |
-| `GET` | `/api/auth/me` | Đã đăng nhập | Lấy thông tin cá nhân hiện tại kèm đơn vị công tác (ẩn passwordHash). |
-| `GET` | `/api/users` | Admin / TrưởngKhoa | Danh sách người dùng (Admin xem toàn trường, Trưởng khoa tự động chỉ xem nhân sự thuộc khoa mình). |
-| `GET` | `/api/users/:id` | Admin / TrưởngKhoa | Xem chi tiết một người dùng (Trưởng khoa chỉ xem người trong khoa). |
-| `POST` | `/api/users` | Admin | Tạo mới giảng viên/nhân viên, thiết lập `annualLeaveQuota`. |
-| `PUT` | `/api/users/:id` | Admin | Cập nhật thông tin tài khoản người dùng. |
-| `DELETE` | `/api/users/:id` | Admin | Soft delete (`isActive = false`), không xóa vật lý. |
-
-### Ví dụ Request / Response:
-
-#### Đăng nhập (`POST /api/auth/login`)
-- **Lưu ý quan trọng:** Đăng nhập sử dụng HTTP `POST` (không dùng `GET`).
+### POST `/auth/login` — Đăng nhập
+- **Rate Limit:** 5 lần / 15 phút
 - **Body:**
 ```json
-{
-  "email": "daihocdtd@gmail.com",
-  "password": "password123"
-}
+{ "email": "daihocdtd@gmail.com", "password": "password123" }
 ```
-- **Response (200 OK):**
+- **Response 200:**
 ```json
 {
   "success": true,
-  "message": "Đăng nhập thành công.",
   "data": {
-    "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6...",
-    "refreshToken": "eyJhbGciOiJIUzI1NiIsInR5cCI6...",
-    "user": {
-      "_id": "6a9d57378cf3a6165de25dd6",
-      "fullName": "Quản Trị Viên Hệ Thống (Admin Trường)",
-      "email": "daihocdtd@gmail.com",
-      "role": "admin",
-      "departmentId": "6a9d57378cf3a6165de25dd0",
-      "annualLeaveQuota": 15,
-      "isActive": true
-    }
+    "accessToken": "eyJhbGci...",
+    "refreshToken": "eyJhbGci...",
+    "user": { "_id": "...", "fullName": "...", "email": "...", "role": "admin" }
   }
 }
 ```
 
----
-
-## 3.2 Phân hệ Cơ cấu Tổ chức (Department)
-
-| Method | Endpoint | Quyền truy cập | Mô tả |
-| :--- | :--- | :--- | :--- |
-| `GET` | `/api/departments` | Đã đăng nhập (`verifyRole`) | Danh sách khoa/bộ môn/phòng ban (dạng cây phân cấp `?tree=true`). |
-| `GET` | `/api/departments/:id` | Đã đăng nhập (`verifyRole`) | Chi tiết một đơn vị trực thuộc. |
-| `POST` | `/api/departments` | Admin | Tạo đơn vị mới, gắn `parentId` (Khoa > Bộ môn) và `managerId`. |
-| `PUT` | `/api/departments/:id` | Admin / TrưởngKhoa | Cập nhật tên, loại, tọa độ GPS hoặc người quản lý (`managerId`). |
-| `DELETE` | `/api/departments/:id` | Admin | Xóa đơn vị (kiểm tra ràng buộc: từ chối xóa nếu còn nhân sự hoặc đơn vị con). |
-
-#### Ví dụ Tạo đơn vị mới (`POST /api/departments`):
-```json
-{
-  "name": "Bộ môn An Toàn Thông Tin",
-  "type": "bomon",
-  "parentId": "6a9d57378cf3a6165de25dd1",
-  "managerId": "6a9d57378cf3a6165de25dd7",
-  "location": {
-    "lat": 21.028511,
-    "lng": 105.854167
-  }
-}
-```
-
----
-
-## 3.3 Phân hệ Ca làm việc & Lịch công tác (Schedule & Shift Config)
-
-| Method | Endpoint | Quyền truy cập | Mô tả |
-| :--- | :--- | :--- | :--- |
-| `GET` | `/api/shifts` | Đã đăng nhập | Danh sách các ca làm việc chuẩn do Admin cấu hình. |
-| `POST` | `/api/shifts` | Admin | Tạo ca mới (tên ca, giờ bắt đầu/kết thúc HH:mm, ngưỡng trễ). |
-| `PUT` | `/api/shifts/:id` | Admin | Cập nhật cấu hình ca làm việc. |
-| `DELETE` | `/api/shifts/:id` | Admin | Xóa ca (từ chối xóa nếu đang được lịch giảng dạy tham chiếu). |
-| `GET` | `/api/schedules` | Đã đăng nhập | Danh sách lịch, lọc theo học kỳ (`startDate`, `endDate`). GV/NV chỉ thấy lịch của mình. |
-| `GET` | `/api/schedules/:id` | Đã đăng nhập | Chi tiết một lịch cụ thể. |
-| `POST` | `/api/schedules` | Admin / TrưởngKhoa | Tạo lịch mới, **bắt buộc** truyền `startDate`/`endDate`; kiểm tra không cho phép trùng khung giờ cùng ngày. |
-| `PUT` | `/api/schedules/:id` | Admin / TrưởngKhoa | Cập nhật thông tin lịch hoặc điều chỉnh gia hạn học kỳ. |
-| `DELETE` | `/api/schedules/:id` | Admin / TrưởngKhoa | Xóa lịch phân công. |
-
-#### Ví dụ Tạo lịch (`POST /api/schedules`):
-```json
-{
-  "userId": "6a9d57378cf3a6165de25dd8",
-  "shiftId": "6a9d57378cf3a6165de25ddc",
-  "roomId": "Giảng đường A2-301",
-  "weekday": 2,
-  "isRecurring": true,
-  "startDate": "2026-01-15T00:00:00.000Z",
-  "endDate": "2026-12-31T23:59:59.000Z"
-}
-```
-
----
-
-## 3.4 Phân hệ Chấm công (Attendance)
-
-| Method | Endpoint | Quyền truy cập | Mô tả |
-| :--- | :--- | :--- | :--- |
-| `POST` | `/api/attendance/check-in` | Đã đăng nhập | **Body CHỈ nhận deviceId, location (tùy chọn) — KHÔNG nhận scheduleId/shiftId.** Backend tự suy luận lịch hiệu lực theo giờ Asia/Ho_Chi_Minh. |
-| `POST` | `/api/attendance/check-out` | Đã đăng nhập | **Tự tìm bản ghi đang mở** trong ngày hôm nay theo giờ Asia/Ho_Chi_Minh — không nhận ID từ client. |
-| `GET` | `/api/attendance/history` | Cá nhân / TrưởngKhoa / Admin | Lịch sử chấm công, phân trang, lọc theo tuần/tháng/trạng thái. |
-| `GET` | `/api/attendance/:id` | Chủ sở hữu / TrưởngKhoa / Admin | Chi tiết một bản ghi chấm công. |
-| `PUT` | `/api/attendance/:id` | Admin | Sửa log chấm công. **BẮT BUỘC** set `method = admin_override` và `isManualOverride = true`; tự động ghi Audit Log. |
-
-#### Quy trình tự động hóa Check-in:
-1. Lấy `userId` từ token xác thực.
-2. Quy đổi thời gian về múi giờ `Asia/Ho_Chi_Minh` (UTC+7).
-3. Lọc trong `schedules` các lịch có `userId` khớp, `weekday` trùng hôm nay, nằm trong khoảng `[startDate, endDate]`.
-4. Chỉ giữ lại lịch mà thời điểm hiện tại nằm trong khoảng `[startTime - 30 phút, endTime]`.
-5. Không có lịch nào thỏa mãn -> trả mã lỗi **`ATTENDANCE_004`**.
-6. Có lịch thỏa mãn -> Tự gán `scheduleId`, `shiftId` và so sánh giờ để tính trạng thái `ON_TIME` hoặc `LATE`.
-
-#### Quy trình tự động hóa Check-out & Đánh giá Về sớm (EARLY_LEAVE):
-1. Lấy `userId` từ token xác thực (Client không cần gửi bất kỳ tham số nào).
-2. Xác định khoảng thời gian ngày hôm nay `[00:00:00, 23:59:59]` theo múi giờ `Asia/Ho_Chi_Minh` (UTC+7).
-3. Tìm bản ghi check-in mở gần nhất trong ngày: `AttendanceLog.findOne({ userId, checkOutTime: null, checkInTime: { $gte: startOfDay, $lte: endOfDay } })`.
-4. Nếu không có bản ghi nào mở -> Trả về mã lỗi **404 ATTENDANCE_003** (*"Không tìm thấy bản ghi check-in nào còn mở trong ngày hôm nay"*).
-5. So sánh thời điểm Check-out thực tế với `shiftId.endTime`:
-   - Nếu thời điểm Check-out $< endTime$: Đánh dấu về sớm.
-   - **Quy tắc ưu tiên nghiệp vụ**:
-     - Nếu trạng thái ban đầu là `ON_TIME` $\rightarrow$ Chuyển thành `EARLY_LEAVE`.
-     - Nếu trạng thái ban đầu là `LATE` $\rightarrow$ Giữ nguyên trạng thái `LATE`.
-6. Cập nhật `checkOutTime = new Date()`, lưu CSDL và trả về:
-   - Thông tin bản ghi populate (`userId`, `shiftId`, `scheduleId`).
-   - `workingDuration`: `{ totalMinutes, formatted: "X giờ Y phút" }`.
-   - `earlyLeave`: `{ isEarlyLeave, earlyMinutes }`.
-
-#### Cơ chế Phân quyền 4 cấp trong Lịch sử Chấm công (`GET /api/attendance/history`):
-1. **Giảng viên / Nhân viên**: Hệ thống tự động ép điều kiện `query.userId = req.user.id` (chỉ xem được lịch sử của chính mình, chặn can thiệp qua query param).
-2. **Trưởng khoa**: Tự động lọc danh sách nhân sự thuộc khoa của mình (`departmentId`), không được phép xem nhân sự ngoài khoa (nếu cố tình truyền `userId` ngoài khoa $\rightarrow$ trả `403 Forbidden`).
-3. **Admin**: Xem toàn bộ lịch sử toàn trường; lọc linh hoạt theo `userId`, `departmentId`, `status`, `from`, `to`.
-4. **Phân trang**: Chuẩn `page`, `limit`, `skip`, trả về `total` và `totalPages`.
-
-#### Cơ chế Admin can thiệp điều chỉnh (Manual Override) & Ghi vết Audit (`PUT /api/attendance/:id`):
-- **Bảo vệ bởi role:** Chỉ `admin` được phép gọi (`authorizeRoles('admin')`).
-- **Các trường hỗ trợ sửa:** `status`, `checkInTime`, `checkOutTime`, `leaveRequestId`.
-- **Gán cờ bắt buộc:** `isManualOverride = true` và `method = 'admin_override'`.
-- **Ghi vết tự động vào `audit_logs`:**
-  - `actor`: ID của Admin.
-  - `action`: `'EDIT_ATTENDANCE'`.
-  - `targetId`: ID bản ghi chấm công.
-  - `targetType`: `'AttendanceLog'`.
-  - `details`: Lưu cả dữ liệu trước (`before`) và sau (`after`) khi can thiệp.
-
----
-
-## 3.5 Phân hệ Đơn xin nghỉ phép & Đổi ca (Leave Request)
-
-| Method | Endpoint | Quyền truy cập | Mô tả |
-| :--- | :--- | :--- | :--- |
-| `POST` | `/api/leave-requests` | Đã đăng nhập | Tạo đơn xin nghỉ/dạy bù/đổi ca, hỗ trợ cả `application/json` kèm `attachmentUrl` hoặc `multipart/form-data` gửi file trực tiếp. |
-| `POST` | `/api/upload` | Đã đăng nhập | Tải file minh chứng (ảnh, PDF, tài liệu), trả về `fileUrl` (/uploads/...) có thể truy cập tĩnh. |
-| `GET` | `/api/leave-requests` | Cá nhân / TrưởngKhoa / Admin | Danh sách đơn, lọc theo trạng thái (`PENDING`, `APPROVED`, `REJECTED`). |
-| `GET` | `/api/leave-requests/:id` | Chủ đơn / TrưởngKhoa / Admin | Chi tiết một đơn xin. |
-| `PUT` | `/api/leave-requests/:id/approve` | TrưởngKhoa / Admin | Phê duyệt đơn xin, ghi nhận Audit Log, tự động đồng bộ sang chấm công `EXCUSED_ABSENCE`. |
-| `PUT` | `/api/leave-requests/:id/reject` | TrưởngKhoa / Admin | Từ chối đơn, **bắt buộc kèm `rejectionReason`**, ghi Audit Log. |
-| `GET` | `/api/leave-requests/balance` | Đã đăng nhập (RBAC) | **Số ngày phép còn lại** — TÍNH ĐỘNG qua Aggregation pipeline (Giảng viên chỉ xem của mình; Trưởng khoa xem của khoa; Admin xem toàn trường). |
-
-#### Ví dụ Từ chối đơn (`PUT /api/leave-requests/:id/reject`):
+### POST `/auth/register` — Đăng ký tài khoản
 - **Body:**
 ```json
 {
-  "rejectionReason": "Trùng lịch thi chung của khoa, đề nghị đổi sang tuần sau."
+  "fullName": "Nguyễn Văn A",
+  "email": "nguyenvana@university.edu.vn",
+  "password": "matkhau123",
+  "role": "giangvien",
+  "departmentId": "<ObjectId>"
+}
+```
+- **Response 201:** Gửi OTP 6 số về email, hiệu lực 10 phút.
+
+### POST `/auth/verify-otp` — Xác minh OTP
+- **Body:**
+```json
+{ "email": "nguyenvana@university.edu.vn", "otp": "123456" }
+```
+
+### POST `/auth/forgot-password` — Quên mật khẩu
+- **Body:** `{ "email": "nguyenvana@university.edu.vn" }`
+
+### POST `/auth/reset-password` — Đặt lại mật khẩu
+- **Body:**
+```json
+{ "email": "nguyenvana@university.edu.vn", "otp": "123456", "newPassword": "matkhaumoi" }
+```
+
+### POST `/auth/refresh` — Làm mới Access Token
+- **Cookie:** Gửi kèm httpOnly cookie chứa refreshToken
+
+### POST `/auth/logout` — Đăng xuất
+- **Header:** `Authorization: Bearer <token>`
+
+### GET `/auth/me` — Lấy thông tin tài khoản đang đăng nhập
+- **Auth:** Token bắt buộc
+
+---
+
+## 2. Users — `/api/users`
+
+> **Quyền truy cập:** Admin (toàn quyền), Trưởng Khoa (chỉ xem/sửa user trong khoa mình)
+
+### GET `/users` — Danh sách người dùng
+- **Query params:** `?role=giangvien&departmentId=<id>&search=Trần`
+- **Trưởng Khoa:** Tự động lọc theo `departmentId` của mình
+
+### POST `/users` — Thêm người dùng (Admin only)
+- **Body:**
+```json
+{
+  "fullName": "ThS. Nguyễn Văn B",
+  "email": "giangvien.b@university.edu.vn",
+  "password": "password123",
+  "role": "giangvien",
+  "departmentId": "<ObjectId>",
+  "annualLeaveQuota": 12
+}
+```
+
+### GET `/users/:id` — Chi tiết người dùng
+
+### PUT `/users/:id` — Cập nhật người dùng
+- **Trưởng Khoa** chỉ được sửa: `fullName`, `annualLeaveQuota`
+- **Admin** sửa được tất cả: `fullName`, `role`, `departmentId`, `isActive`, `annualLeaveQuota`
+
+### DELETE `/users/:id` — Khóa tài khoản (Soft Delete — Admin only)
+- Đặt `isActive = false`, không xóa dữ liệu
+
+---
+
+## 3. Departments — `/api/departments`
+
+### GET `/departments` — Danh sách phẳng
+
+### GET `/departments/tree` — Cây cấu trúc phân cấp
+- **Response:** Trả về mảng departments với `children` lồng nhau (Ban Giám Hiệu → Khoa → Bộ Môn)
+
+### GET `/departments/:id` — Chi tiết đơn vị
+
+### POST `/departments` — Tạo đơn vị (Admin only)
+- **Body:**
+```json
+{
+  "name": "Khoa Ngoại ngữ",
+  "type": "khoa",
+  "parentId": "<ObjectId của Ban Giám Hiệu>",
+  "location": { "lat": 21.028, "lng": 105.854 }
+}
+```
+- **type:** `truong` | `khoa` | `bomon` | `phongban`
+
+### PUT `/departments/:id` — Cập nhật đơn vị (Admin, Trưởng Khoa)
+
+### DELETE `/departments/:id` — Xóa đơn vị (Admin only)
+
+---
+
+## 4. Shifts (Ca Làm Việc) — `/api/shifts`
+
+> Alias: `/api/shift-configs` cũng hoạt động
+
+### GET `/shifts` — Danh sách ca làm việc
+
+### GET `/shifts/:id` — Chi tiết ca
+
+### POST `/shifts` — Tạo ca mới (Admin only)
+- **Body:**
+```json
+{
+  "name": "Ca Sáng (Tiết 1-4)",
+  "startTime": "07:00",
+  "endTime": "11:30",
+  "lateThresholdMinutes": 15,
+  "earlyExitThresholdMinutes": 15,
+  "isActive": true
+}
+```
+
+### PUT `/shifts/:id` — Cập nhật ca (Admin only)
+
+### DELETE `/shifts/:id` — Xóa ca (Admin only)
+
+---
+
+## 5. Schedules (Lịch Giảng Dạy) — `/api/schedules`
+
+### GET `/schedules` — Danh sách lịch giảng dạy
+- **Query:** `?userId=<id>&departmentId=<id>&weekday=1&shiftId=<id>`
+- **Populate:** `userId`, `shiftId`, `departmentId`
+
+### GET `/schedules/today` — Lịch dạy hôm nay
+- Tự động lọc theo weekday hiện tại và khoảng hiệu lực (startDate ≤ today ≤ endDate)
+
+### GET `/schedules/:id` — Chi tiết 1 lịch
+
+### POST `/schedules` — Tạo lịch mới (Admin, Trưởng Khoa)
+- **Body:**
+```json
+{
+  "userId": "<ObjectId giảng viên>",
+  "shiftId": "<ObjectId ca>",
+  "weekday": 1,
+  "roomId": "Phòng A2-301",
+  "isRecurring": true,
+  "startDate": "2026-01-15",
+  "endDate": "2026-12-31",
+  "subjectName": "Lập trình Web",
+  "subjectCode": "CS201"
+}
+```
+- **weekday:** 0 = Chủ Nhật, 1 = Thứ Hai, ..., 6 = Thứ Bảy
+- **Conflict detection:** Nếu trùng lịch → trả về **409 Conflict**
+
+### PUT `/schedules/:id` — Cập nhật lịch
+
+### DELETE `/schedules/:id` — Xóa lịch
+
+---
+
+## 6. Attendance (Chấm Công) — `/api/attendance`
+
+### POST `/attendance/check-in` — Điểm danh vào
+- **Body (tùy chọn):**
+```json
+{
+  "shiftId": "<ObjectId ca — nếu muốn chỉ định ca thủ công>",
+  "method": "manual",
+  "deviceId": "KIOSK_GATE_A2",
+  "location": { "lat": 21.028, "lng": 105.854 }
+}
+```
+- **Nếu không truyền `shiftId`:** Hệ thống tự động tìm lịch dạy hôm nay trong khung giờ hiện tại (± 30 phút)
+- **method:** `manual` | `face` | `qr` | `gps` | `fingerprint`
+- **Trả về:** Trạng thái `ON_TIME` hoặc `LATE` (dựa trên `lateThresholdMinutes` của ca)
+- **Lỗi 409:** Đã check-in ca này hôm nay rồi
+
+### POST `/attendance/check-out` — Điểm danh ra
+- **Body:**
+```json
+{ "shiftId": "<ObjectId ca>" }
+```
+- **Trả về:** Trạng thái check-out + `EARLY_LEAVE` nếu ra sớm quá ngưỡng
+
+### GET `/attendance/history` — Lịch sử chấm công
+- **Query:** `?userId=<id>&from=2026-09-01&to=2026-09-30&status=LATE&page=1&limit=20`
+- **Phân quyền:** Giảng viên/Nhân viên chỉ xem của mình, Trưởng Khoa xem trong khoa, Admin xem toàn trường
+
+### GET `/attendance/:id` — Chi tiết 1 bản ghi
+
+### PUT `/attendance/:id` — Admin chỉnh sửa chấm công
+- **Body:**
+```json
+{
+  "status": "EXCUSED_ABSENCE",
+  "note": "Đã có đơn nghỉ phép được duyệt"
+}
+```
+
+### POST `/attendance/trigger-absent-check` — Chạy kiểm tra vắng mặt thủ công (Admin)
+- Kích hoạt cron job tạo record ABSENT cho những ca chưa check-in
+
+---
+
+## 7. Leave Requests (Đơn Nghỉ Phép) — `/api/leave-requests`
+
+### POST `/leave-requests` — Tạo đơn xin nghỉ
+- **Content-Type:** `multipart/form-data` (nếu đính kèm file) hoặc `application/json`
+- **Body:**
+```json
+{
+  "type": "nghi_phep",
+  "reason": "Lý do cá nhân",
+  "startDate": "2026-09-25",
+  "endDate": "2026-09-26",
+  "attachmentUrl": "(tùy chọn)"
+}
+```
+- **type:** `nghi_phep` | `day_bu` | `doi_ca`
+- **File upload:** Form field `file` (JPG, PNG, WEBP, PDF, DOC, DOCX — tối đa 10MB)
+
+### GET `/leave-requests` — Danh sách đơn
+- **Giảng viên/Nhân viên:** Chỉ thấy đơn của mình
+- **Trưởng Khoa:** Thấy đơn của nhân sự trong khoa
+- **Admin:** Thấy tất cả
+
+### GET `/leave-requests/balance` — Kiểm tra quỹ ngày phép còn lại
+
+### GET `/leave-requests/:id` — Chi tiết đơn
+
+### PUT `/leave-requests/:id/approve` — Phê duyệt đơn (Admin, Trưởng Khoa)
+- **Body (tùy chọn):**
+```json
+{ "approvalNote": "Đã duyệt theo đề nghị của tổ bộ môn" }
+```
+
+### PUT `/leave-requests/:id/reject` — Từ chối đơn (Admin, Trưởng Khoa)
+- **Body (bắt buộc):**
+```json
+{ "rejectionReason": "Trùng lịch thi cuối kỳ, đề nghị chọn ngày khác" }
+```
+
+---
+
+## 8. Reports (Báo Cáo) — `/api/reports`
+
+### GET `/reports/attendance` — Báo cáo tổng hợp chấm công
+- **Query:** `?userId=<id>&departmentId=<id>&from=2026-09-01&to=2026-09-30`
+- **Response:**
+```json
+{
+  "totalRecords": 150,
+  "onTimeCount": 120,
+  "lateCount": 15,
+  "earlyLeaveCount": 5,
+  "absentCount": 8,
+  "excusedAbsenceCount": 2,
+  "approvedLeaveDays": 3
+}
+```
+
+### GET `/reports/monthly` — Báo cáo chi tiết theo tháng
+- **Query:** `?month=9&year=2026&departmentId=<id>`
+- **Quyền:** Admin (toàn trường), Trưởng Khoa (tự động lọc theo khoa)
+
+---
+
+## 9. AI Chat (Trợ lý AI) — `/api/ai`
+
+### POST `/ai/chat` — Gửi câu hỏi cho Trợ lý AI
+- **Body:**
+```json
+{ "question": "Hôm nay có bao nhiêu giảng viên đi muộn?" }
+```
+- **Hoạt động:**
+  1. Thu thập dữ liệu chấm công, nghỉ phép, nhân sự từ MongoDB
+  2. Nếu có `GEMINI_API_KEY` → gọi Google Gemini API với context
+  3. Nếu không → dùng Fallback Analytics Engine (thống kê trực tiếp)
+- **Response:** Trả về Markdown
+
+---
+
+## 10. Audit Logs (Nhật Ký Kiểm Toán) — `/api/audit-logs`
+
+### GET `/audit-logs` — Danh sách nhật ký (Admin only)
+- **Query:** `?actor=<userId>&action=DELETE&targetType=User&startDate=2026-09-01&endDate=2026-09-30`
+
+---
+
+## 11. Upload — `/api/upload`
+
+### POST `/upload` — Tải file lên
+- **Content-Type:** `multipart/form-data`
+- **Field:** `file`
+- **Response:** `{ "data": { "url": "/uploads/filename.pdf" } }`
+
+### GET `/uploads/:filename` — Tải file xuống (Token bắt buộc)
+
+---
+
+## 12. Trợ Lý AI (AI Assistant) — `/api/ai`
+
+### POST `/ai/chat` — Hỏi đáp thống kê & phân tích chấm công
+- **Quyền:** `admin`, `truongkhoa`, `giangvien`, `nhanvien`
+- **Body:**
+```json
+{ "question": "Hôm nay có bao nhiêu trường hợp đi muộn và vắng mặt?" }
+```
+- **Response 200:**
+```json
+{
+  "success": true,
+  "message": "Phản hồi từ AI thành công.",
+  "data": {
+    "reply": "Dựa trên dữ liệu thực tế hệ thống: Hôm nay ghi nhận 1 trường hợp đi muộn và 0 trường hợp vắng mặt...",
+    "source": "gemini-1.5-flash"
+  }
 }
 ```
 
 ---
 
-## 3.6 Phân hệ Nhật ký Kiểm toán (Audit Log)
+## 13. Health Check — `/api/health`
 
-| Method | Endpoint | Quyền truy cập | Mô tả |
-| :--- | :--- | :--- | :--- |
-| `GET` | `/api/audit-logs` | Admin | Tra cứu nhật ký các thao tác nhạy cảm (`APPROVE_LEAVE`, `REJECT_LEAVE`, `EDIT_ATTENDANCE`, v.v.), hỗ trợ lọc theo actor, action và thời gian. |
+### GET `/health` — Kiểm tra trạng thái hệ thống
+- **Không yêu cầu xác thực**
+- **Response:**
+```json
+{
+  "status": "OK",
+  "message": "Hệ thống đang hoạt động bình thường.",
+  "collectionsCount": 9,
+  "timestamp": "2026-09-19T08:00:00.000Z"
+}
+```
 
 ---
 
-## 3.7 Phân hệ Báo cáo Thống kê (Reports)
+## 📋 Mã Trạng Thái Chấm Công
 
-| Method | Endpoint | Quyền truy cập | Mô tả |
-| :--- | :--- | :--- | :--- |
-| `GET` | `/api/reports/attendance` | Cá nhân / TrưởngKhoa / Admin | Thống kê số buổi `ON_TIME`, `LATE`, `EARLY_LEAVE`, `ABSENT`, `EXCUSED_ABSENCE` và số ngày nghỉ phép trong khoảng thời gian `from` đến `to`. Cá nhân xem của mình, Trưởng khoa xem khoa, Admin xem toàn trường. |
-| `GET` | `/api/reports/monthly` | TrưởngKhoa / Admin | Báo cáo chi tiết số ngày làm việc và trạng thái chuyên cần theo tháng của từng nhân sự. |
+| Mã | Ý nghĩa |
+|----|---------|
+| `ON_TIME` | Đúng giờ (check-in ≤ startTime + lateThreshold) |
+| `LATE` | Đi muộn (check-in > startTime + lateThreshold) |
+| `EARLY_LEAVE` | Về sớm (check-out < endTime - earlyExitThreshold) |
+| `ABSENT` | Vắng mặt (Cron job tạo khi hết ca mà chưa check-in) |
+| `EXCUSED_ABSENCE` | Vắng có phép (Admin chỉnh sửa khi có đơn nghỉ) |
 
 ---
 
-## 3.8 Hạ tầng Kỹ thuật (Swagger UI & Health Check)
+## 📋 Mã Lỗi (Error Codes)
 
-| Method | Endpoint | Quyền truy cập | Mô tả |
-| :--- | :--- | :--- | :--- |
-| `GET` | `/health` | Công khai | Kiểm tra tình trạng hoạt động của API và danh sách 8 collections. |
-| `GET` | `/api-docs` | Công khai | Giao diện Swagger UI trực quan hóa toàn bộ API. |
+| Error Code | Mô tả |
+|------------|-------|
+| `ATTENDANCE_ALREADY_EXISTS` | Đã check-in ca này hôm nay rồi (409) |
+| `ATTENDANCE_NO_MATCHING_SCHEDULE` | Không có lịch phù hợp tại thời điểm này (400) |
+| `SHIFT_NOT_FOUND` | Không tìm thấy ca làm việc (404) |

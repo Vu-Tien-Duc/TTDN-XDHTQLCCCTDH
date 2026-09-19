@@ -102,9 +102,30 @@ export const AppRoutes: React.FC = () => {
             <Route path="/attendance" element={<AttendanceDashboardPage />} />
 
             {/* Phân hệ Đơn từ nghỉ phép (Phân hệ C) */}
-            <Route path="/leave-requests" element={<MyLeaveRequestsPage />} />
-            <Route path="/leave/create" element={<CreateLeavePage />} />
-            <Route path="/leave/my-requests" element={<MyLeaveRequestsPage />} />
+            <Route
+              path="/leave-requests"
+              element={
+                <ProtectedRoute allowedRoles={['truongkhoa', 'giangvien', 'nhanvien']}>
+                  <MyLeaveRequestsPage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/leave/create"
+              element={
+                <ProtectedRoute allowedRoles={['truongkhoa', 'giangvien', 'nhanvien']}>
+                  <CreateLeavePage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/leave/my-requests"
+              element={
+                <ProtectedRoute allowedRoles={['truongkhoa', 'giangvien', 'nhanvien']}>
+                  <MyLeaveRequestsPage />
+                </ProtectedRoute>
+              }
+            />
             <Route
               path="/leave/approvals"
               element={

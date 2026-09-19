@@ -4,3 +4,7 @@ export * from './departmentService';
 export * from './shiftService';
 export * from './userService';
 export * from './scheduleService';
+export * from './attendanceService';
+export * from './leave.service';
+export * from './report.service';
+export * from './ai.service';
