@@ -1,9 +1,10 @@
 import React, { useState } from 'react';
-import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
+import { NavLink, Outlet, useLocation, useNavigate, Link } from 'react-router-dom';
 import {
   LayoutDashboard,
   Building2,
   Users,
+  User,
   Clock,
   CalendarDays,
   FilePlus2,
@@ -198,7 +199,12 @@ export const MainLayout: React.FC = () => {
     location.pathname === item.path ||
     (item.path !== '/' && item.path !== '/dashboard' && location.pathname.startsWith(item.path))
   );
-  const pageTitle = currentMenuItem ? currentMenuItem.title : 'Bảng Điều Khiển';
+  const pageTitle =
+    location.pathname === '/profile'
+      ? 'Hồ Sơ Cán Bộ & Cá Nhân'
+      : currentMenuItem
+      ? currentMenuItem.title
+      : 'Bảng Điều Khiển';
 
   // Lấy màu sắc đặc trưng theo vai trò
   const getRoleBadgeStyle = (role?: Role) => {
@@ -266,9 +272,17 @@ export const MainLayout: React.FC = () => {
 
         {/* User Card Mini in Sidebar */}
         <div className="p-4 mx-3 my-3 rounded-2xl bg-slate-800/60 border border-slate-700/50 flex items-center gap-3">
-          <div className="w-10 h-10 rounded-xl bg-blue-600/30 border border-blue-400/30 text-blue-300 font-bold text-sm flex items-center justify-center">
-            {getInitials(user?.fullName)}
-          </div>
+          {user?.avatar ? (
+            <img
+              src={user.avatar}
+              alt={user?.fullName || 'Avatar'}
+              className="w-10 h-10 rounded-xl object-cover border border-blue-400/30 shadow-xs shrink-0"
+            />
+          ) : (
+            <div className="w-10 h-10 rounded-xl bg-blue-600/30 border border-blue-400/30 text-blue-300 font-bold text-sm flex items-center justify-center shrink-0">
+              {getInitials(user?.fullName)}
+            </div>
+          )}
           <div className="flex-1 min-w-0">
             <p className="text-xs font-semibold text-white truncate">{user?.fullName || 'Người dùng'}</p>
             <span
@@ -480,9 +494,17 @@ export const MainLayout: React.FC = () => {
                 }}
                 className="flex items-center gap-2 p-1.5 sm:px-3 sm:py-1.5 rounded-xl hover:bg-slate-100 transition border border-transparent hover:border-slate-200"
               >
-                <div className="w-8 h-8 rounded-lg bg-blue-600 text-white font-bold text-xs flex items-center justify-center shadow-sm">
-                  {getInitials(user?.fullName)}
-                </div>
+                {user?.avatar ? (
+                  <img
+                    src={user.avatar}
+                    alt={user?.fullName || 'Avatar'}
+                    className="w-8 h-8 rounded-lg object-cover shadow-sm border border-slate-200 shrink-0"
+                  />
+                ) : (
+                  <div className="w-8 h-8 rounded-lg bg-blue-600 text-white font-bold text-xs flex items-center justify-center shadow-sm shrink-0">
+                    {getInitials(user?.fullName)}
+                  </div>
+                )}
                 <div className="hidden md:flex flex-col text-left">
                   <span className="text-xs font-bold text-slate-800 leading-tight truncate max-w-[130px]">
                     {user?.fullName || 'Người dùng'}
@@ -514,7 +536,16 @@ export const MainLayout: React.FC = () => {
                       </span>
                     </div>
 
-                    <div className="p-1">
+                    <div className="p-1 space-y-0.5">
+                      <Link
+                        to="/profile"
+                        onClick={() => setShowUserMenu(false)}
+                        className="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs font-medium text-slate-700 hover:bg-slate-100 transition"
+                      >
+                        <User className="w-4 h-4 text-slate-500" />
+                        <span>Hồ sơ & Đổi mật khẩu</span>
+                      </Link>
+
                       <button
                         onClick={handleLogout}
                         className="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs font-medium text-rose-600 hover:bg-rose-50 transition"

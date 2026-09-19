@@ -70,6 +70,15 @@ const userSchema = new mongoose.Schema(
       type: Number,
       default: 12,
     },
+    avatar: {
+      type: String,
+      default: null,
+    },
+    faceDescriptor: {
+      type: [Number],
+      default: undefined,
+      select: false, // 128-dimensional vector, excluded from default queries
+    },
   },
   {
     timestamps: true,

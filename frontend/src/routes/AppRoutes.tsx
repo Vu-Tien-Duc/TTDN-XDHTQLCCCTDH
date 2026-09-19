@@ -14,6 +14,8 @@ import {
   ShiftsPage,
   UsersPage,
   SchedulesPage,
+  ProfilePage,
+  AuditLogsPage,
 } from '../pages';
 
 // Các trang từ DUY (Phân hệ C & AI)
@@ -70,6 +72,9 @@ export const AppRoutes: React.FC = () => {
             {/* Dashboard & Tổng quan */}
             <Route path="/dashboard" element={<DashboardPage />} />
             <Route path="/dashboard/reports" element={<AttendanceDashboardPage />} />
+
+            {/* Hồ sơ cá nhân */}
+            <Route path="/profile" element={<ProfilePage />} />
 
             {/* Phân hệ Quản trị Tổ chức & Nhân sự */}
             <Route
@@ -148,12 +153,12 @@ export const AppRoutes: React.FC = () => {
             {/* Trợ lý Gemini AI */}
             <Route path="/ai-assistant" element={<AiInspectorPage />} />
 
-            {/* Nhật ký kiểm toán */}
+            {/* Nhật ký kiểm toán hệ thống */}
             <Route
               path="/audit-logs"
               element={
                 <ProtectedRoute allowedRoles={['admin']}>
-                  <PlaceholderPage />
+                  <AuditLogsPage />
                 </ProtectedRoute>
               }
             />

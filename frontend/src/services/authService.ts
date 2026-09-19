@@ -42,11 +42,23 @@ export const authService = {
   },
 
   /**
-   * Làm mới Access Token (POST /api/auth/refresh)
+   * Đổi mật khẩu cho tài khoản đang đăng nhập (PUT /api/auth/change-password)
    */
-  async refreshToken(): Promise<{ token: string }> {
-    const response = await axiosClient.post<unknown, { success: boolean; data: { token: string } }>('/auth/refresh');
-    return response.data;
+  async changePassword(currentPassword: string, newPassword: string): Promise<{ success: boolean; message: string }> {
+    return (await axiosClient.put('/auth/change-password', {
+      currentPassword,
+      newPassword,
+    })) as unknown as { success: boolean; message: string };
+  },
+
+  /**
+   * Cập nhật ảnh đại diện / ảnh mẫu khuôn mặt (PUT /api/auth/avatar)
+   */
+  async updateAvatar(avatar: string, faceDescriptor?: number[]): Promise<{ success: boolean; data: User; message: string }> {
+    return (await axiosClient.put('/auth/avatar', {
+      avatar,
+      faceDescriptor,
+    })) as unknown as { success: boolean; data: User; message: string };
   },
 };
 
