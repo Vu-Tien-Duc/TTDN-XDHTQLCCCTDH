@@ -161,7 +161,11 @@ const updateUser = async (req, res, next) => {
       if (!departmentIds.some((id) => id.toString() === targetDeptId)) {
         return sendError(res, 'Bạn chỉ có quyền cập nhật nhân sự thuộc khoa của mình.', null, 403);
       }
-      // Trưởng khoa chỉ được sửa thông tin cơ bản, không được tự ý đổi role, chuyển khoa hoặc kích hoạt/vô hiệu hóa
+      // Trưởng khoa chỉ được sửa thông tin cơ bản (fullName, annualLeaveQuota)
+      // Nếu gửi các trường ngoài phạm vi -> trả về 403 Forbidden
+      if (role !== undefined || departmentId !== undefined || isActive !== undefined) {
+        return sendError(res, 'Trưởng khoa không có quyền thay đổi vai trò, phòng ban hoặc trạng thái hoạt động của nhân sự.', null, 403);
+      }
       if (fullName !== undefined) updateData.fullName = fullName;
       if (annualLeaveQuota !== undefined) updateData.annualLeaveQuota = annualLeaveQuota;
     } else {

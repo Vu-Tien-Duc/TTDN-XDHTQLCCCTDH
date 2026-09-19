@@ -494,6 +494,72 @@ const getMe = async (req, res, next) => {
   }
 };
 
+/**
+ * @desc Đổi mật khẩu cho người dùng đang đăng nhập
+ * @route PUT /api/auth/change-password
+ */
+const changePassword = async (req, res, next) => {
+  try {
+    const { currentPassword, newPassword } = req.body;
+    if (!currentPassword || !newPassword) {
+      return sendError(res, 'Vui lòng cung cấp mật khẩu hiện tại và mật khẩu mới.', null, 400);
+    }
+    if (newPassword.length < 6) {
+      return sendError(res, 'Mật khẩu mới phải có độ dài tối thiểu 6 ký tự.', null, 400);
+    }
+
+    const user = await User.findById(req.user.id).select('+passwordHash');
+    if (!user) {
+      return sendError(res, 'Không tìm thấy người dùng.', null, 404);
+    }
+
+    const isMatch = await bcrypt.compare(currentPassword, user.passwordHash);
+    if (!isMatch) {
+      return sendError(res, 'Mật khẩu hiện tại không chính xác.', null, 400, 'INVALID_CREDENTIALS');
+    }
+
+    const salt = await bcrypt.genSalt(12);
+    user.passwordHash = await bcrypt.hash(newPassword, salt);
+    await user.save();
+
+    return sendSuccess(res, 'Đổi mật khẩu thành công! Vui lòng sử dụng mật khẩu mới cho các lần đăng nhập tiếp theo.');
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * @desc Cập nhật ảnh đại diện / ảnh mẫu Face ID của người dùng
+ * @route PUT /api/auth/avatar
+ */
+const updateAvatar = async (req, res, next) => {
+  try {
+    const { avatar, faceDescriptor } = req.body;
+    if (!avatar) {
+      return sendError(res, 'Vui lòng cung cấp đường dẫn ảnh đại diện.', null, 400);
+    }
+
+    const updateData = { avatar };
+    if (Array.isArray(faceDescriptor) && faceDescriptor.length === 128) {
+      updateData.faceDescriptor = faceDescriptor;
+    }
+
+    const user = await User.findByIdAndUpdate(
+      req.user.id,
+      { $set: updateData },
+      { new: true }
+    ).populate('departmentId', 'name type location');
+
+    if (!user) {
+      return sendError(res, 'Không tìm thấy thông tin người dùng.', null, 404);
+    }
+
+    return sendSuccess(res, 'Cập nhật ảnh khuôn mặt / đại diện thành công.', user);
+  } catch (error) {
+    next(error);
+  }
+};
+
 module.exports = {
   login,
   register,
@@ -503,4 +569,6 @@ module.exports = {
   refreshToken,
   logout,
   getMe,
+  changePassword,
+  updateAvatar,
 };

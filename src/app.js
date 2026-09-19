@@ -65,7 +65,12 @@ app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use(cookieParser());
 
-// 3. File minh chứng chỉ được tải xuống sau khi xác thực
+// 3. Phục vụ file tĩnh uploads (ảnh đại diện, ảnh Face ID, ảnh minh chứng)
+const uploadsStaticDir = path.join(__dirname, '../uploads');
+if (!fs.existsSync(uploadsStaticDir)) {
+  fs.mkdirSync(uploadsStaticDir, { recursive: true });
+}
+app.use('/uploads', express.static(uploadsStaticDir));
 app.get('/uploads/:filename', verifyToken, downloadFile);
 
 // 4. Swagger UI Documentation Route

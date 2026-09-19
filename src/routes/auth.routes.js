@@ -9,6 +9,8 @@ const {
   refreshToken,
   logout,
   getMe,
+  changePassword,
+  updateAvatar,
 } = require('../controllers/auth.controller');
 const { verifyToken } = require('../middlewares/auth.middleware');
 const { loginLimiter } = require('../middlewares/rateLimiter.middleware');
@@ -39,6 +41,8 @@ router.post('/refresh-token', refreshToken);
 router.post('/refresh', refreshToken); // Alias hỗ trợ theo mục 3.1
 router.post('/logout', logout);
 router.get('/me', verifyToken, getMe);
+router.put('/change-password', verifyToken, changePassword);
+router.put('/avatar', verifyToken, updateAvatar);
 
 module.exports = router;
 
