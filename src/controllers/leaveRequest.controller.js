@@ -7,6 +7,7 @@ const Department = require('../models/department.model');
 const AuditLog = require('../models/auditLog.model');
 const { sendSuccess, sendError } = require('../utils/responseHandler');
 const { sendLeaveApprovedEmail, sendLeaveRejectedEmail } = require('../services/email.service');
+const { getDeanScopedUserIds, isUserInDeanScope } = require('../utils/deanScope');
 
 const getVietnamDateKey = (date) => {
   return new Intl.DateTimeFormat('en-CA', {
@@ -129,14 +130,10 @@ const getLeaveRequests = async (req, res, next) => {
       // Giảng viên / nhân viên mặc định chỉ xem đơn của mình
       query.userId = req.user.id;
     } else if (req.user.role === 'truongkhoa') {
-      const myInfo = await User.findById(req.user.id);
-      const childDepts = await Department.find({ parentId: myInfo.departmentId }).select('_id');
-      const allDeptIds = [myInfo.departmentId, ...childDepts.map((d) => d._id)];
-      const facultyUsers = await User.find({ departmentId: { $in: allDeptIds } }).select('_id');
-      const facultyUserIds = facultyUsers.map((u) => u._id);
+      const facultyUserIds = await getDeanScopedUserIds(req.user);
 
       if (userId) {
-        if (!facultyUserIds.some((id) => id.toString() === userId)) {
+        if (!facultyUserIds.includes(userId.toString())) {
           return sendError(res, 'Bạn không có quyền xem đơn của nhân sự ngoài khoa.', null, 403);
         }
         query.userId = userId;
@@ -178,10 +175,8 @@ const getLeaveRequestById = async (req, res, next) => {
         return sendError(res, 'Bạn không có quyền xem đơn này.', null, 403);
       }
     } else if (req.user.role === 'truongkhoa') {
-      const myInfo = await User.findById(req.user.id);
-      const childDepts = await Department.find({ parentId: myInfo.departmentId }).select('_id');
-      const allDeptIds = [myInfo.departmentId.toString(), ...childDepts.map((d) => d._id.toString())];
-      if (request.userId.departmentId && !allDeptIds.includes(request.userId.departmentId.toString())) {
+      const inScope = await isUserInDeanScope(req.user, request.userId._id || request.userId);
+      if (!inScope) {
         return sendError(res, 'Bạn không có quyền xem đơn của nhân sự ngoài khoa.', null, 403);
       }
     }
@@ -207,19 +202,8 @@ const getLeaveBalance = async (req, res, next) => {
         return sendError(res, 'Bạn chỉ có quyền tra cứu số dư ngày phép của chính mình.', null, 403);
       }
       if (req.user.role === 'truongkhoa') {
-        const myInfo = await User.findById(req.user.id).select('departmentId');
-        if (!myInfo || !myInfo.departmentId) {
-          return sendError(res, 'Tài khoản Trưởng khoa chưa được gán mã khoa trực thuộc.', null, 403);
-        }
-        const childDepts = await Department.find({ parentId: myInfo.departmentId }).select('_id');
-        const allDeptIds = [myInfo.departmentId.toString(), ...childDepts.map((d) => d._id.toString())];
-
-        const targetUser = await User.findById(req.query.userId).select('departmentId');
-        if (!targetUser) {
-          return sendError(res, 'Không tìm thấy người dùng.', null, 404);
-        }
-        const deptId = targetUser.departmentId ? targetUser.departmentId.toString() : null;
-        if (!deptId || !allDeptIds.includes(deptId)) {
+        const inScope = await isUserInDeanScope(req.user, req.query.userId);
+        if (!inScope) {
           return sendError(res, 'Bạn không có quyền xem số dư ngày phép của nhân sự ngoài khoa.', null, 403);
         }
         targetUserId = req.query.userId;
@@ -339,20 +323,8 @@ const validateLeaveApprovalPermission = async (currentUser, leaveRequest) => {
     }
 
     // Kiểm tra nhân sự có thuộc khoa của Trưởng khoa (hoặc bộ môn trực thuộc khoa) hay không
-    const myInfo = await User.findById(currentUser.id).select('departmentId');
-    if (!myInfo || !myInfo.departmentId) {
-      return {
-        allowed: false,
-        message: 'Tài khoản Trưởng khoa chưa được gán mã khoa trực thuộc.',
-        status: 403,
-      };
-    }
-
-    const childDepts = await Department.find({ parentId: myInfo.departmentId }).select('_id');
-    const allDeptIds = [myInfo.departmentId.toString(), ...childDepts.map((d) => d._id.toString())];
-
-    const applicantDeptId = applicant.departmentId ? applicant.departmentId.toString() : null;
-    if (!applicantDeptId || !allDeptIds.includes(applicantDeptId)) {
+    const inScope = await isUserInDeanScope(currentUser, applicant._id);
+    if (!inScope) {
       return {
         allowed: false,
         message: 'Bạn chỉ có quyền phê duyệt/từ chối đơn của nhân sự thuộc khoa của mình.',

@@ -36,12 +36,30 @@ export const UsersPage: React.FC = () => {
   const [selectedRole, setSelectedRole] = useState<string>('all');
   const [selectedDept, setSelectedDept] = useState<string>('all');
 
+  const generateSecurePassword = () => {
+    const uppers = 'ABCDEFGHJKLMNPQRSTUVWXYZ';
+    const lowers = 'abcdefghijkmnpqrstuvwxyz';
+    const numbers = '23456789';
+    const specials = '!@#$%&*';
+    const allChars = uppers + lowers + numbers + specials;
+    const pwd = [
+      uppers[Math.floor(Math.random() * uppers.length)],
+      lowers[Math.floor(Math.random() * lowers.length)],
+      numbers[Math.floor(Math.random() * numbers.length)],
+      specials[Math.floor(Math.random() * specials.length)],
+    ];
+    for (let i = 0; i < 6; i++) {
+      pwd.push(allChars[Math.floor(Math.random() * allChars.length)]);
+    }
+    return pwd.sort(() => 0.5 - Math.random()).join('');
+  };
+
   // Modal Thêm người dùng (Chỉ Admin)
   const [createModalOpen, setCreateModalOpen] = useState(false);
   const [createFormData, setCreateFormData] = useState<CreateUserPayload>({
     fullName: '',
     email: '',
-    password: 'password123',
+    password: '',
     role: 'giangvien',
     departmentId: '',
     annualLeaveQuota: 12,
@@ -106,7 +124,7 @@ export const UsersPage: React.FC = () => {
     setCreateFormData({
       fullName: '',
       email: '',
-      password: 'password123',
+      password: generateSecurePassword(),
       role: 'giangvien',
       departmentId: departments[0]?._id || '',
       annualLeaveQuota: 12,
@@ -486,14 +504,29 @@ export const UsersPage: React.FC = () => {
                   />
                 </div>
                 <div>
-                  <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5 flex items-center gap-1">
-                    <Lock className="w-3.5 h-3.5 text-slate-400" />
-                    <span>Mật Khẩu Ban Đầu *</span>
-                  </label>
+                  <div className="flex items-center justify-between mb-1.5">
+                    <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider flex items-center gap-1">
+                      <Lock className="w-3.5 h-3.5 text-slate-400" />
+                      <span>Mật Khẩu Khởi Tạo *</span>
+                    </label>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const newPwd = generateSecurePassword();
+                        setCreateFormData((prev) => ({ ...prev, password: newPwd }));
+                        toast.success('Đã tạo mật khẩu ngẫu nhiên an toàn.');
+                      }}
+                      className="text-[11px] text-blue-600 hover:text-blue-700 font-medium flex items-center gap-1 hover:underline"
+                    >
+                      <RefreshCw className="w-3 h-3" />
+                      <span>Tạo ngẫu nhiên</span>
+                    </button>
+                  </div>
                   <input
                     type="text"
                     value={createFormData.password}
                     onChange={(e) => setCreateFormData({ ...createFormData, password: e.target.value })}
+                    placeholder="Mật khẩu khởi tạo tài khoản..."
                     required
                     className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 font-mono focus:outline-none focus:ring-2 focus:ring-blue-500"
                   />

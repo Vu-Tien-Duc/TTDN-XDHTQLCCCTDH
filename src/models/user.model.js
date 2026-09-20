@@ -40,6 +40,10 @@ const userSchema = new mongoose.Schema(
       required: true,
       default: false,
     },
+    passwordChangedAt: {
+      type: Date,
+      default: null,
+    },
     otpCode: {
       type: String,
       default: null,

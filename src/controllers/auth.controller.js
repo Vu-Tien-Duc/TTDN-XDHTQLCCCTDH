@@ -123,78 +123,16 @@ const register = async (req, res) => {
 };
 
 /**
- * @desc Xác minh tài khoản bằng mã OTP (Nếu quá 10 phút -> Xóa tài khoản)
+ * @desc Xác minh tài khoản bằng mã OTP (ĐÃ VÔ HIỆU HÓA do tính năng tự đăng ký đã đóng)
  * @route POST /api/v1/auth/verify-otp
  */
-const verifyAccount = async (req, res, next) => {
-  try {
-    const { email, otp } = req.body;
-
-    if (!email || !otp) {
-      return sendError(res, 'Vui lòng cung cấp email và mã OTP 6 chữ số.', null, 400);
-    }
-
-    const normalizedEmail = email.toLowerCase().trim();
-    const user = await User.findOne({ email: normalizedEmail }).select('+otpCode +otpExpiresAt +otpType +otpAttempts +otpSentAt');
-
-    if (!user) {
-      return sendError(res, 'Không tìm thấy tài khoản với email này.', null, 404);
-    }
-
-    if (user.isVerified) {
-      return sendSuccess(res, 'Tài khoản này đã được xác minh trước đó. Bạn có thể đăng nhập ngay.');
-    }
-
-    if (user.otpType !== 'VERIFY_ACCOUNT') {
-      return sendError(res, 'Yêu cầu xác minh không hợp lệ. Vui lòng đăng ký lại.', null, 400);
-    }
-
-    const now = new Date();
-
-    // 1. Nếu quá 10 phút -> Xóa tài khoản khỏi CSDL
-    if (!user.otpExpiresAt || now > user.otpExpiresAt) {
-      await User.deleteOne({ _id: user._id });
-      return sendError(
-        res,
-        'Mã OTP đã hết hạn (quá 10 phút). Tài khoản chưa xác minh đã bị xóa khỏi hệ thống. Vui lòng thực hiện đăng ký lại.',
-        null,
-        400
-      );
-    }
-
-    // 2. Kiểm tra mã OTP không khớp
-    if (user.otpCode !== hashOtp(otp)) {
-      user.otpAttempts = (user.otpAttempts || 0) + 1;
-      if (user.otpAttempts >= OTP_MAX_ATTEMPTS) {
-        clearOtp(user);
-        await user.save();
-        return sendError(res, 'Bạn đã nhập sai OTP quá số lần cho phép. Vui lòng yêu cầu mã mới.', null, 429);
-      }
-      await user.save();
-      return sendError(res, `Mã OTP không hợp lệ. Bạn còn ${OTP_MAX_ATTEMPTS - user.otpAttempts} lần thử.`, null, 400);
-    }
-
-    // 3. Hợp lệ trong vòng 10 phút -> Kích hoạt tài khoản
-    user.isVerified = true;
-    user.otpCode = null;
-    user.otpExpiresAt = null;
-    user.otpType = null;
-    user.otpAttempts = 0;
-    user.otpSentAt = null;
-    await user.save();
-
-    // Gửi email chúc mừng tạo tài khoản thành công
-    await sendRegistrationSuccessEmail(user.email, user.fullName);
-
-    return sendSuccess(res, 'Xác minh tài khoản thành công! Bạn có thể đăng nhập vào hệ thống ngay bây giờ.', {
-      _id: user._id,
-      email: user.email,
-      fullName: user.fullName,
-      isVerified: user.isVerified,
-    });
-  } catch (error) {
-    next(error);
-  }
+const verifyAccount = async (req, res) => {
+  return sendError(
+    res,
+    'Quy trình xác minh tài khoản đăng ký công khai không còn khả dụng do tính năng tự đăng ký đã đóng. Mọi tài khoản được cấp bởi Quản trị viên đã được kích hoạt sẵn.',
+    null,
+    403
+  );
 };
 
 /**
@@ -296,6 +234,7 @@ const resetPassword = async (req, res, next) => {
     // 3. Cập nhật mật khẩu mới mã hóa bcrypt cost 12
     const salt = await bcrypt.genSalt(12);
     user.passwordHash = await bcrypt.hash(newPassword, salt);
+    user.passwordChangedAt = new Date();
     user.otpCode = null;
     user.otpExpiresAt = null;
     user.otpType = null;
@@ -454,7 +393,12 @@ const changePassword = async (req, res, next) => {
 
     const salt = await bcrypt.genSalt(12);
     user.passwordHash = await bcrypt.hash(newPassword, salt);
+    user.passwordChangedAt = new Date();
     await user.save();
+
+    // Thu hồi toàn bộ Refresh Token cũ để ép các thiết bị/phiên khác phải đăng nhập lại
+    await RefreshToken.deleteMany({ userId: user._id });
+    res.clearCookie('refreshToken');
 
     return sendSuccess(res, 'Đổi mật khẩu thành công! Vui lòng sử dụng mật khẩu mới cho các lần đăng nhập tiếp theo.');
   } catch (error) {
