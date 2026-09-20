@@ -7,3 +7,7 @@ export * from './admin/UsersPage';
 export * from './schedule/SchedulesPage';
 export * from './profile/ProfilePage';
 export * from './admin/AuditLogsPage';
+export * from './AttendanceCheckInPage';
+export * from './FaceRegistrationPage';
+export * from './FaceCheckInKiosk';
+export * from './AttendanceHistoryPage';

@@ -9,13 +9,16 @@ import { ProtectedRoute, UnauthorizedPage } from './ProtectedRoute';
 import {
   LoginPage,
   DashboardPage,
-  PlaceholderPage,
   DepartmentsPage,
   ShiftsPage,
   UsersPage,
   SchedulesPage,
   ProfilePage,
   AuditLogsPage,
+  AttendanceCheckInPage,
+  FaceRegistrationPage,
+  FaceCheckInKiosk,
+  AttendanceHistoryPage,
 } from '../pages';
 
 // Các trang từ DUY (Phân hệ C & AI)
@@ -24,6 +27,7 @@ import MyLeaveRequestsPage from '../pages/leave/MyLeaveRequestsPage';
 import LeaveApprovalsPage from '../pages/leave/LeaveApprovalsPage';
 import AttendanceDashboardPage from '../pages/dashboard/AttendanceDashboardPage';
 import AiInspectorPage from '../pages/ai/AiInspectorPage';
+import WebcamTest from '../components/camera/WebcamTest';
 
 export const AppRoutes: React.FC = () => {
   const { user, login, isLoading } = useAuth();
@@ -63,6 +67,7 @@ export const AppRoutes: React.FC = () => {
         {/* 1. Tuyến đường công khai */}
         <Route path="/login" element={<LoginPage />} />
         <Route path="/unauthorized" element={<UnauthorizedPage />} />
+        <Route path="/kiosk" element={<FaceCheckInKiosk />} />
 
         {/* 2. Tuyến đường bảo vệ bắt buộc đăng nhập */}
         <Route element={<ProtectedRoute />}>
@@ -94,6 +99,16 @@ export const AppRoutes: React.FC = () => {
               }
             />
 
+            {/* Đăng ký Face ID (Chỉ Admin) */}
+            <Route
+              path="/face-registration"
+              element={
+                <ProtectedRoute allowedRoles={['admin']}>
+                  <FaceRegistrationPage />
+                </ProtectedRoute>
+              }
+            />
+
             {/* Phân hệ Ca làm việc & Lịch công tác */}
             <Route
               path="/shifts"
@@ -104,6 +119,8 @@ export const AppRoutes: React.FC = () => {
               }
             />
             <Route path="/schedules" element={<SchedulesPage />} />
+            <Route path="/attendance/check-in" element={<AttendanceCheckInPage />} />
+            <Route path="/attendance/history" element={<AttendanceHistoryPage />} />
             <Route path="/attendance" element={<AttendanceDashboardPage />} />
 
             {/* Phân hệ Đơn từ nghỉ phép (Phân hệ C) */}
@@ -152,6 +169,9 @@ export const AppRoutes: React.FC = () => {
 
             {/* Trợ lý Gemini AI */}
             <Route path="/ai-assistant" element={<AiInspectorPage />} />
+
+            {/* Kiểm thử Face ID (TV B - Development) */}
+            <Route path="/test-webcam" element={<WebcamTest />} />
 
             {/* Nhật ký kiểm toán hệ thống */}
             <Route

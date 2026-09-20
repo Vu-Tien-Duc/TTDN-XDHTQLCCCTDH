@@ -9,7 +9,7 @@
     "build:frontend": "npm run build --prefix frontend",
     "build": "npm run build --prefix frontend",
     "seed": "node src/utils/seeder.js",
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "node test_demo_all_weeks.js"
   },
   "repository": {
     "type": "git",
@@ -39,6 +39,7 @@
     "swagger-ui-express": "^5.0.1"
   },
   "devDependencies": {
+    "docx": "^9.7.1",
     "nodemon": "^3.1.14"
   }
 }

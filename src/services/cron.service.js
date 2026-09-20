@@ -11,8 +11,20 @@ const AttendanceLog = require('../models/attendanceLog.model');
 const LeaveRequest = require('../models/leaveRequest.model');
 const AuditLog = require('../models/auditLog.model');
 const User = require('../models/user.model');
-const { sendAbsentWarningEmail } = require('./email.service');
-const { getVietnamTime, getVietnamDayRange } = require('./attendance.service');
+const Department = require('../models/department.model');
+const ShiftConfig = require('../models/shiftConfig.model');
+const { sendAbsentWarningEmail, sendDailyAttendanceSummaryEmail } = require('./email.service');
+const { getVietnamTime, getVietnamDayRange, timeStringToMinutes } = require('./attendance.service');
+
+/**
+ * Kiểm tra xem email có thể gửi thư thực tế qua Internet không (tránh gửi vào domain mẫu sinh viên/giảng viên ảo làm bounce thư)
+ */
+const isDeliverableEmail = (email) => {
+  if (!email || typeof email !== 'string') return false;
+  const lower = email.toLowerCase().trim();
+  if (lower.endsWith('@university.edu.vn') || lower.endsWith('@example.com')) return false;
+  return lower.includes('@') && lower.includes('.');
+};
 
 /**
  * Lấy toàn bộ lịch phân công giảng dạy có hiệu lực trong ngày
@@ -126,17 +138,22 @@ const processScheduleAttendanceCheck = async (schedule, dayRange) => {
   // Đặt khối try/catch bọc gửi mail: Đảm bảo nếu mạng chập chờn hoặc lỗi gửi mail thì không làm gián đoạn tiến trình
   let emailSent = false;
   if (finalStatus === 'ABSENT' && schedule.userId?.email) {
-    try {
-      await sendAbsentWarningEmail({
-        to: schedule.userId.email,
-        fullName: teacherName,
-        shiftName: shiftName,
-        date: dayRange.dateStr,
-      });
-      emailSent = true;
-      console.log(`[Cron Service] [GỬI MAIL] Đã gửi email cảnh báo vắng mặt thành công tới: ${schedule.userId.email}`);
-    } catch (emailErr) {
-      console.error(`[Cron Service] [LỖI GỬI MAIL] Không thể gửi mail cảnh báo tới ${schedule.userId.email}:`, emailErr.message);
+    if (isDeliverableEmail(schedule.userId.email)) {
+      try {
+        await sendAbsentWarningEmail({
+          to: schedule.userId.email,
+          fullName: teacherName,
+          shiftName: shiftName,
+          date: dayRange.dateStr,
+        });
+        emailSent = true;
+        console.log(`[Cron Service] [GỬI MAIL] Đã gửi email cảnh báo vắng mặt thành công tới: ${schedule.userId.email}`);
+      } catch (emailErr) {
+        console.error(`[Cron Service] [LỖI GỬI MAIL] Không thể gửi mail cảnh báo tới ${schedule.userId.email}:`, emailErr.message);
+      }
+    } else {
+      console.log(`[Cron Service] Bỏ qua gửi email ra Internet tới địa chỉ giả định của mẫu: ${schedule.userId.email}`);
+      emailSent = false;
     }
   }
 
@@ -235,6 +252,118 @@ const runDailyAbsentCheck = async (targetDate = new Date()) => {
       console.log(`[Cron Service] [AUDIT LOG] Đã ghi nhận vết thao tác tự động CRON_AUTO_ABSENT vào CSDL.`);
     } catch (auditErr) {
       console.error(`[Cron Service] [LỖI AUDIT LOG] Không thể ghi audit log:`, auditErr.message);
+    }
+
+    // 6. Tổng hợp chi tiết và tự động gửi Email Báo Cáo Cuối Ngày tới Ban Giám Hiệu & Quản Trị Viên
+    try {
+      const todayLogs = await AttendanceLog.find({
+        $or: [
+          { checkInTime: { $gte: dayRange.startOfDay, $lte: dayRange.endOfDay } },
+          { createdAt: { $gte: dayRange.startOfDay, $lte: dayRange.endOfDay } },
+        ],
+      })
+        .populate({
+          path: 'userId',
+          select: 'fullName email departmentId role',
+          populate: { path: 'departmentId', select: 'name' },
+        })
+        .populate('shiftId', 'name startTime endTime lateThresholdMinutes')
+        .populate('scheduleId', 'roomId weekday subjectName');
+
+      const onTimeList = [];
+      const lateList = [];
+      const earlyList = [];
+      const absentList = [];
+      const excusedList = [];
+
+      for (const log of todayLogs) {
+        const u = log.userId || {};
+        const shift = log.shiftId || {};
+        const sched = log.scheduleId || {};
+
+        const checkInTimeStr = log.checkInTime 
+          ? new Date(log.checkInTime).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' }) 
+          : '--:--';
+        const checkOutTimeStr = log.checkOutTime 
+          ? new Date(log.checkOutTime).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' }) 
+          : 'Chưa về';
+
+        const item = {
+          fullName: u.fullName || 'Nhân sự',
+          departmentName: u.departmentId?.name || '',
+          shiftName: shift.name || 'Ca làm việc',
+          roomId: sched.roomId || '',
+          checkInTimeStr,
+          checkOutTimeStr,
+          method: log.method === 'face' ? 'Face ID' : (log.method === 'qr' ? 'QR Code' : 'Thủ công'),
+          emailSent: true,
+        };
+
+        if (log.status === 'ON_TIME') {
+          onTimeList.push(item);
+        } else if (log.status === 'LATE') {
+          let lateMins = 0;
+          if (log.checkInTime && shift.startTime) {
+            const vnDate = getVietnamTime(log.checkInTime);
+            const currentMins = vnDate.getHours() * 60 + vnDate.getMinutes();
+            const startMins = timeStringToMinutes(shift.startTime);
+            lateMins = Math.max(0, currentMins - startMins);
+          }
+          const lateHours = Math.floor(lateMins / 60);
+          const remMins = lateMins % 60;
+          item.lateMinutes = lateMins;
+          item.lateTimeFormatted = lateHours > 0 ? `${lateHours}h ${remMins}p` : `${lateMins} phút`;
+          lateList.push(item);
+        } else if (log.status === 'EARLY_LEAVE') {
+          let earlyMins = 0;
+          if (log.checkOutTime && shift.endTime) {
+            const vnDate = getVietnamTime(log.checkOutTime);
+            const checkOutMins = vnDate.getHours() * 60 + vnDate.getMinutes();
+            const endMins = timeStringToMinutes(shift.endTime);
+            earlyMins = Math.max(0, endMins - checkOutMins);
+          }
+          const earlyHours = Math.floor(earlyMins / 60);
+          const remMins = earlyMins % 60;
+          item.earlyMinutes = earlyMins;
+          item.earlyTimeFormatted = earlyHours > 0 ? `${earlyHours}h ${remMins}p` : `${earlyMins} phút`;
+          earlyList.push(item);
+        } else if (log.status === 'ABSENT') {
+          absentList.push(item);
+        } else if (log.status === 'EXCUSED_ABSENCE') {
+          excusedList.push(item);
+        }
+      }
+
+      // Lấy danh sách email Admin cần nhận báo cáo (chỉ gửi địa chỉ email thật, tránh gửi vào domain ảo @university.edu.vn)
+      const adminUsers = await User.find({ role: 'admin', isActive: true });
+      const recipientEmails = new Set();
+      adminUsers.forEach((a) => {
+        if (isDeliverableEmail(a.email)) recipientEmails.add(a.email.trim());
+      });
+      if (isDeliverableEmail(process.env.EMAIL_USER)) recipientEmails.add(process.env.EMAIL_USER.trim());
+
+      for (const email of recipientEmails) {
+        await sendDailyAttendanceSummaryEmail({
+          to: email,
+          dateStr: dayRange.dateStr,
+          totalSchedules: activeSchedules.length,
+          stats: {
+            onTimeCount: onTimeList.length,
+            lateCount: lateList.length,
+            earlyCount: earlyList.length,
+            excusedCount: excusedList.length,
+            absentCount: absentList.length,
+          },
+          absentList,
+          lateList,
+          earlyList,
+          excusedList,
+          presentList: onTimeList,
+        }).catch((err) => console.error(`[Cron Service] Lỗi gửi báo cáo ngày tới ${email}:`, err.message));
+      }
+      console.log(`[Cron Service] [BÁO CÁO CUỐI NGÀY] Đã gửi email tổng kết chấm công tới ${recipientEmails.size} quản trị viên.`);
+    } catch (reportErr) {
+      console.error('[Cron Service] Lỗi khi tạo báo cáo email cuối ngày:', reportErr.message);
     }
 
     console.log(`[Cron Service] Kết thúc quét điểm danh: Tổng ${activeSchedules.length} lịch | Đánh vắng ABSENT: ${absentCreatedCount} | Nghỉ phép EXCUSED: ${excusedCreatedCount} | Bỏ qua (Đã có log): ${skippedCount}`);

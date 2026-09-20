@@ -13,7 +13,7 @@ const startServer = async () => {
     // Khởi tạo các tiến trình chạy nền (node-cron)
     initCronJobs();
 
-    app.listen(PORT, () => {
+    app.listen(PORT, '0.0.0.0', () => {
       console.log(`===================================================`);
       console.log(`[Server] Máy chủ đang chạy tại: http://localhost:${PORT}`);
       console.log(`[Swagger] Tài liệu API (Swagger UI): http://localhost:${PORT}/api-docs`);
