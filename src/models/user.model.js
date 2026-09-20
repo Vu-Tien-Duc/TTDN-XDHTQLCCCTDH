@@ -81,7 +81,12 @@ const userSchema = new mongoose.Schema(
     faceDescriptor: {
       type: [Number],
       default: undefined,
-      select: false, // 128-dimensional vector, excluded from default queries
+      select: false, // 128-dimensional vector (legacy single sample)
+    },
+    faceDescriptors: {
+      type: [[Number]],
+      default: undefined,
+      select: false, // Array of 128-dimensional vectors (multi-angle samples: front, left, right)
     },
   },
   {

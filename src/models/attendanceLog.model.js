@@ -58,6 +58,23 @@ const attendanceLogSchema = new mongoose.Schema(
       type: String,
       default: null,
     },
+    confidenceScore: {
+      type: Number,
+      default: null, // 0.0 - 1.0, chỉ áp dụng cho method: 'face'
+    },
+    capturedImage: {
+      type: String,
+      default: null, // Base64 hoặc URL ảnh chụp chứng cứ
+    },
+    workDate: {
+      type: String,
+      default: function () {
+        const d = this.checkInTime ? new Date(this.checkInTime) : new Date();
+        const vnDate = new Date(d.getTime() + 7 * 3600 * 1000);
+        return vnDate.toISOString().slice(0, 10);
+      },
+      index: true,
+    },
   },
   {
     timestamps: true,
@@ -65,7 +82,12 @@ const attendanceLogSchema = new mongoose.Schema(
   }
 );
 
-// Indexes hỗ trợ tra cứu lịch sử chấm công theo người dùng và ngày
+// Indexes hỗ trợ tra cứu và ngăn trùng lặp (P1 - Item 9)
+attendanceLogSchema.index(
+  { userId: 1, scheduleId: 1, workDate: 1 },
+  { unique: true, partialFilterExpression: { scheduleId: { $type: 'objectId' } } }
+);
+attendanceLogSchema.index({ userId: 1, checkOutTime: 1, checkInTime: -1 });
 attendanceLogSchema.index({ userId: 1, checkInTime: -1 });
 attendanceLogSchema.index({ scheduleId: 1, checkInTime: 1 });
 attendanceLogSchema.index({ userId: 1, createdAt: -1 });

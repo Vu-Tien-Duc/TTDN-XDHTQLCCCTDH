@@ -7,8 +7,15 @@ const {
   getAttendanceById,
   updateAttendanceByAdmin,
   triggerDailyAbsentCheck,
+  faceCheckIn,
+  faceCheckInBatch,
+  generateQRCode,
+  scanQRCode,
+  getCampusLocationConfig,
+  updateCampusLocationConfig,
 } = require('../controllers/attendance.controller');
-const { verifyToken, authorizeRoles } = require('../middlewares/auth.middleware');
+const { verifyToken, verifyRole, authorizeRoles } = require('../middlewares/auth.middleware');
+const { verifyKioskKey, kioskRateLimit } = require('../middlewares/kiosk.middleware');
 
 /**
  * @swagger
@@ -143,7 +150,104 @@ const { verifyToken, authorizeRoles } = require('../middlewares/auth.middleware'
  *           example: "ATTENDANCE_004"
  */
 
+/**
+ * @swagger
+ * /api/attendance/face-checkin:
+ *   post:
+ *     summary: Điểm danh khuôn mặt qua Kiosk (Dành cho thiết bị Kiosk sảnh trường)
+ *     description: Xác thực bằng header x-kiosk-key và kiểm soát tần suất bằng IP rate limit (15 req/phút). Nhận mảng 128 số float, so khớp Euclidean distance (< 0.55), tự động tìm lịch dạy khớp trong ca hôm nay và ghi nhận điểm danh.
+ *     tags: [Attendance]
+ *     parameters:
+ *       - in: header
+ *         name: x-kiosk-key
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: Khóa bí mật của Kiosk đã được cấu hình trên server
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - faceDescriptor
+ *             properties:
+ *               faceDescriptor:
+ *                 type: array
+ *                 items:
+ *                   type: number
+ *                 description: Vector 128 số thực float trích xuất từ camera client
+ *     responses:
+ *       201:
+ *         description: Điểm danh khuôn mặt thành công
+ *       400:
+ *         description: Dữ liệu vector không hợp lệ hoặc không có ca/lịch phù hợp
+ *       401:
+ *         description: Thiếu header x-kiosk-key
+ *       403:
+ *         description: Khóa Kiosk không hợp lệ
+ *       404:
+ *         description: Không nhận diện được khuôn mặt hoặc chưa đăng ký
+ *       409:
+ *         description: Giảng viên đã check-in cho ca này hôm nay rồi
+ *       429:
+ *         description: Vượt quá giới hạn tần suất quét Kiosk
+ */
+router.post('/face-checkin', verifyKioskKey, kioskRateLimit, faceCheckIn);
+router.post('/face-checkin-batch', verifyKioskKey, kioskRateLimit, faceCheckInBatch);
+
+/**
+ * @swagger
+ * /api/attendance/qr/generate:
+ *   get:
+ *     summary: Sinh mã QR Động TOTP (Hiệu lực 20s) phục vụ điểm danh
+ *     description: Dùng cho màn hình Kiosk / TV sảnh / Máy chiếu giảng đường. Tự động thay đổi sau mỗi 20s.
+ *     tags: [Attendance]
+ *     responses:
+ *       200:
+ *         description: Trả về token QR động và thời gian hiệu lực
+ */
+router.get('/qr/generate', generateQRCode);
+router.get('/campus-config', getCampusLocationConfig);
+
 router.use(verifyToken);
+router.post('/campus-config', updateCampusLocationConfig);
+
+/**
+ * @swagger
+ * /api/attendance/qr/scan:
+ *   post:
+ *     summary: Quét mã QR Động trên di động để điểm danh
+ *     description: Người dùng dùng điện thoại quét mã QR động trên màn hình Kiosk/lớp học. Có thể kết hợp GPS Geofencing.
+ *     tags: [Attendance]
+ *     security:
+ *       - BearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - qrToken
+ *             properties:
+ *               qrToken:
+ *                 type: string
+ *               location:
+ *                 type: object
+ *                 properties:
+ *                   lat:
+ *                     type: number
+ *                   lng:
+ *                     type: number
+ *               deviceId:
+ *                 type: string
+ *     responses:
+ *       200:
+ *         description: Điểm danh QR thành công
+ */
+router.post('/qr/scan', scanQRCode);
 
 /**
  * @swagger

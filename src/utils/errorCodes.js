@@ -38,6 +38,7 @@ const ERROR_CODES = {
   AUTH_USER_INACTIVE: 'AUTH_005',         // Tài khoản bị vô hiệu hóa
   USER_NOT_FOUND: 'USER_001',             // Không tìm thấy người dùng
   USER_EMAIL_EXISTS: 'USER_002',          // Email đã tồn tại
+  USER_FACE_ALREADY_REGISTERED: 'USER_003', // Khuôn mặt này đã được đăng ký cho một tài khoản khác
 
   // --- Cơ cấu tổ chức / Khoa phòng ban (TV A) ---
   DEPT_NOT_FOUND: 'DEPT_001',             // Không tìm thấy đơn vị

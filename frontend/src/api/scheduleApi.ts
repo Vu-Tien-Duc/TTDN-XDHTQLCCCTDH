@@ -36,6 +36,12 @@ export interface UpdateSchedulePayload {
   endTime?: string;
 }
 
+export interface TodaySchedulesResponse {
+  total: number;
+  checkedDate: string;
+  schedules: Schedule[];
+}
+
 export const scheduleApi = {
   /**
    * Lấy danh sách lịch giảng dạy / công tác (có lọc theo ngày, giảng viên, phân trang)
@@ -47,8 +53,8 @@ export const scheduleApi = {
   /**
    * Lấy danh sách lịch giảng dạy hôm nay của người dùng đăng nhập
    */
-  getToday: async (): Promise<ApiResponse<Schedule[]>> => {
-    return axiosClient.get('/schedules/today');
+  getToday: async (params?: { date?: string; userId?: string }): Promise<ApiResponse<TodaySchedulesResponse>> => {
+    return axiosClient.get('/schedules/today', { params });
   },
 
   /**
