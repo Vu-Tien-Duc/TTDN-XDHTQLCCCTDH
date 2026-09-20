@@ -1,6 +1,8 @@
 import React, { useEffect, useState } from 'react';
-import { Calendar, CheckCircle, Clock, Info, ShieldAlert } from 'lucide-react';
+import { Link } from 'react-router-dom';
+import { Calendar, CheckCircle, Clock, FileCheck2, Hourglass, Info, ShieldAlert, ShieldCheck } from 'lucide-react';
 import leaveService, { LeaveBalanceData } from '../../services/leave.service';
+import { useAuth } from '../../contexts/AuthContext';
 
 interface LeaveBalanceCardProps {
   userId?: string;
@@ -8,6 +10,7 @@ interface LeaveBalanceCardProps {
 }
 
 export const LeaveBalanceCard: React.FC<LeaveBalanceCardProps> = ({ userId, refreshTrigger = 0 }) => {
+  const { user } = useAuth();
   const [balance, setBalance] = useState<LeaveBalanceData | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
@@ -42,10 +45,41 @@ export const LeaveBalanceCard: React.FC<LeaveBalanceCardProps> = ({ userId, refr
     return (
       <div className="bg-white rounded-2xl border border-slate-200/80 p-6 shadow-sm animate-pulse">
         <div className="h-4 bg-slate-200 rounded w-1/3 mb-4"></div>
-        <div className="grid grid-cols-3 gap-4">
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
           <div className="h-16 bg-slate-100 rounded-xl"></div>
           <div className="h-16 bg-slate-100 rounded-xl"></div>
           <div className="h-16 bg-slate-100 rounded-xl"></div>
+          <div className="h-16 bg-slate-100 rounded-xl"></div>
+        </div>
+      </div>
+    );
+  }
+
+  // Nếu là Quản trị viên (Admin)
+  if (user?.role === 'admin' || balance?.isAdmin) {
+    return (
+      <div className="bg-gradient-to-br from-slate-900 to-indigo-950 text-white rounded-2xl p-6 shadow-md border border-indigo-900/50 relative overflow-hidden">
+        <div className="absolute right-0 top-0 translate-x-6 -translate-y-6 w-36 h-36 bg-indigo-500/10 rounded-full blur-2xl pointer-events-none" />
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 relative z-10">
+          <div className="flex items-start gap-3">
+            <div className="w-10 h-10 rounded-xl bg-indigo-600/30 border border-indigo-400/30 text-indigo-300 flex items-center justify-center shrink-0">
+              <ShieldCheck className="w-6 h-6" />
+            </div>
+            <div>
+              <h3 className="text-base font-bold text-white">Quyền Hạn Quản Trị Hệ Thống (Admin)</h3>
+              <p className="text-xs text-indigo-200/80 mt-1 max-w-xl">
+                Quản trị viên giữ quyền phê duyệt tối cao toàn trường, không áp dụng tạo đơn xin nghỉ cá nhân hay hạn mức phép năm.
+              </p>
+            </div>
+          </div>
+
+          <Link
+            to="/leave/approvals"
+            className="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 active:scale-95 text-white text-xs font-bold rounded-xl transition flex items-center gap-1.5 shrink-0 shadow-sm"
+          >
+            <FileCheck2 className="w-4 h-4" />
+            <span>Đến Hộp Duyệt Đơn</span>
+          </Link>
         </div>
       </div>
     );
@@ -62,6 +96,7 @@ export const LeaveBalanceCard: React.FC<LeaveBalanceCardProps> = ({ userId, refr
 
   const quota = balance.annualLeaveQuota || 12;
   const used = balance.daysUsed || 0;
+  const pending = balance.pendingDays || 0;
   const remaining = balance.remainingDays !== undefined ? balance.remainingDays : Math.max(0, quota - used);
   const usedPercent = Math.min(100, Math.round((used / quota) * 100));
 
@@ -94,46 +129,66 @@ export const LeaveBalanceCard: React.FC<LeaveBalanceCardProps> = ({ userId, refr
           </p>
         </div>
 
-        <span className={`inline-flex items-center gap-1 px-3 py-1 rounded-full text-xs font-semibold border ${badgeColor}`}>
-          Đã dùng {usedPercent}% quỹ phép
-        </span>
+        <div className="flex items-center gap-2">
+          {pending > 0 && (
+            <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-semibold border bg-amber-50 text-amber-700 border-amber-200">
+              <Hourglass className="w-3 h-3 animate-pulse" />
+              Chờ duyệt: {pending} ngày
+            </span>
+          )}
+          <span className={`inline-flex items-center gap-1 px-3 py-1 rounded-full text-xs font-semibold border ${badgeColor}`}>
+            Đã dùng {usedPercent}% quỹ phép
+          </span>
+        </div>
       </div>
 
-      {/* 3 Metric Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-5 relative z-10">
-        {/* Total Quota */}
-        <div className="p-4 rounded-xl bg-slate-50 border border-slate-100 flex items-center justify-between">
+      {/* 4 Metric Cards */}
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3.5 mb-5 relative z-10">
+        {/* 1. Total Quota */}
+        <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-100 flex items-center justify-between">
           <div>
-            <p className="text-xs font-medium text-slate-500">Tổng hạn mức</p>
-            <p className="text-2xl font-extrabold text-slate-800 mt-0.5">{quota}</p>
-            <p className="text-[11px] text-slate-400">ngày / năm</p>
+            <p className="text-[11px] font-medium text-slate-500">Tổng hạn mức</p>
+            <p className="text-xl font-extrabold text-slate-800 mt-0.5">{quota}</p>
+            <p className="text-[10px] text-slate-400">ngày / năm</p>
           </div>
-          <div className="w-10 h-10 rounded-full bg-blue-100/70 text-blue-700 flex items-center justify-center">
-            <CheckCircle className="w-5 h-5" />
+          <div className="w-8 h-8 rounded-lg bg-blue-100/70 text-blue-700 flex items-center justify-center shrink-0">
+            <CheckCircle className="w-4 h-4" />
           </div>
         </div>
 
-        {/* Days Used */}
-        <div className="p-4 rounded-xl bg-amber-50/60 border border-amber-100 flex items-center justify-between">
+        {/* 2. Days Used (APPROVED only) */}
+        <div className="p-3.5 rounded-xl bg-amber-50/60 border border-amber-100 flex items-center justify-between">
           <div>
-            <p className="text-xs font-medium text-amber-800">Đã sử dụng</p>
-            <p className="text-2xl font-extrabold text-amber-700 mt-0.5">{used}</p>
-            <p className="text-[11px] text-amber-600">ngày thực nghỉ</p>
+            <p className="text-[11px] font-medium text-amber-800">Đã sử dụng</p>
+            <p className="text-xl font-extrabold text-amber-700 mt-0.5">{used}</p>
+            <p className="text-[10px] text-amber-600">ngày đã duyệt</p>
           </div>
-          <div className="w-10 h-10 rounded-full bg-amber-100 text-amber-700 flex items-center justify-center">
-            <Clock className="w-5 h-5" />
+          <div className="w-8 h-8 rounded-lg bg-amber-100 text-amber-700 flex items-center justify-center shrink-0">
+            <Clock className="w-4 h-4" />
           </div>
         </div>
 
-        {/* Remaining Days */}
-        <div className="p-4 rounded-xl bg-emerald-50/60 border border-emerald-100 flex items-center justify-between">
+        {/* 3. Pending Days (PENDING) */}
+        <div className="p-3.5 rounded-xl bg-indigo-50/60 border border-indigo-100 flex items-center justify-between">
           <div>
-            <p className="text-xs font-medium text-emerald-800">Còn lại</p>
-            <p className="text-2xl font-extrabold text-emerald-700 mt-0.5">{remaining}</p>
-            <p className="text-[11px] text-emerald-600">ngày khả dụng</p>
+            <p className="text-[11px] font-medium text-indigo-800">Đang chờ duyệt</p>
+            <p className="text-xl font-extrabold text-indigo-700 mt-0.5">{pending}</p>
+            <p className="text-[10px] text-indigo-600">ngày mới gửi</p>
           </div>
-          <div className="w-10 h-10 rounded-full bg-emerald-100 text-emerald-700 flex items-center justify-center">
-            <CheckCircle className="w-5 h-5" />
+          <div className="w-8 h-8 rounded-lg bg-indigo-100 text-indigo-700 flex items-center justify-center shrink-0">
+            <Hourglass className="w-4 h-4" />
+          </div>
+        </div>
+
+        {/* 4. Remaining Days */}
+        <div className="p-3.5 rounded-xl bg-emerald-50/60 border border-emerald-100 flex items-center justify-between">
+          <div>
+            <p className="text-[11px] font-medium text-emerald-800">Còn lại</p>
+            <p className="text-xl font-extrabold text-emerald-700 mt-0.5">{remaining}</p>
+            <p className="text-[10px] text-emerald-600">ngày khả dụng</p>
+          </div>
+          <div className="w-8 h-8 rounded-lg bg-emerald-100 text-emerald-700 flex items-center justify-center shrink-0">
+            <CheckCircle className="w-4 h-4" />
           </div>
         </div>
       </div>
@@ -142,7 +197,7 @@ export const LeaveBalanceCard: React.FC<LeaveBalanceCardProps> = ({ userId, refr
       <div className="space-y-1.5 relative z-10">
         <div className="flex justify-between text-xs text-slate-500 font-medium">
           <span>Tiến độ sử dụng</span>
-          <span>{used} / {quota} ngày</span>
+          <span>{used} / {quota} ngày đã duyệt</span>
         </div>
         <div className="w-full h-2.5 bg-slate-100 rounded-full overflow-hidden">
           <div

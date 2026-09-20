@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import toast from 'react-hot-toast';
 import {
   CheckCircle2,
   Clock,
@@ -16,6 +17,7 @@ import { LeaveRequest } from '../../types';
 import { formatDate, LEAVE_STATUS_MAP } from '../../utils';
 import LeaveBalanceCard from '../../components/leave/LeaveBalanceCard';
 import LeaveDetailModal from '../../components/leave/LeaveDetailModal';
+import { useAuth } from '../../contexts/AuthContext';
 
 const LEAVE_TYPE_LABELS: Record<string, string> = {
   nghi_phep: 'Nghỉ phép thường',
@@ -25,6 +27,18 @@ const LEAVE_TYPE_LABELS: Record<string, string> = {
 
 export const MyLeaveRequestsPage: React.FC = () => {
   const navigate = useNavigate();
+  const { user } = useAuth();
+
+  // Quản trị viên (Admin) không áp dụng xem đơn cá nhân, chuyển hướng về Hộp duyệt đơn
+  useEffect(() => {
+    if (user?.role === 'admin') {
+      toast('Quản trị viên giữ quyền phê duyệt, xem danh sách đơn tại Hộp Duyệt Đơn.', {
+        icon: 'ℹ',
+        id: 'admin-my-leaves-redirect',
+      });
+      navigate('/leave/approvals', { replace: true });
+    }
+  }, [user, navigate]);
 
   const [requests, setRequests] = useState<LeaveRequest[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
@@ -193,7 +207,9 @@ export const MyLeaveRequestsPage: React.FC = () => {
 
                   const start = new Date(req.startDate);
                   const end = new Date(req.endDate);
-                  const days = Math.ceil((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24)) + 1;
+                  const sUtc = Date.UTC(start.getFullYear(), start.getMonth(), start.getDate());
+                  const eUtc = Date.UTC(end.getFullYear(), end.getMonth(), end.getDate());
+                  const days = Math.round((eUtc - sUtc) / (1000 * 60 * 60 * 24)) + 1;
 
                   const attachment =
                     (req as unknown as { attachmentUrl?: string }).attachmentUrl || req.evidenceFile;

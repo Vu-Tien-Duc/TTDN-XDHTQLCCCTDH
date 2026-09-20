@@ -70,51 +70,52 @@ export const AiChatWidget: React.FC = () => {
   };
 
   const quickPrompts = [
+    'Hôm nay có đơn xin nghỉ nào không?',
     'Hôm nay có ai đi muộn hoặc vắng không?',
-    'Tình hình các đơn xin nghỉ đang chờ duyệt?',
     'Tóm tắt báo cáo chấm công tháng này',
   ];
 
   return (
     <>
-      {/* Floating Button */}
+      {/* Floating Button - Gọn nhẹ, thanh lịch */}
       {!isOpen && (
         <button
           onClick={() => setIsOpen(true)}
-          className="fixed bottom-6 right-6 z-40 px-4 py-3 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white rounded-full shadow-lg shadow-blue-500/30 flex items-center gap-2.5 transition-transform hover:scale-105 active:scale-95 group border border-white/20"
+          className="fixed bottom-5 right-5 z-40 px-3 py-2 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white rounded-full shadow-md shadow-blue-500/25 flex items-center gap-2 transition-all hover:scale-105 active:scale-95 group border border-white/20 text-xs font-semibold"
+          title="Mở Trợ lý AI Thanh tra"
         >
-          <div className="w-8 h-8 rounded-full bg-white/20 flex items-center justify-center">
-            <Sparkles className="w-4 h-4 text-blue-100 animate-pulse" />
+          <div className="w-6 h-6 rounded-full bg-white/20 flex items-center justify-center">
+            <Sparkles className="w-3.5 h-3.5 text-blue-100 animate-pulse" />
           </div>
-          <span className="text-xs font-bold tracking-wide">Trợ Lý Thanh Tra AI</span>
+          <span>Trợ Lý AI</span>
           <span className="w-2 h-2 rounded-full bg-emerald-400"></span>
         </button>
       )}
 
-      {/* Chat Window */}
+      {/* Chat Window - Nhỏ gọn, tối ưu không gian */}
       {isOpen && (
-        <div className="fixed bottom-6 right-6 z-50 w-[92vw] sm:w-[420px] h-[580px] max-h-[85vh] bg-white rounded-3xl shadow-2xl border border-slate-200/90 flex flex-col overflow-hidden animate-fadeIn">
+        <div className="fixed bottom-5 right-5 z-50 w-[90vw] sm:w-[360px] h-[500px] max-h-[82vh] bg-white rounded-2xl shadow-2xl border border-slate-200/90 flex flex-col overflow-hidden animate-fadeIn">
           {/* Header */}
-          <div className="px-5 py-4 bg-gradient-to-r from-blue-900 via-indigo-900 to-slate-900 text-white flex items-center justify-between shrink-0">
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-2xl bg-white/10 backdrop-blur-md border border-white/20 flex items-center justify-center text-blue-200">
-                <Bot className="w-5 h-5" />
+          <div className="px-4 py-3 bg-gradient-to-r from-blue-900 via-indigo-900 to-slate-900 text-white flex items-center justify-between shrink-0">
+            <div className="flex items-center gap-2.5">
+              <div className="w-8 h-8 rounded-xl bg-white/10 backdrop-blur-md border border-white/20 flex items-center justify-center text-blue-200">
+                <Bot className="w-4 h-4" />
               </div>
               <div>
-                <h4 className="text-sm font-bold flex items-center gap-2">
-                  Trợ Lý Thanh Tra Đào Tạo
-                  <span className="px-1.5 py-0.5 bg-blue-500/30 border border-blue-400/30 rounded text-[10px] font-normal text-blue-200">
-                    Gemini AI
+                <h4 className="text-xs font-bold flex items-center gap-1.5">
+                  Trợ Lý Thanh Tra AI
+                  <span className="px-1.5 py-0.2 bg-blue-500/30 border border-blue-400/30 rounded text-[9px] font-normal text-blue-200">
+                    Gemini
                   </span>
                 </h4>
-                <p className="text-[11px] text-slate-300">Phân tích dữ liệu chấm công thời gian thực</p>
+                <p className="text-[10px] text-slate-300">Dữ liệu thời gian thực</p>
               </div>
             </div>
             <button
               onClick={() => setIsOpen(false)}
-              className="w-8 h-8 rounded-full bg-white/10 hover:bg-white/20 text-white flex items-center justify-center transition-colors"
+              className="w-7 h-7 rounded-full bg-white/10 hover:bg-white/20 text-white flex items-center justify-center transition-colors"
             >
-              <X className="w-4 h-4" />
+              <X className="w-3.5 h-3.5" />
             </button>
           </div>
 

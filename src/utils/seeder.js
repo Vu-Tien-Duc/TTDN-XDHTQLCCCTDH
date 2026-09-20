@@ -481,7 +481,18 @@ const seedData = async () => {
       attachmentUrl: null,
       status: 'PENDING',
     });
-    console.log('✔ Đã tạo 2 đơn nghỉ phép mẫu: 1 đơn APPROVED (3 ngày) và 1 đơn PENDING.');
+
+    // Đơn 2: Đang chờ duyệt (PENDING) của Trưởng khoa Nam (để Admin Ban Giám Hiệu kiểm thử duyệt)
+    await LeaveRequest.create({
+      userId: itDean._id,
+      type: 'nghi_phep',
+      reason: 'Trưởng khoa tham gia Hội nghị Hiệp hội CNTT Quốc tế',
+      startDate: new Date(now.getFullYear(), now.getMonth(), 25),
+      endDate: new Date(now.getFullYear(), now.getMonth(), 27),
+      attachmentUrl: null,
+      status: 'PENDING',
+    });
+    console.log('✔ Đã tạo 2 đơn nghỉ phép mẫu PENDING (1 của GV Cường cho Trưởng khoa duyệt, 1 của Trưởng khoa cho Admin duyệt). GV Bích nguyên vẹn 12 ngày phép (0 ngày đã dùng).');
 
     console.log('\n--- 7. TẠO BẢN GHI CHẤM CÔNG MẪU (ATTENDANCE_LOGS) ---');
     const yesterday = new Date(now);
@@ -517,7 +528,7 @@ const seedData = async () => {
         reason: 'Trưởng khoa CNTT duyệt đơn nghỉ phép của GV Bích',
       },
     });
-    console.log('✔ Đã tạo bản ghi kiểm toán mẫu cho thao tác duyệt đơn của Trưởng Khoa.');
+    console.log('✔ Đã tạo bản ghi kiểm toán mẫu cho thao tác của Trưởng Khoa.');
 
     console.log('\n================================================================');
     console.log('🎉 KHỞI TẠO CƠ SỞ DỮ LIỆU CHUẨN ĐẠI HỌC HOÀN TẤT!');

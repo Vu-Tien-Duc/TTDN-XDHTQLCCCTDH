@@ -2,6 +2,7 @@ const AttendanceLog = require('../models/attendanceLog.model');
 const LeaveRequest = require('../models/leaveRequest.model');
 const User = require('../models/user.model');
 const { sendSuccess, sendError } = require('../utils/responseHandler');
+const { calculateLeaveDays } = require('./leaveRequest.controller');
 
 /**
  * @desc Thống kê báo cáo chấm công
@@ -71,8 +72,7 @@ const getAttendanceReport = async (req, res, next) => {
       absentCount: attendances.filter((a) => a.status === 'ABSENT').length,
       excusedAbsenceCount: attendances.filter((a) => a.status === 'EXCUSED_ABSENCE').length,
       approvedLeaveDays: approvedLeaves.reduce((sum, item) => {
-        const diffDays = Math.ceil((new Date(item.endDate) - new Date(item.startDate)) / (1000 * 60 * 60 * 24)) + 1;
-        return sum + Math.max(1, diffDays);
+        return sum + calculateLeaveDays(item.startDate, item.endDate);
       }, 0),
     };
 

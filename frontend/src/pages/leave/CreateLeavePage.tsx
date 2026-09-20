@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import {
@@ -15,9 +15,22 @@ import {
 import leaveService from '../../services/leave.service';
 import { LeaveType } from '../../types';
 import LeaveBalanceCard from '../../components/leave/LeaveBalanceCard';
+import { useAuth } from '../../contexts/AuthContext';
 
 export const CreateLeavePage: React.FC = () => {
   const navigate = useNavigate();
+  const { user } = useAuth();
+
+  // Quản trị viên (Admin) không áp dụng tạo đơn, chuyển hướng về Hộp duyệt đơn
+  useEffect(() => {
+    if (user?.role === 'admin') {
+      toast('Quản trị viên giữ quyền phê duyệt, không áp dụng tạo đơn cá nhân.', {
+        icon: 'ℹ',
+        id: 'admin-redirect',
+      });
+      navigate('/leave/approvals', { replace: true });
+    }
+  }, [user, navigate]);
 
   const [type, setType] = useState<LeaveType>('nghi_phep');
   const [startDate, setStartDate] = useState('');
@@ -28,13 +41,15 @@ export const CreateLeavePage: React.FC = () => {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [refreshTrigger, setRefreshTrigger] = useState(0);
 
-  // Tính số ngày nghỉ dự kiến
+  // Tính số ngày nghỉ dự kiến chuẩn xác theo ngày lịch
   let calculatedDays = 0;
   if (startDate && endDate) {
-    const s = new Date(startDate);
-    const e = new Date(endDate);
-    if (!isNaN(s.getTime()) && !isNaN(e.getTime()) && e >= s) {
-      calculatedDays = Math.ceil((e.getTime() - s.getTime()) / (1000 * 60 * 60 * 24)) + 1;
+    const [sY, sM, sD] = startDate.split('-').map(Number);
+    const [eY, eM, eD] = endDate.split('-').map(Number);
+    const sUtc = Date.UTC(sY, sM - 1, sD);
+    const eUtc = Date.UTC(eY, eM - 1, eD);
+    if (eUtc >= sUtc) {
+      calculatedDays = Math.round((eUtc - sUtc) / (1000 * 60 * 60 * 24)) + 1;
     }
   }
 

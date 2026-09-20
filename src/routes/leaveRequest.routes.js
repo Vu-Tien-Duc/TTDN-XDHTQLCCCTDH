@@ -31,8 +31,8 @@ const optionalFileUpload = (req, res, next) => {
   }
 };
 
-// Tất cả cán bộ/giảng viên/nhân viên đều có quyền nộp đơn và tra cứu đơn/quỹ phép của mình
-router.post('/', verifyRole(['admin', 'truongkhoa', 'giangvien', 'nhanvien']), optionalFileUpload, createLeaveRequest);
+// Chỉ Trưởng khoa, Giảng viên và Nhân viên mới có nghiệp vụ nộp đơn xin nghỉ/đổi ca/dạy bù. Admin là cấp phê duyệt cao nhất, không tạo đơn.
+router.post('/', verifyRole(['truongkhoa', 'giangvien', 'nhanvien']), optionalFileUpload, createLeaveRequest);
 router.get('/', verifyRole(['admin', 'truongkhoa', 'giangvien', 'nhanvien']), getLeaveRequests);
 router.get('/balance', verifyRole(['admin', 'truongkhoa', 'giangvien', 'nhanvien']), getLeaveBalance);
 router.get('/:id', verifyRole(['admin', 'truongkhoa', 'giangvien', 'nhanvien']), getLeaveRequestById);

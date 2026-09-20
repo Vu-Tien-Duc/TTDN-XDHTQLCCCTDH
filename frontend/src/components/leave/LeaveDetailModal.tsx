@@ -48,12 +48,14 @@ export const LeaveDetailModal: React.FC<LeaveDetailModalProps> = ({ isOpen, onCl
   const attachment =
     (leaveRequest as unknown as { attachmentUrl?: string }).attachmentUrl || leaveRequest.evidenceFile;
 
-  // Calculate days
+  // Calculate days chuẩn theo lịch
   const start = new Date(leaveRequest.startDate);
   const end = new Date(leaveRequest.endDate);
-  const diffDays = Math.ceil((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24)) + 1;
+  const sUtc = Date.UTC(start.getFullYear(), start.getMonth(), start.getDate());
+  const eUtc = Date.UTC(end.getFullYear(), end.getMonth(), end.getDate());
+  const diffDays = Math.round((eUtc - sUtc) / (1000 * 60 * 60 * 24)) + 1;
 
-  const isImage = attachment && /\.(jpg|jpeg|png|webp)$/i.test(attachment);
+  const isImage = attachment && /\.(jpg|jpeg|png|webp|gif|svg)$/i.test(attachment.split('?')[0]);
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-fadeIn">
@@ -160,29 +162,49 @@ export const LeaveDetailModal: React.FC<LeaveDetailModalProps> = ({ isOpen, onCl
                 <FileText className="w-3.5 h-3.5 text-slate-400" />
                 Minh chứng đính kèm thực tế:
               </label>
-              <div className="p-3 rounded-xl border border-slate-200 bg-slate-50 flex items-center justify-between">
-                <div className="flex items-center gap-2 overflow-hidden">
-                  <FileText className="w-4 h-4 text-blue-600 shrink-0" />
-                  <span className="text-xs text-slate-700 truncate">{attachment}</span>
+              <div className="p-3.5 rounded-xl border border-slate-200 bg-slate-50 flex items-center justify-between">
+                <div className="flex items-center gap-2.5 overflow-hidden">
+                  <div className="w-8 h-8 rounded-lg bg-blue-100 text-blue-700 flex items-center justify-center shrink-0">
+                    <FileText className="w-4 h-4" />
+                  </div>
+                  <div className="overflow-hidden">
+                    <p className="text-xs font-semibold text-slate-800 truncate">{attachment.split('/').pop()}</p>
+                    <p className="text-[10px] text-slate-400 font-mono truncate">{attachment}</p>
+                  </div>
                 </div>
                 <a
                   href={attachment}
                   target="_blank"
                   rel="noreferrer"
-                  className="px-3 py-1 bg-white hover:bg-slate-100 border border-slate-300 text-slate-700 text-xs font-medium rounded-lg flex items-center gap-1.5 shrink-0 transition-colors shadow-sm"
+                  className="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 active:scale-95 text-white text-xs font-bold rounded-lg flex items-center gap-1.5 shrink-0 transition-all shadow-sm"
                 >
                   <ExternalLink className="w-3.5 h-3.5" />
-                  Mở file
+                  Xem file
                 </a>
               </div>
               {isImage && (
-                <div className="mt-2 rounded-xl overflow-hidden border border-slate-200 max-h-56 bg-slate-100 flex items-center justify-center">
-                  <img src={attachment} alt="Minh chứng" className="max-h-56 object-contain w-full" />
+                <div className="mt-3 rounded-2xl overflow-hidden border border-slate-200 bg-slate-900/5 p-2 flex flex-col items-center justify-center relative group">
+                  <img
+                    src={attachment}
+                    alt="Minh chứng đính kèm"
+                    className="max-h-72 object-contain rounded-xl shadow-xs transition-transform group-hover:scale-[1.01]"
+                    onError={(e) => {
+                      // Nếu lỗi load ảnh
+                      const target = e.currentTarget;
+                      target.style.display = 'none';
+                      const fallback = target.parentElement?.querySelector('.img-fallback');
+                      if (fallback) (fallback as HTMLElement).style.display = 'flex';
+                    }}
+                  />
+                  <div className="img-fallback hidden p-6 text-center text-xs text-slate-400 flex-col items-center gap-2">
+                    <FileText className="w-8 h-8 text-slate-300" />
+                    <span>Không thể tải bản xem trước của ảnh. Vui lòng bấm "Xem file" ở trên để mở trực tiếp.</span>
+                  </div>
                 </div>
               )}
             </div>
           ) : (
-            <div className="p-3 rounded-xl bg-slate-50 border border-dashed border-slate-200 text-xs text-slate-400 text-center">
+            <div className="p-4 rounded-xl bg-slate-50 border border-dashed border-slate-200 text-xs text-slate-400 text-center">
               Không có file minh chứng đính kèm cho đơn này
             </div>
           )}
