@@ -1,8 +1,9 @@
+import React from 'react';
 import { Toaster } from 'react-hot-toast';
 import { AuthProvider } from './contexts/AuthContext';
 import AppRoutes from './routes/AppRoutes';
 
-export default function App() {
+export const App: React.FC = () => {
   return (
     <AuthProvider>
       <Toaster
@@ -10,15 +11,30 @@ export default function App() {
         toastOptions={{
           duration: 3500,
           style: {
+            background: '#1e293b',
+            color: '#f8fafc',
             borderRadius: '12px',
-            background: '#0f172a',
-            color: '#fff',
             fontSize: '13px',
-            fontWeight: '500',
+            fontWeight: 500,
+            boxShadow: '0 10px 25px -5px rgba(0, 0, 0, 0.2)',
+          },
+          success: {
+            iconTheme: {
+              primary: '#10b981',
+              secondary: '#ffffff',
+            },
+          },
+          error: {
+            iconTheme: {
+              primary: '#ef4444',
+              secondary: '#ffffff',
+            },
           },
         }}
       />
       <AppRoutes />
     </AuthProvider>
   );
-}
+};
+
+export default App;

@@ -8,12 +8,67 @@ const AuditLog = require('../models/auditLog.model');
 const { sendSuccess, sendError } = require('../utils/responseHandler');
 const { sendLeaveApprovedEmail, sendLeaveRejectedEmail } = require('../services/email.service');
 
+const getVietnamDateKey = (date) => {
+  return new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Asia/Ho_Chi_Minh',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).format(date);
+};
+
+const getLeaveOccurrenceDates = (startDate, endDate, weekday) => {
+  const startKey = getVietnamDateKey(startDate);
+  const endKey = getVietnamDateKey(endDate);
+  const [startYear, startMonth, startDay] = startKey.split('-').map(Number);
+  const [endYear, endMonth, endDay] = endKey.split('-').map(Number);
+  const cursor = new Date(Date.UTC(startYear, startMonth - 1, startDay));
+  const end = new Date(Date.UTC(endYear, endMonth - 1, endDay));
+  const occurrences = [];
+
+  while (cursor <= end) {
+    if (cursor.getUTCDay() === Number(weekday)) {
+      const dateKey = cursor.toISOString().slice(0, 10);
+      occurrences.push(new Date(`${dateKey}T00:00:00.000+07:00`));
+    }
+    cursor.setUTCDate(cursor.getUTCDate() + 1);
+  }
+
+  return occurrences;
+};
+
+/**
+ * Tính chính xác số ngày nghỉ theo ngày lịch (Calendar Days),
+ * chuẩn hóa về UTC 00:00:00 để tránh sai số do giờ làm việc (08:00 - 17:00).
+ */
+const calculateLeaveDays = (startDate, endDate) => {
+  const s = new Date(startDate);
+  const e = new Date(endDate);
+  if (Number.isNaN(s.getTime()) || Number.isNaN(e.getTime()) || e < s) {
+    return 0;
+  }
+  const sUtc = Date.UTC(s.getFullYear(), s.getMonth(), s.getDate());
+  const eUtc = Date.UTC(e.getFullYear(), e.getMonth(), e.getDate());
+  const diffDays = Math.round((eUtc - sUtc) / (1000 * 60 * 60 * 24)) + 1;
+  return Math.max(1, diffDays);
+};
+
 /**
  * @desc Tạo đơn xin nghỉ phép / dạy bù / đổi ca
  * @route POST /api/leave-requests
  */
 const createLeaveRequest = async (req, res, next) => {
   try {
+    // Quản trị viên (Admin) giữ quyền cao nhất hệ thống, không áp dụng tạo đơn xin nghỉ
+    if (req.user.role === 'admin') {
+      return sendError(
+        res,
+        'Quản trị viên (Admin) giữ quyền phê duyệt cao nhất hệ thống, không áp dụng tạo đơn xin nghỉ cá nhân; chỉ có thẩm quyền phê duyệt hoặc từ chối đơn của cán bộ, giảng viên.',
+        null,
+        403
+      );
+    }
+
     const { type, reason, startDate, endDate, attachmentUrl } = req.body;
 
     if (!type || !reason || !startDate || !endDate) {
@@ -178,45 +233,57 @@ const getLeaveBalance = async (req, res, next) => {
       return sendError(res, 'Không tìm thấy người dùng.', null, 404);
     }
 
-    const quota = user.annualLeaveQuota !== undefined ? user.annualLeaveQuota : 12;
-
     const currentYear = new Date().getFullYear();
+
+    // Tài khoản Quản trị viên (Admin) không áp dụng quản lý hạn mức ngày phép cá nhân
+    if (user.role === 'admin') {
+      return sendSuccess(res, 'Tài khoản Quản trị viên (Admin) không áp dụng quản lý hạn mức ngày phép.', {
+        userId: targetUserId,
+        year: currentYear,
+        annualLeaveQuota: 0,
+        daysUsed: 0,
+        pendingDays: 0,
+        remainingDays: 0,
+        isAdmin: true,
+      });
+    }
+
+    const quota = user.annualLeaveQuota !== undefined ? user.annualLeaveQuota : 12;
     const yearStart = new Date(currentYear, 0, 1);
     const yearEnd = new Date(currentYear, 11, 31, 23, 59, 59, 999);
 
-    const matchStage = {
-      userId: new mongoose.Types.ObjectId(targetUserId),
+    // 1. Tính tổng số ngày nghỉ đã được phê duyệt (APPROVED) trong năm
+    const approvedLeaves = await LeaveRequest.find({
+      userId: targetUserId,
       status: 'APPROVED',
       type: 'nghi_phep',
-      startDate: { $gte: yearStart, $lte: yearEnd },
-    };
+      startDate: { $lte: yearEnd },
+      endDate: { $gte: yearStart },
+    });
 
-    const aggregateResult = await LeaveRequest.aggregate([
-      { $match: matchStage },
-      {
-        $project: {
-          daysUsed: {
-            $add: [
-              {
-                $divide: [
-                  { $subtract: ['$endDate', '$startDate'] },
-                  1000 * 60 * 60 * 24,
-                ],
-              },
-              1, // Cộng thêm 1 ngày vì tính cả ngày bắt đầu
-            ],
-          },
-        },
-      },
-      {
-        $group: {
-          _id: null,
-          totalDaysUsed: { $sum: '$daysUsed' },
-        },
-      },
-    ]);
+    let daysUsed = 0;
+    for (const leave of approvedLeaves) {
+      const effectiveStart = new Date(Math.max(leave.startDate.getTime(), yearStart.getTime()));
+      const effectiveEnd = new Date(Math.min(leave.endDate.getTime(), yearEnd.getTime()));
+      daysUsed += calculateLeaveDays(effectiveStart, effectiveEnd);
+    }
 
-    const daysUsed = aggregateResult.length > 0 ? Math.ceil(aggregateResult[0].totalDaysUsed) : 0;
+    // 2. Tính tổng số ngày nghỉ đang chờ xét duyệt (PENDING) trong năm
+    const pendingLeaves = await LeaveRequest.find({
+      userId: targetUserId,
+      status: 'PENDING',
+      type: 'nghi_phep',
+      startDate: { $lte: yearEnd },
+      endDate: { $gte: yearStart },
+    });
+
+    let pendingDays = 0;
+    for (const leave of pendingLeaves) {
+      const effectiveStart = new Date(Math.max(leave.startDate.getTime(), yearStart.getTime()));
+      const effectiveEnd = new Date(Math.min(leave.endDate.getTime(), yearEnd.getTime()));
+      pendingDays += calculateLeaveDays(effectiveStart, effectiveEnd);
+    }
+
     const remainingDays = Math.max(0, quota - daysUsed);
 
     return sendSuccess(res, 'Tính số dư ngày phép thành công.', {
@@ -224,7 +291,9 @@ const getLeaveBalance = async (req, res, next) => {
       year: currentYear,
       annualLeaveQuota: quota,
       daysUsed,
+      pendingDays,
       remainingDays,
+      isAdmin: false,
     });
   } catch (error) {
     next(error);
@@ -326,33 +395,43 @@ const approveLeaveRequest = async (req, res, next) => {
 
     // Tích hợp chéo với Module Attendance (TV B):
     // Khi đơn được duyệt (APPROVED), tự động tạo/cập nhật bản ghi attendance_logs với status = 'EXCUSED_ABSENCE' và gán leaveRequestId
-    const schedules = await Schedule.find({
-      userId: request.userId,
-      startDate: { $lte: request.endDate },
-      endDate: { $gte: request.startDate },
-    });
+    if (request.type === 'nghi_phep') {
+      const schedules = await Schedule.find({
+        userId: request.userId,
+        startDate: { $lte: request.endDate },
+        endDate: { $gte: request.startDate },
+      });
 
-    for (const sch of schedules) {
-      await AttendanceLog.findOneAndUpdate(
-        {
-          userId: request.userId,
-          scheduleId: sch._id,
-          leaveRequestId: request._id,
-        },
-        {
-          $set: {
-            userId: request.userId,
-            shiftId: sch.shiftId,
-            scheduleId: sch._id,
-            status: 'EXCUSED_ABSENCE',
-            leaveRequestId: request._id,
-            checkInTime: request.startDate,
-            isManualOverride: false,
-            method: 'manual',
-          },
-        },
-        { upsert: true, new: true }
-      );
+      for (const sch of schedules) {
+        const occurrenceStart = new Date(Math.max(request.startDate.getTime(), sch.startDate.getTime()));
+        const occurrenceEnd = new Date(Math.min(request.endDate.getTime(), sch.endDate.getTime()));
+        const occurrenceDates = getLeaveOccurrenceDates(occurrenceStart, occurrenceEnd, sch.weekday);
+
+        for (const occurrenceDate of occurrenceDates) {
+          const occurrenceEndOfDay = new Date(occurrenceDate.getTime() + 24 * 60 * 60 * 1000 - 1);
+          await AttendanceLog.findOneAndUpdate(
+            {
+              userId: request.userId,
+              scheduleId: sch._id,
+              leaveRequestId: request._id,
+              checkInTime: { $gte: occurrenceDate, $lte: occurrenceEndOfDay },
+            },
+            {
+              $set: {
+                userId: request.userId,
+                shiftId: sch.shiftId,
+                scheduleId: sch._id,
+                status: 'EXCUSED_ABSENCE',
+                leaveRequestId: request._id,
+                checkInTime: occurrenceDate,
+                isManualOverride: false,
+                method: 'manual',
+              },
+            },
+            { upsert: true, new: true }
+          );
+        }
+      }
     }
 
     // Ghi audit log
@@ -461,4 +540,5 @@ module.exports = {
   getLeaveBalance,
   approveLeaveRequest,
   rejectLeaveRequest,
+  calculateLeaveDays,
 };

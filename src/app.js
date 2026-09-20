@@ -1,3 +1,4 @@
+const fs = require('fs');
 const path = require('path');
 const express = require('express');
 const cors = require('cors');
@@ -74,14 +75,7 @@ const swaggerUiOptions = {
 };
 app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec, swaggerUiOptions));
 
-// 5. Base Route / Welcome & Health Check
-app.get('/', (req, res) => {
-  res.json({
-    message: 'Chào mừng đến với API Hệ thống Quản lý Chấm công Trường Đại học',
-    swaggerDocs: '/api-docs',
-    version: '1.0.0',
-  });
-});
+// 5. Health Check Route
 
 app.get('/health', (req, res) => {
   res.status(200).json({
@@ -107,8 +101,6 @@ app.get('/health', (req, res) => {
 app.use('/api', apiRoutes);
 app.use('/api/v1', apiRoutes);
 
-<<<<<<< Updated upstream
-=======
 // 7. Phục vụ Frontend tĩnh (Production Single-Port Deployment)
 const distPath = path.join(__dirname, '../frontend/dist');
 if (fs.existsSync(distPath)) {
@@ -141,8 +133,6 @@ if (fs.existsSync(distPath)) {
     });
   });
 }
-
->>>>>>> Stashed changes
 // 6. Error & 404 Handling Middlewares
 app.use(notFoundHandler);
 app.use(errorHandler);

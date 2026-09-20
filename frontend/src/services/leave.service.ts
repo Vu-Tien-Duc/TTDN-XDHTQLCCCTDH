@@ -14,7 +14,9 @@ export interface LeaveBalanceData {
   year: number;
   annualLeaveQuota: number;
   daysUsed: number;
+  pendingDays?: number;
   remainingDays: number;
+  isAdmin?: boolean;
 }
 
 export interface LeaveFilterParams {

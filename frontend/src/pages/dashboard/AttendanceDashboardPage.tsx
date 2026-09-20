@@ -1,7 +1,6 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useMemo } from 'react';
 import toast from 'react-hot-toast';
 import {
-  Calendar,
   CheckCircle2,
   Clock,
   FileSpreadsheet,
@@ -10,6 +9,11 @@ import {
   UserCheck,
   UserX,
   Users,
+  HelpCircle,
+  Search,
+  ChevronUp,
+  Award,
+  Info,
 } from 'lucide-react';
 import reportService, {
   AttendanceReportData,
@@ -25,6 +29,8 @@ export const AttendanceDashboardPage: React.FC = () => {
   const [selectedMonth, setSelectedMonth] = useState<number>(new Date().getMonth() + 1);
   const [selectedYear, setSelectedYear] = useState<number>(new Date().getFullYear());
   const [loading, setLoading] = useState<boolean>(true);
+  const [showGuide, setShowGuide] = useState<boolean>(true);
+  const [searchTerm, setSearchTerm] = useState<string>('');
 
   const [summary, setSummary] = useState<AttendanceReportData | null>(null);
   const [staffList, setStaffList] = useState<MonthlyStaffReportItem[]>([]);
@@ -32,8 +38,14 @@ export const AttendanceDashboardPage: React.FC = () => {
   const fetchDashboardData = async () => {
     setLoading(true);
     try {
-      // 1. Lấy dữ liệu tổng hợp
-      const summaryRes = await reportService.getAttendanceReport();
+      const firstDayOfMonth = new Date(selectedYear, selectedMonth - 1, 1).toISOString();
+      const lastDayOfMonth = new Date(selectedYear, selectedMonth, 0, 23, 59, 59, 999).toISOString();
+
+      // 1. Lấy dữ liệu tổng hợp theo tháng và năm đã chọn
+      const summaryRes = await reportService.getAttendanceReport({
+        from: firstDayOfMonth,
+        to: lastDayOfMonth,
+      });
       if (summaryRes.success && summaryRes.data) {
         setSummary(summaryRes.data);
       }
@@ -57,18 +69,41 @@ export const AttendanceDashboardPage: React.FC = () => {
     fetchDashboardData();
   }, [selectedMonth, selectedYear]);
 
+  // Tính tỷ lệ chuyên cần tổng quan
+  const totalShifts = summary?.totalRecords || 0;
+  const onTimeShifts = summary?.onTimeCount || 0;
+  const excusedShifts = summary?.excusedAbsenceCount || 0;
+  const lateShifts = summary?.lateCount || 0;
+  const earlyLeaveShifts = summary?.earlyLeaveCount || 0;
+  const absentShifts = summary?.absentCount || 0;
+
+  const validShifts = onTimeShifts + excusedShifts;
+  const overallAttendanceRate = totalShifts > 0 ? Math.round((validShifts / totalShifts) * 100) : 100;
+
+  // Lọc danh sách nhân sự theo tìm kiếm
+  const filteredStaffList = useMemo(() => {
+    if (!searchTerm.trim()) return staffList;
+    const term = searchTerm.toLowerCase();
+    return staffList.filter(
+      (s) =>
+        s.user.fullName.toLowerCase().includes(term) ||
+        s.user.email.toLowerCase().includes(term) ||
+        s.user.role.toLowerCase().includes(term)
+    );
+  }, [staffList, searchTerm]);
+
   // Chuẩn bị dữ liệu cho 3 Biểu đồ
   // 1. Biểu đồ tròn (Donut)
   const donutData: DonutSegment[] = [
-    { label: 'Đúng giờ', value: summary?.onTimeCount || 0, color: '#10b981' },
-    { label: 'Đi muộn', value: summary?.lateCount || 0, color: '#f59e0b' },
-    { label: 'Về sớm', value: summary?.earlyLeaveCount || 0, color: '#f97316' },
-    { label: 'Vắng không phép', value: summary?.absentCount || 0, color: '#ef4444' },
-    { label: 'Vắng có phép', value: summary?.excusedAbsenceCount || 0, color: '#3b82f6' },
+    { label: 'Đúng giờ', value: onTimeShifts, color: '#10b981' },
+    { label: 'Đi muộn', value: lateShifts, color: '#f59e0b' },
+    { label: 'Về sớm', value: earlyLeaveShifts, color: '#f97316' },
+    { label: 'Vắng không phép', value: absentShifts, color: '#ef4444' },
+    { label: 'Vắng có phép', value: excusedShifts, color: '#3b82f6' },
   ];
 
-  // 2. Biểu đồ cột (Bar) - Thống kê theo các cán bộ mẫu hoặc theo tuần
-  const barData: BarDataPoint[] = staffList.slice(0, 5).map((item) => ({
+  // 2. Biểu đồ cột (Bar)
+  const barData: BarDataPoint[] = filteredStaffList.slice(0, 5).map((item) => ({
     label: item.user.fullName.split(' ').slice(-2).join(' '),
     onTime: item.onTimeCount,
     late: item.lateCount,
@@ -81,7 +116,7 @@ export const AttendanceDashboardPage: React.FC = () => {
     { label: 'Tuần 1', rate: 94, lateRate: 6 },
     { label: 'Tuần 2', rate: 89, lateRate: 11 },
     { label: 'Tuần 3', rate: 96, lateRate: 4 },
-    { label: 'Tuần 4', rate: 92, lateRate: 8 },
+    { label: 'Tuần 4', rate: overallAttendanceRate, lateRate: Math.max(0, 100 - overallAttendanceRate) },
   ];
 
   // Xuất Excel
@@ -110,26 +145,27 @@ export const AttendanceDashboardPage: React.FC = () => {
         </p>
       </div>
 
-      {/* Header Banner (Ẩn khi in) */}
-      <div className="bg-white rounded-2xl border border-slate-200/80 p-6 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-4 print:hidden">
+      {/* Header Banner */}
+      <div className="bg-white rounded-2xl border border-slate-200/80 p-5 sm:p-6 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-4 print:hidden">
         <div>
           <div className="flex items-center gap-2">
-            <span className="px-2.5 py-1 rounded-full bg-blue-50 text-blue-700 text-xs font-bold border border-blue-200">
-              Phân Hệ Báo Cáo Thống Kê
+            <span className="px-2.5 py-0.5 rounded-full bg-blue-50 text-blue-700 text-xs font-bold border border-blue-200">
+              Thống Kê Chấm Công & Báo Cáo
             </span>
             <span className="text-xs text-slate-400">•</span>
-            <span className="text-xs text-slate-500">Giám sát chuyên cần & KPI</span>
+            <span className="text-xs text-slate-500">Giám sát chuyên cần theo tháng</span>
           </div>
           <h2 className="text-xl sm:text-2xl font-black text-slate-900 mt-1">
-            Dashboard Thống Kê Chấm Công & Báo Cáo Tháng
+            Báo Cáo Chấm Công Tháng {selectedMonth}/{selectedYear}
           </h2>
-          <p className="text-xs text-slate-500 mt-1">
-            Tổng hợp dữ liệu điểm danh thực tế, phân tích trực quan qua hệ thống 3 biểu đồ và hỗ trợ xuất bản in A4 / Excel.
+          <p className="text-xs text-slate-500 mt-0.5">
+            Xem nhanh tỷ lệ chuyên cần, các trường hợp đi muộn, vắng mặt và chi tiết theo từng giảng viên.
           </p>
         </div>
 
-        {/* Actions & Filters */}
-        <div className="flex flex-wrap items-center gap-2.5">
+        {/* Filters & Actions */}
+        <div className="flex flex-wrap items-center gap-2">
+          {/* Month / Year */}
           <select
             value={selectedMonth}
             onChange={(e) => setSelectedMonth(Number(e.target.value))}
@@ -154,104 +190,253 @@ export const AttendanceDashboardPage: React.FC = () => {
             ))}
           </select>
 
-          {/* Export Excel (Task 6) */}
+          {/* Toggle Guide */}
+          <button
+            onClick={() => setShowGuide(!showGuide)}
+            className={`px-3 py-2 text-xs font-semibold rounded-xl border transition-colors flex items-center gap-1.5 ${
+              showGuide
+                ? 'bg-blue-600 text-white border-blue-600 shadow-sm'
+                : 'bg-blue-50 hover:bg-blue-100 text-blue-700 border-blue-200'
+            }`}
+            title="Bật/Tắt hướng dẫn giải thích chỉ số thống kê"
+          >
+            <HelpCircle className="w-3.5 h-3.5" />
+            <span>{showGuide ? 'Ẩn giải thích' : '💡 Giải thích chỉ số'}</span>
+          </button>
+
+          {/* Export Excel */}
           <button
             onClick={handleExportExcel}
-            className="px-3.5 py-2 bg-emerald-600 hover:bg-emerald-700 active:scale-95 text-white text-xs font-bold rounded-xl shadow-sm transition-all flex items-center gap-1.5"
+            className="px-3 py-2 bg-emerald-600 hover:bg-emerald-700 active:scale-95 text-white text-xs font-bold rounded-xl shadow-sm transition-all flex items-center gap-1.5"
           >
-            <FileSpreadsheet className="w-4 h-4" />
-            Xuất Excel (.xlsx)
+            <FileSpreadsheet className="w-3.5 h-3.5" />
+            <span>Xuất Excel</span>
           </button>
 
-          {/* Export PDF (Task 6) */}
+          {/* Export PDF */}
           <button
             onClick={handlePrintPdf}
-            className="px-3.5 py-2 bg-slate-800 hover:bg-slate-900 active:scale-95 text-white text-xs font-bold rounded-xl shadow-sm transition-all flex items-center gap-1.5"
+            className="px-3 py-2 bg-slate-800 hover:bg-slate-900 active:scale-95 text-white text-xs font-bold rounded-xl shadow-sm transition-all flex items-center gap-1.5"
           >
-            <Printer className="w-4 h-4" />
-            In PDF (A4)
+            <Printer className="w-3.5 h-3.5" />
+            <span>In PDF</span>
           </button>
         </div>
       </div>
 
-      {/* KPI Cards Grid */}
-      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3 sm:gap-4">
-        {/* Total Records */}
-        <div className="bg-white p-4 rounded-2xl border border-slate-200/80 shadow-sm flex flex-col justify-between">
-          <div className="flex items-center justify-between">
-            <span className="text-xs font-medium text-slate-500">Tổng ca dạy</span>
-            <div className="w-7 h-7 rounded-lg bg-blue-50 text-blue-600 flex items-center justify-center">
-              <Calendar className="w-4 h-4" />
+      {/* Explanations Panel (Giải thích dễ hiểu các chỉ số) */}
+      {showGuide && (
+        <div className="bg-gradient-to-br from-blue-50/90 via-indigo-50/50 to-white rounded-2xl border border-blue-200/80 p-4 sm:p-5 shadow-sm transition-all print:hidden">
+          <div className="flex items-center justify-between border-b border-blue-100 pb-3 mb-3">
+            <div className="flex items-center gap-2">
+              <div className="w-6 h-6 rounded-lg bg-blue-600 text-white flex items-center justify-center">
+                <Info className="w-3.5 h-3.5" />
+              </div>
+              <h3 className="text-sm font-bold text-slate-900">
+                Hướng Dẫn & Ý Nghĩa Các Chỉ Số Thống Kê
+              </h3>
+            </div>
+            <button
+              onClick={() => setShowGuide(false)}
+              className="text-xs text-slate-400 hover:text-slate-600 flex items-center gap-1"
+            >
+              <span>Thu gọn</span>
+              <ChevronUp className="w-3.5 h-3.5" />
+            </button>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 text-xs">
+            {/* 1. Đúng giờ */}
+            <div className="bg-white p-3 rounded-xl border border-slate-200/80 shadow-xs flex items-start gap-2.5">
+              <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 mt-1 shrink-0"></span>
+              <div>
+                <p className="font-bold text-emerald-800">Đúng giờ (On-Time)</p>
+                <p className="text-slate-600 text-[11px] mt-0.5 leading-relaxed">
+                  Cán bộ/giảng viên quét mã vào lớp đúng giờ quy định (hoặc trong 15 phút đầu cho phép). Được tính 100% công giảng dạy.
+                </p>
+              </div>
+            </div>
+
+            {/* 2. Đi muộn */}
+            <div className="bg-white p-3 rounded-xl border border-slate-200/80 shadow-xs flex items-start gap-2.5">
+              <span className="w-2.5 h-2.5 rounded-full bg-amber-500 mt-1 shrink-0"></span>
+              <div>
+                <p className="font-bold text-amber-800">Đi muộn (Late)</p>
+                <p className="text-slate-600 text-[11px] mt-0.5 leading-relaxed">
+                  Quét mã vào lớp sau giờ bắt đầu ca học quá 15 phút. Hệ thống tự động ghi nhận phút muộn để phòng Thanh tra theo dõi.
+                </p>
+              </div>
+            </div>
+
+            {/* 3. Về sớm */}
+            <div className="bg-white p-3 rounded-xl border border-slate-200/80 shadow-xs flex items-start gap-2.5">
+              <span className="w-2.5 h-2.5 rounded-full bg-orange-500 mt-1 shrink-0"></span>
+              <div>
+                <p className="font-bold text-orange-800">Về sớm (Early Leave)</p>
+                <p className="text-slate-600 text-[11px] mt-0.5 leading-relaxed">
+                  Quét mã kết thúc ca trước thời điểm hết giờ ca dạy mà chưa có sự đồng ý của quản lý bộ môn.
+                </p>
+              </div>
+            </div>
+
+            {/* 4. Vắng không phép */}
+            <div className="bg-white p-3 rounded-xl border border-slate-200/80 shadow-xs flex items-start gap-2.5">
+              <span className="w-2.5 h-2.5 rounded-full bg-rose-500 mt-1 shrink-0"></span>
+              <div>
+                <p className="font-bold text-rose-800">Vắng không phép (Absent)</p>
+                <p className="text-slate-600 text-[11px] mt-0.5 leading-relaxed">
+                  Ca dạy trong thời khóa biểu đã qua nhưng không có điểm danh và không có đơn xin nghỉ phép. Cần yêu cầu nộp đơn giải trình.
+                </p>
+              </div>
+            </div>
+
+            {/* 5. Nghỉ có phép */}
+            <div className="bg-white p-3 rounded-xl border border-slate-200/80 shadow-xs flex items-start gap-2.5">
+              <span className="w-2.5 h-2.5 rounded-full bg-blue-500 mt-1 shrink-0"></span>
+              <div>
+                <p className="font-bold text-blue-800">Nghỉ có phép (Excused)</p>
+                <p className="text-slate-600 text-[11px] mt-0.5 leading-relaxed">
+                  Đã làm đơn xin nghỉ (hoặc đăng ký dạy bù) và được Ban Quản trị / Trưởng khoa duyệt. Ca nghỉ được bảo lưu quyền lợi hợp lệ.
+                </p>
+              </div>
+            </div>
+
+            {/* 6. Công thức Chuyên cần */}
+            <div className="bg-white p-3 rounded-xl border border-indigo-200 bg-indigo-50/30 shadow-xs flex items-start gap-2.5">
+              <span className="w-2.5 h-2.5 rounded-full bg-indigo-600 mt-1 shrink-0"></span>
+              <div>
+                <p className="font-bold text-indigo-900">Tỷ lệ Chuyên cần (%)</p>
+                <p className="text-slate-600 text-[11px] mt-0.5 leading-relaxed">
+                  <span className="font-semibold text-slate-800">= (Đúng giờ + Nghỉ có phép) ÷ Tổng ca × 100%</span>.
+                  Xếp loại: <span className="text-emerald-700 font-bold">≥ 90% Tốt</span> • <span className="text-amber-700 font-bold">75-89% Khá</span> • <span className="text-rose-700 font-bold">&lt; 75% Chấn chỉnh</span>.
+                </p>
+              </div>
             </div>
           </div>
-          <p className="text-2xl font-black text-slate-900 mt-2">{summary?.totalRecords ?? 0}</p>
-          <span className="text-[10px] text-slate-400 mt-1">Lượt chấm công</span>
+        </div>
+      )}
+
+      {/* KPI Overview Cards - Bố cục gọn gàng, trực quan */}
+      <div className="grid grid-cols-1 md:grid-cols-12 gap-4">
+        {/* Card 1: Tổng thể chuyên cần (Highlight Card - 5 cols) */}
+        <div className="md:col-span-5 bg-gradient-to-br from-blue-900 via-indigo-900 to-slate-900 text-white rounded-2xl p-5 shadow-md flex flex-col justify-between">
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-semibold text-blue-200 uppercase tracking-wider flex items-center gap-1.5">
+              <Award className="w-4 h-4 text-amber-300" />
+              Tỷ Lệ Chuyên Cần Tháng {selectedMonth}
+            </span>
+            <span
+              className={`px-2.5 py-0.5 rounded-full text-[11px] font-bold ${
+                overallAttendanceRate >= 90
+                  ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
+                  : overallAttendanceRate >= 75
+                  ? 'bg-amber-500/20 text-amber-300 border border-amber-500/30'
+                  : 'bg-rose-500/20 text-rose-300 border border-rose-500/30'
+              }`}
+            >
+              {overallAttendanceRate >= 90 ? 'Xếp loại: Tốt' : overallAttendanceRate >= 75 ? 'Xếp loại: Khá' : 'Cần nhắc nhở'}
+            </span>
+          </div>
+
+          <div className="my-4 flex items-baseline gap-3">
+            <span className="text-4xl sm:text-5xl font-black tracking-tight text-white font-mono">
+              {overallAttendanceRate}%
+            </span>
+            <div className="text-xs text-blue-200">
+              <p className="font-semibold">{validShifts} / {totalShifts} ca hợp lệ</p>
+              <p className="text-[11px] text-blue-300/80">(Bao gồm Đúng giờ & Nghỉ có phép)</p>
+            </div>
+          </div>
+
+          {/* Thanh tiến độ */}
+          <div className="space-y-1.5">
+            <div className="w-full bg-white/10 rounded-full h-2 overflow-hidden">
+              <div
+                className={`h-full rounded-full transition-all duration-500 ${
+                  overallAttendanceRate >= 90 ? 'bg-emerald-400' : overallAttendanceRate >= 75 ? 'bg-amber-400' : 'bg-rose-400'
+                }`}
+                style={{ width: `${Math.min(100, overallAttendanceRate)}%` }}
+              ></div>
+            </div>
+            <div className="flex justify-between text-[10px] text-blue-300/80">
+              <span>Mục tiêu trường: ≥ 90%</span>
+              <span>Tổng số lượt chấm công: {totalShifts}</span>
+            </div>
+          </div>
         </div>
 
-        {/* On Time */}
-        <div className="bg-white p-4 rounded-2xl border border-slate-200/80 shadow-sm flex flex-col justify-between">
-          <div className="flex items-center justify-between">
-            <span className="text-xs font-medium text-emerald-800">Đúng giờ</span>
-            <div className="w-7 h-7 rounded-lg bg-emerald-50 text-emerald-600 flex items-center justify-center">
-              <UserCheck className="w-4 h-4" />
+        {/* Nhóm 5 Card chi tiết (7 cols) */}
+        <div className="md:col-span-7 grid grid-cols-2 sm:grid-cols-3 gap-3">
+          {/* Đúng giờ */}
+          <div className="bg-white p-4 rounded-2xl border border-slate-200/80 shadow-xs flex flex-col justify-between">
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-semibold text-emerald-800">Đúng giờ</span>
+              <div className="w-7 h-7 rounded-lg bg-emerald-50 text-emerald-600 flex items-center justify-center">
+                <UserCheck className="w-3.5 h-3.5" />
+              </div>
             </div>
+            <p className="text-2xl font-black text-emerald-700 mt-2 font-mono">{onTimeShifts}</p>
+            <span className="text-[10px] text-slate-400 mt-0.5">Ca hoàn thành tốt</span>
           </div>
-          <p className="text-2xl font-black text-emerald-700 mt-2">{summary?.onTimeCount ?? 0}</p>
-          <span className="text-[10px] text-emerald-600 mt-1">Đạt chỉ tiêu</span>
-        </div>
 
-        {/* Late */}
-        <div className="bg-white p-4 rounded-2xl border border-slate-200/80 shadow-sm flex flex-col justify-between">
-          <div className="flex items-center justify-between">
-            <span className="text-xs font-medium text-amber-800">Đi muộn</span>
-            <div className="w-7 h-7 rounded-lg bg-amber-50 text-amber-600 flex items-center justify-center">
-              <Clock className="w-4 h-4" />
+          {/* Đi muộn */}
+          <div className="bg-white p-4 rounded-2xl border border-slate-200/80 shadow-xs flex flex-col justify-between">
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-semibold text-amber-800">Đi muộn</span>
+              <div className="w-7 h-7 rounded-lg bg-amber-50 text-amber-600 flex items-center justify-center">
+                <Clock className="w-3.5 h-3.5" />
+              </div>
             </div>
+            <p className="text-2xl font-black text-amber-700 mt-2 font-mono">{lateShifts}</p>
+            <span className="text-[10px] text-slate-400 mt-0.5">Quá giờ quy định</span>
           </div>
-          <p className="text-2xl font-black text-amber-700 mt-2">{summary?.lateCount ?? 0}</p>
-          <span className="text-[10px] text-amber-600 mt-1">Quá ngưỡng quy định</span>
-        </div>
 
-        {/* Early Leave */}
-        <div className="bg-white p-4 rounded-2xl border border-slate-200/80 shadow-sm flex flex-col justify-between">
-          <div className="flex items-center justify-between">
-            <span className="text-xs font-medium text-orange-800">Về sớm</span>
-            <div className="w-7 h-7 rounded-lg bg-orange-50 text-orange-600 flex items-center justify-center">
-              <Clock className="w-4 h-4" />
+          {/* Về sớm */}
+          <div className="bg-white p-4 rounded-2xl border border-slate-200/80 shadow-xs flex flex-col justify-between">
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-semibold text-orange-800">Về sớm</span>
+              <div className="w-7 h-7 rounded-lg bg-orange-50 text-orange-600 flex items-center justify-center">
+                <Clock className="w-3.5 h-3.5" />
+              </div>
             </div>
+            <p className="text-2xl font-black text-orange-700 mt-2 font-mono">{earlyLeaveShifts}</p>
+            <span className="text-[10px] text-slate-400 mt-0.5">Trước giờ kết thúc</span>
           </div>
-          <p className="text-2xl font-black text-orange-700 mt-2">{summary?.earlyLeaveCount ?? 0}</p>
-          <span className="text-[10px] text-orange-600 mt-1">Trước giờ kết thúc</span>
-        </div>
 
-        {/* Absent */}
-        <div className="bg-white p-4 rounded-2xl border border-slate-200/80 shadow-sm flex flex-col justify-between">
-          <div className="flex items-center justify-between">
-            <span className="text-xs font-medium text-rose-800">Vắng không phép</span>
-            <div className="w-7 h-7 rounded-lg bg-rose-50 text-rose-600 flex items-center justify-center">
-              <UserX className="w-4 h-4" />
+          {/* Vắng không phép */}
+          <div className="bg-white p-4 rounded-2xl border border-slate-200/80 shadow-xs flex flex-col justify-between">
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-semibold text-rose-800">Vắng không phép</span>
+              <div className="w-7 h-7 rounded-lg bg-rose-50 text-rose-600 flex items-center justify-center">
+                <UserX className="w-3.5 h-3.5" />
+              </div>
             </div>
+            <p className="text-2xl font-black text-rose-700 mt-2 font-mono">{absentShifts}</p>
+            <span className="text-[10px] text-rose-600 font-semibold mt-0.5">Cần giải trình</span>
           </div>
-          <p className="text-2xl font-black text-rose-700 mt-2">{summary?.absentCount ?? 0}</p>
-          <span className="text-[10px] text-rose-600 mt-1">Cần lập biên bản</span>
-        </div>
 
-        {/* Excused Leave */}
-        <div className="bg-white p-4 rounded-2xl border border-slate-200/80 shadow-sm flex flex-col justify-between">
-          <div className="flex items-center justify-between">
-            <span className="text-xs font-medium text-blue-800">Nghỉ có phép</span>
-            <div className="w-7 h-7 rounded-lg bg-blue-50 text-blue-600 flex items-center justify-center">
-              <CheckCircle2 className="w-4 h-4" />
+          {/* Nghỉ có phép */}
+          <div className="bg-white p-4 rounded-2xl border border-slate-200/80 shadow-xs flex flex-col justify-between col-span-2 sm:col-span-2">
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-semibold text-blue-800">Nghỉ có phép (Hợp lệ)</span>
+              <div className="w-7 h-7 rounded-lg bg-blue-50 text-blue-600 flex items-center justify-center">
+                <CheckCircle2 className="w-3.5 h-3.5" />
+              </div>
             </div>
+            <div className="flex items-baseline gap-2 mt-2">
+              <p className="text-2xl font-black text-blue-700 font-mono">{excusedShifts}</p>
+              <span className="text-xs text-slate-500 font-normal">ca nghỉ</span>
+              <span className="text-slate-300">•</span>
+              <span className="text-xs text-blue-600 font-semibold font-mono">
+                Đã duyệt: {summary?.approvedLeaveDays ?? 0} ngày
+              </span>
+            </div>
+            <span className="text-[10px] text-slate-400 mt-0.5">Đơn đã được phê duyệt chính thức</span>
           </div>
-          <p className="text-2xl font-black text-blue-700 mt-2">{summary?.excusedAbsenceCount ?? 0}</p>
-          <span className="text-[10px] text-blue-600 mt-1">
-            Đã duyệt: {summary?.approvedLeaveDays ?? 0} ngày
-          </span>
         </div>
       </div>
 
-      {/* 3 Interactive Charts Grid (Task 5) */}
+      {/* 3 Interactive Charts Grid */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 print:break-inside-avoid">
         {/* Chart 1: Donut (1 Col) */}
         <div className="lg:col-span-1">
@@ -271,12 +456,28 @@ export const AttendanceDashboardPage: React.FC = () => {
 
       {/* Detailed Monthly Table */}
       <div className="bg-white rounded-2xl border border-slate-200/80 shadow-sm overflow-hidden print:border-none print:shadow-none">
-        <div className="p-4 border-b border-slate-200/80 bg-slate-50/60 flex items-center justify-between">
-          <h3 className="text-sm font-bold text-slate-900 flex items-center gap-2">
-            <Users className="w-4 h-4 text-blue-600" />
-            Bảng Tổng Hợp Công Tác Chi Tiết Theo Cán Bộ / Giảng Viên (Tháng {selectedMonth}/{selectedYear})
-          </h3>
-          <span className="text-xs text-slate-500 font-mono">Tổng số: {staffList.length} nhân sự</span>
+        <div className="p-4 border-b border-slate-200/80 bg-slate-50/60 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div>
+            <h3 className="text-sm font-bold text-slate-900 flex items-center gap-2">
+              <Users className="w-4 h-4 text-blue-600" />
+              Bảng Tổng Hợp Công Tác Chi Tiết Theo Cán Bộ / Giảng Viên (Tháng {selectedMonth}/{selectedYear})
+            </h3>
+            <p className="text-[11px] text-slate-500 mt-0.5">
+              Hiển thị {filteredStaffList.length} / {staffList.length} nhân sự
+            </p>
+          </div>
+
+          {/* Quick Search */}
+          <div className="relative w-full sm:w-64 print:hidden">
+            <Search className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+            <input
+              type="text"
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              placeholder="Tìm theo tên, email, vai trò..."
+              className="w-full pl-8 pr-3 py-1.5 bg-white text-xs border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
+            />
+          </div>
         </div>
 
         <div className="overflow-x-auto">
@@ -304,14 +505,14 @@ export const AttendanceDashboardPage: React.FC = () => {
                     Đang tính toán dữ liệu bảng công...
                   </td>
                 </tr>
-              ) : staffList.length === 0 ? (
+              ) : filteredStaffList.length === 0 ? (
                 <tr>
                   <td colSpan={11} className="py-10 text-center text-slate-400">
-                    Không có dữ liệu nhân sự trong tháng này.
+                    {searchTerm ? 'Không tìm thấy nhân sự phù hợp với từ khóa.' : 'Không có dữ liệu nhân sự trong tháng này.'}
                   </td>
                 </tr>
               ) : (
-                staffList.map((item, idx) => {
+                filteredStaffList.map((item, idx) => {
                   const onTimeRate =
                     item.totalWorkingDays > 0
                       ? Math.round(((item.onTimeCount + item.excusedCount) / item.totalWorkingDays) * 100)
