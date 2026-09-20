@@ -40,18 +40,44 @@ app.use(
   })
 );
 
+const defaultOrigins = [
+  'http://localhost:3000',
+  'http://localhost:5173',
+  'http://127.0.0.1:5500',
+  'http://localhost:5000',
+];
+
 const allowedOrigins = process.env.CORS_WHITELIST
-  ? process.env.CORS_WHITELIST.split(',').map((o) => o.trim())
-  : ['http://localhost:3000', 'http://localhost:5173', 'http://127.0.0.1:5500', 'http://localhost:5000'];
+  ? process.env.CORS_WHITELIST.split(',').map((o) => o.trim().replace(/\/$/, ''))
+  : defaultOrigins;
+
+if (process.env.CLIENT_URL) {
+  const clientUrl = process.env.CLIENT_URL.trim().replace(/\/$/, '');
+  if (!allowedOrigins.includes(clientUrl)) {
+    allowedOrigins.push(clientUrl);
+  }
+}
 
 app.use(
   cors({
     origin: function (origin, callback) {
-      if (!origin || allowedOrigins.includes(origin) || process.env.NODE_ENV === 'development') {
-        callback(null, true);
-      } else {
-        callback(new Error('Truy cập bị chặn bởi chính sách CORS Whitelist của máy chủ.'));
+      // Cho phép nếu không có origin (Postman, curl, native request) hoặc môi trường dev hoặc cấu hình '*'
+      if (!origin || allowedOrigins.includes('*') || process.env.NODE_ENV === 'development') {
+        return callback(null, true);
       }
+
+      const cleanOrigin = origin.replace(/\/$/, '');
+      const isAllowed = allowedOrigins.some((allowed) => {
+        const cleanAllowed = allowed.replace(/\/$/, '');
+        return cleanAllowed === cleanOrigin || cleanAllowed === '*';
+      });
+
+      if (isAllowed) {
+        return callback(null, true);
+      }
+
+      console.warn(`[CORS Blocked] Origin: ${origin} không nằm trong whitelist:`, allowedOrigins);
+      return callback(new Error('Truy cập bị chặn bởi chính sách CORS Whitelist của máy chủ.'));
     },
     credentials: true,
   })
