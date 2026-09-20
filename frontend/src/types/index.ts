@@ -45,7 +45,7 @@ export interface Department {
   _id: string;
   name: string;
   code?: string;
-  type?: 'truong' | 'khoa' | 'bomon' | 'phongban';
+  type?: 'khoa' | 'bomon' | 'phongban';
   parentId?: string | null | Department;
   managerId?: string | null | User;
   location?: {

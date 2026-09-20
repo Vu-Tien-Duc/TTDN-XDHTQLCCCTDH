@@ -16,6 +16,7 @@ const {
 const { runDailyAbsentCheck } = require('../services/cron.service');
 const { sendSuccess, sendError } = require('../utils/responseHandler');
 const ERROR_CODES = require('../utils/errorCodes');
+const { getDeanScopedUserIds, isUserInDeanScope } = require('../utils/deanScope');
 
 /**
  * @desc Thực hiện Check-in tự động xác định ca và lịch làm việc
@@ -274,13 +275,11 @@ const getAttendanceHistory = async (req, res, next) => {
       // Giảng viên / Nhân viên: Hệ thống ép điều kiện chỉ xem lịch sử của chính mình
       query.userId = req.user.id;
     } else if (req.user.role === 'truongkhoa') {
-      // Trưởng khoa: Tự động lọc danh sách nhân sự thuộc khoa của mình (departmentId), không được xem ngoài khoa
-      const myDeptId = req.user.departmentId || (await User.findById(req.user.id))?.departmentId?.toString();
-      if (!myDeptId) {
-        return sendError(res, 'Tài khoản Trưởng khoa chưa được gán vào khoa/phòng ban nào.', null, 400);
+      // Trưởng khoa: Tự động lọc danh sách nhân sự thuộc khoa và các bộ môn con trực thuộc
+      const facultyUserIds = await getDeanScopedUserIds(req.user);
+      if (!facultyUserIds.length) {
+        return sendError(res, 'Tài khoản Trưởng khoa chưa được gán vào khoa/phòng ban nào hoặc khoa không có nhân sự.', null, 400);
       }
-      const facultyUsers = await User.find({ departmentId: myDeptId }).select('_id');
-      const facultyUserIds = facultyUsers.map((u) => u._id.toString());
 
       if (userId) {
         if (!facultyUserIds.includes(userId.toString())) {
@@ -371,9 +370,8 @@ const getAttendanceById = async (req, res, next) => {
         return sendError(res, 'Bạn không có quyền xem bản ghi chấm công của người khác.', null, 403);
       }
     } else if (req.user.role === 'truongkhoa') {
-      const myDeptId = req.user.departmentId || (await User.findById(req.user.id))?.departmentId?.toString();
-      const logUserDept = log.userId?.departmentId ? log.userId.departmentId.toString() : null;
-      if (!logUserDept || logUserDept !== myDeptId) {
+      const inScope = await isUserInDeanScope(req.user, log.userId._id || log.userId);
+      if (!inScope) {
         return sendError(res, 'Bạn không có quyền xem bản ghi chấm công của nhân sự ngoài khoa.', null, 403);
       }
     }

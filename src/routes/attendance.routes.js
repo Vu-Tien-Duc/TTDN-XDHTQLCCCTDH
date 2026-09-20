@@ -8,7 +8,7 @@ const {
   updateAttendanceByAdmin,
   triggerDailyAbsentCheck,
 } = require('../controllers/attendance.controller');
-const { verifyToken, verifyRole, authorizeRoles } = require('../middlewares/auth.middleware');
+const { verifyToken, authorizeRoles } = require('../middlewares/auth.middleware');
 
 /**
  * @swagger

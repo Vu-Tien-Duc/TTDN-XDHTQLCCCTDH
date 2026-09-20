@@ -3,14 +3,9 @@ const User = require('../models/user.model');
 const Department = require('../models/department.model');
 const AuditLog = require('../models/auditLog.model');
 const { sendSuccess, sendError } = require('../utils/responseHandler');
+const { getDeanDepartmentIds } = require('../utils/deanScope');
 
 const ADMIN_ROLE = 'admin';
-
-const getDeanDepartmentIds = async (user) => {
-  if (!user.departmentId) return [];
-  const childIds = await Department.find({ parentId: user.departmentId }).distinct('_id');
-  return [user.departmentId, ...childIds];
-};
 
 /**
  * @desc Lấy danh sách người dùng (Hỗ trợ lọc, tìm kiếm; Trưởng khoa chỉ xem thuộc khoa mình)
@@ -37,10 +32,37 @@ const getAllUsers = async (req, res, next) => {
     if (role) query.role = role;
     if (isActive !== undefined) query.isActive = isActive === 'true';
     if (search) {
+      // Escape ký tự đặc biệt phòng chống Regex DoS (ReDoS)
+      const safeSearch = search.trim().replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
       query.$or = [
-        { fullName: { $regex: search, $options: 'i' } },
-        { email: { $regex: search, $options: 'i' } },
+        { fullName: { $regex: safeSearch, $options: 'i' } },
+        { email: { $regex: safeSearch, $options: 'i' } },
       ];
+    }
+
+    // Hỗ trợ phân trang linh hoạt, giữ tương thích ngược nếu không truyền page/limit
+    const { page, limit } = req.query;
+    if (page !== undefined || limit !== undefined) {
+      const pageNum = Math.max(1, parseInt(page, 10) || 1);
+      const limitNum = Math.min(100, Math.max(1, parseInt(limit, 10) || 20));
+      const skip = (pageNum - 1) * limitNum;
+
+      const [users, total] = await Promise.all([
+        User.find(query)
+          .populate('departmentId', 'name type')
+          .sort({ createdAt: -1 })
+          .skip(skip)
+          .limit(limitNum),
+        User.countDocuments(query),
+      ]);
+
+      return sendSuccess(res, 'Lấy danh sách người dùng thành công.', {
+        total,
+        page: pageNum,
+        limit: limitNum,
+        totalPages: Math.ceil(total / limitNum),
+        data: users,
+      });
     }
 
     const users = await User.find(query)
@@ -91,14 +113,30 @@ const createUser = async (req, res, next) => {
       return sendError(res, 'Vui lòng cung cấp đầy đủ họ tên, email, mật khẩu và departmentId.', null, 400);
     }
 
-    const existingUser = await User.findOne({ email });
+    const normalizedEmail = email.trim().toLowerCase();
+    const existingUser = await User.findOne({ email: normalizedEmail });
     if (existingUser) {
       return sendError(res, 'Email đã tồn tại trên hệ thống.', null, 400);
     }
 
+    // Kiểm tra tính tồn tại của phòng ban
+    const dept = await Department.findById(departmentId);
+    if (!dept) {
+      return sendError(res, 'Khoa / Phòng ban chỉ định không tồn tại.', null, 404);
+    }
+
     const requestedRole = role || 'giangvien';
+    const VALID_ROLES = ['admin', 'truongkhoa', 'giangvien', 'nhanvien'];
+    if (!VALID_ROLES.includes(requestedRole)) {
+      return sendError(res, `Vai trò không hợp lệ. Chỉ chấp nhận một trong các vai trò: ${VALID_ROLES.join(', ')}`, null, 400);
+    }
+
     if (requestedRole === ADMIN_ROLE) {
       return sendError(res, 'Không thể bổ nhiệm quyền Quản trị viên qua chức năng quản lý cán bộ.', null, 403);
+    }
+
+    if (requestedRole === 'truongkhoa' && dept.type !== 'khoa') {
+      return sendError(res, 'Chức vụ Trưởng khoa chỉ áp dụng cho đơn vị là Khoa đào tạo, không áp dụng cho Bộ môn hoặc Phòng ban.', null, 400);
     }
 
     // Mã hóa mật khẩu bcrypt với cost 12
@@ -154,6 +192,8 @@ const updateUser = async (req, res, next) => {
     const { fullName, departmentId, role, isActive, annualLeaveQuota } = req.body;
     const updateData = {};
 
+    const isSelf = req.user.id === targetUser._id.toString();
+
     // Phân quyền cập nhật giữa Admin và Trưởng khoa:
     if (req.user.role === 'truongkhoa') {
       const targetDeptId = targetUser.departmentId ? targetUser.departmentId.toString() : null;
@@ -169,11 +209,76 @@ const updateUser = async (req, res, next) => {
       if (fullName !== undefined) updateData.fullName = fullName;
       if (annualLeaveQuota !== undefined) updateData.annualLeaveQuota = annualLeaveQuota;
     } else {
+      const VALID_ROLES = ['admin', 'truongkhoa', 'giangvien', 'nhanvien'];
+      if (role !== undefined && !VALID_ROLES.includes(role)) {
+        return sendError(res, `Vai trò không hợp lệ. Chỉ chấp nhận một trong các vai trò: ${VALID_ROLES.join(', ')}`, null, 400);
+      }
+
       if (role === ADMIN_ROLE && targetUser.role !== ADMIN_ROLE) {
         return sendError(res, 'Không thể bổ nhiệm quyền Quản trị viên cho người dùng.', null, 403);
       }
 
-      // Admin có toàn quyền sửa đổi
+      // 1. Chặn Admin tự khóa tài khoản của chính mình
+      if (isSelf && isActive !== undefined && (isActive === false || isActive === 'false')) {
+        return sendError(res, 'Quản trị viên không thể tự khóa tài khoản của chính mình.', null, 400);
+      }
+
+      // 2. Chặn Admin tự hạ quyền của chính mình
+      if (isSelf && role !== undefined && role !== ADMIN_ROLE) {
+        return sendError(res, 'Quản trị viên không thể tự hạ quyền của chính mình.', null, 400);
+      }
+
+      // 3. Bảo vệ số lượng Admin tối thiểu (không hạ hoặc khóa Admin cuối cùng)
+      const isDemotingAdmin = targetUser.role === ADMIN_ROLE && role !== undefined && role !== ADMIN_ROLE;
+      const isDeactivatingAdmin = targetUser.role === ADMIN_ROLE && (isActive === false || isActive === 'false');
+      if (isDemotingAdmin || isDeactivatingAdmin) {
+        const activeAdminCount = await User.countDocuments({ role: ADMIN_ROLE, isActive: true });
+        if (activeAdminCount <= 1) {
+          return sendError(res, 'Không thể khóa hoặc hạ quyền Quản trị viên cuối cùng đang hoạt động trong hệ thống.', null, 400);
+        }
+      }
+
+      // 4. Kiểm tra sự tồn tại của phòng ban nếu được cập nhật
+      if (departmentId !== undefined) {
+        const deptExists = await Department.findById(departmentId);
+        if (!deptExists) {
+          return sendError(res, 'Khoa / Phòng ban chỉ định không tồn tại.', null, 404);
+        }
+      }
+
+      // 5. Kiểm tra tính hợp lệ khi bổ nhiệm Trưởng khoa
+      if (role === 'truongkhoa') {
+        const targetDeptId = departmentId || targetUser.departmentId;
+        const facultyDept = await Department.findById(targetDeptId);
+        if (!facultyDept) {
+          return sendError(res, 'Khoa chỉ định để bổ nhiệm Trưởng khoa không tồn tại.', null, 404);
+        }
+        if (facultyDept.type !== 'khoa') {
+          return sendError(res, 'Chức vụ Trưởng khoa chỉ áp dụng cho đơn vị là Khoa đào tạo, không áp dụng cho Bộ môn hoặc Phòng ban.', null, 400);
+        }
+
+        const willBeActive = isActive !== undefined ? (isActive === true || isActive === 'true') : targetUser.isActive;
+        if (!willBeActive) {
+          return sendError(res, 'Không thể bổ nhiệm Trưởng khoa cho tài khoản đang bị vô hiệu hóa.', null, 400);
+        }
+
+        // Nếu khoa này đang do người khác phụ trách, tự động gỡ Trưởng khoa cũ
+        if (facultyDept.managerId && facultyDept.managerId.toString() !== targetUser._id.toString()) {
+          const oldManagerId = facultyDept.managerId;
+          const otherFaculties = await Department.countDocuments({
+            managerId: oldManagerId,
+            _id: { $ne: facultyDept._id },
+            type: 'khoa',
+          });
+          if (otherFaculties === 0) {
+            await User.updateOne({ _id: oldManagerId, role: 'truongkhoa' }, { role: 'giangvien' });
+          }
+        }
+        facultyDept.managerId = targetUser._id;
+        await facultyDept.save();
+      }
+
+      // Admin có toàn quyền sửa đổi các trường hợp lệ
       if (fullName !== undefined) updateData.fullName = fullName;
       if (departmentId !== undefined) updateData.departmentId = departmentId;
       if (role !== undefined) updateData.role = role;
@@ -187,14 +292,9 @@ const updateUser = async (req, res, next) => {
       { returnDocument: 'after', runValidators: true }
     ).populate('departmentId', 'name type');
 
-    // Đồng bộ chức vụ Trưởng khoa hai chiều:
+    // Đồng bộ chức vụ Trưởng khoa khi bị giáng chức:
     if (role !== undefined && role !== 'truongkhoa' && targetUser.role === 'truongkhoa') {
-      // Bị chuyển vai trò khỏi Trưởng khoa -> Gỡ managerId ở các khoa người này từng phụ trách
       await Department.updateMany({ managerId: targetUser._id }, { managerId: null });
-    } else if (role === 'truongkhoa' && (departmentId || targetUser.departmentId)) {
-      // Được nâng vai trò lên Trưởng khoa -> Gán làm managerId cho khoa trực thuộc
-      const targetDeptId = departmentId || targetUser.departmentId;
-      await Department.findByIdAndUpdate(targetDeptId, { managerId: targetUser._id });
     }
 
     // Ghi nhận Audit Log tự động khi cập nhật thông tin người dùng
@@ -220,14 +320,28 @@ const updateUser = async (req, res, next) => {
  */
 const deleteUser = async (req, res, next) => {
   try {
+    if (req.params.id === req.user.id) {
+      return sendError(res, 'Quản trị viên không thể tự xóa hoặc vô hiệu hóa tài khoản của chính mình.', null, 400);
+    }
+
+    const targetUser = await User.findById(req.params.id);
+    if (!targetUser) {
+      return sendError(res, 'Không tìm thấy người dùng để xóa.', null, 404);
+    }
+
+    // Bảo vệ số lượng Admin tối thiểu
+    if (targetUser.role === ADMIN_ROLE) {
+      const activeAdminCount = await User.countDocuments({ role: ADMIN_ROLE, isActive: true });
+      if (activeAdminCount <= 1) {
+        return sendError(res, 'Không thể vô hiệu hóa Quản trị viên cuối cùng đang hoạt động trong hệ thống.', null, 400);
+      }
+    }
+
     const softDeleted = await User.findByIdAndUpdate(
       req.params.id,
       { isActive: false },
       { returnDocument: 'after' }
     );
-    if (!softDeleted) {
-      return sendError(res, 'Không tìm thấy người dùng để xóa.', null, 404);
-    }
 
     // Nếu người dùng này đang là Trưởng đơn vị của Khoa/Bộ môn, tự động gỡ để tránh giữ tài khoản bị vô hiệu hóa
     const managedDepts = await Department.find({ managerId: softDeleted._id });
