@@ -6,6 +6,8 @@ const {
   createUser,
   updateUser,
   deleteUser,
+  registerFaceDescriptor,
+  deleteFaceDescriptor,
 } = require('../controllers/user.controller');
 const { verifyToken, verifyRole } = require('../middlewares/auth.middleware');
 
@@ -18,13 +20,17 @@ router.get('/', verifyRole(['admin', 'truongkhoa']), getAllUsers);
 // 2. Thêm người dùng mới (Chỉ Admin)
 router.post('/', verifyRole(['admin']), createUser);
 
-// 3. Xem chi tiết người dùng (Admin và Trưởng khoa của khoa đó)
+// 3. Đăng ký & Xóa vector khuôn mặt Face ID (Chỉ Admin)
+router.post('/:id/face-descriptor', verifyRole(['admin']), registerFaceDescriptor);
+router.delete('/:id/face-descriptor', verifyRole(['admin']), deleteFaceDescriptor);
+
+// 4. Xem chi tiết người dùng (Admin và Trưởng khoa của khoa đó)
 router.get('/:id', verifyRole(['admin', 'truongkhoa']), getUserById);
 
-// 4. Cập nhật thông tin người dùng (Admin hoặc Trưởng khoa)
+// 5. Cập nhật thông tin người dùng (Admin hoặc Trưởng khoa)
 router.put('/:id', verifyRole(['admin', 'truongkhoa']), updateUser);
 
-// 5. Vô hiệu hóa người dùng (Soft Delete: isActive = false) (Chỉ Admin)
+// 6. Vô hiệu hóa người dùng (Soft Delete: isActive = false) (Chỉ Admin)
 router.delete('/:id', verifyRole(['admin']), deleteUser);
 
 module.exports = router;

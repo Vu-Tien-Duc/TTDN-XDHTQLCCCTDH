@@ -3,6 +3,8 @@ const User = require('../models/user.model');
 const Department = require('../models/department.model');
 const AuditLog = require('../models/auditLog.model');
 const { sendSuccess, sendError } = require('../utils/responseHandler');
+const ERROR_CODES = require('../utils/errorCodes');
+const { euclideanDistance, FACE_MATCH_THRESHOLD, invalidateFaceCache } = require('../services/attendance.service');
 
 const ADMIN_ROLE = 'admin';
 
@@ -13,16 +15,15 @@ const getDeanDepartmentIds = async (user) => {
 };
 
 /**
- * @desc Lấy danh sách người dùng (Hỗ trợ lọc, tìm kiếm; Trưởng khoa chỉ xem thuộc khoa mình)
+ * @desc Lấy danh sách người dùng (Hỗ trợ lọc, tìm kiếm, phân trang; Trưởng khoa chỉ xem thuộc khoa mình)
  * @route GET /api/v1/users
  */
 const getAllUsers = async (req, res, next) => {
   try {
-    const { role, departmentId, isActive, search } = req.query;
+    const { role, departmentId, isActive, search, page, limit } = req.query;
     const query = {};
 
     // 1. Phân quyền dữ liệu theo phạm vi (Scope RBAC):
-    // Trưởng khoa chỉ được phép xem danh sách nhân sự thuộc khoa của mình
     if (req.user.role === 'truongkhoa') {
       if (!req.user.departmentId) {
         return sendError(res, 'Tài khoản Trưởng khoa chưa được gán mã khoa trực thuộc.', null, 403);
@@ -30,7 +31,6 @@ const getAllUsers = async (req, res, next) => {
       const departmentIds = await getDeanDepartmentIds(req.user);
       query.departmentId = { $in: departmentIds };
     } else if (departmentId) {
-      // Admin có thể chỉ định lọc theo bất kỳ phòng ban nào
       query.departmentId = departmentId;
     }
 
@@ -43,11 +43,43 @@ const getAllUsers = async (req, res, next) => {
       ];
     }
 
-    const users = await User.find(query)
+    const pageNum = parseInt(page, 10);
+    const limitNum = parseInt(limit, 10);
+    const isPaginated = !isNaN(pageNum) && !isNaN(limitNum) && pageNum > 0 && limitNum > 0;
+
+    const total = await User.countDocuments(query);
+    const queryBuilder = User.find(query)
+      .select('+faceDescriptor +faceDescriptors')
       .populate('departmentId', 'name type')
       .sort({ createdAt: -1 });
 
-    return sendSuccess(res, 'Lấy danh sách người dùng thành công.', users);
+    if (isPaginated) {
+      queryBuilder.skip((pageNum - 1) * limitNum).limit(limitNum);
+    }
+
+    const users = await queryBuilder;
+
+    const formattedUsers = users.map((u) => {
+      const obj = u.toObject();
+      obj.faceRegistered = Boolean(
+        (Array.isArray(u.faceDescriptors) && u.faceDescriptors.length > 0) ||
+        (Array.isArray(u.faceDescriptor) && u.faceDescriptor.length === 128)
+      );
+      delete obj.faceDescriptor;
+      delete obj.faceDescriptors;
+      return obj;
+    });
+
+    if (isPaginated) {
+      return sendSuccess(res, 'Lấy danh sách người dùng thành công.', {
+        total,
+        page: pageNum,
+        totalPages: Math.ceil(total / limitNum),
+        records: formattedUsers,
+      });
+    }
+
+    return sendSuccess(res, 'Lấy danh sách người dùng thành công.', formattedUsers);
   } catch (error) {
     next(error);
   }
@@ -261,10 +293,183 @@ const deleteUser = async (req, res, next) => {
   }
 };
 
+/**
+ * @desc Đăng ký vector khuôn mặt 128 chiều cho người dùng (Face ID)
+ * @route POST /api/users/:id/face-descriptor
+ * @access Admin only
+ */
+const registerFaceDescriptor = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    const { faceDescriptor, faceDescriptors } = req.body;
+    let descriptorList = [];
+
+    if (Array.isArray(faceDescriptors) && faceDescriptors.length > 0) {
+      for (let idx = 0; idx < faceDescriptors.length; idx++) {
+        const d = faceDescriptors[idx];
+        if (!Array.isArray(d) || d.length !== 128) {
+          return sendError(res, `Vector thứ ${idx + 1} trong faceDescriptors phải có đúng 128 số.`, null, 400);
+        }
+        if (!d.every((v) => typeof v === 'number' && !isNaN(v))) {
+          return sendError(res, `Vector thứ ${idx + 1} chứa phần tử không phải số thực.`, null, 400);
+        }
+      }
+      descriptorList = faceDescriptors;
+    } else if (Array.isArray(faceDescriptor) && faceDescriptor.length === 128) {
+      if (!faceDescriptor.every((v) => typeof v === 'number' && !isNaN(v))) {
+        return sendError(res, 'Tất cả phần tử trong faceDescriptor phải là số thực hợp lệ.', null, 400);
+      }
+      descriptorList = [faceDescriptor];
+    } else {
+      return sendError(
+        res,
+        'Yêu cầu faceDescriptor (128 số) hoặc faceDescriptors (mảng các mẫu vector 128 số).',
+        null,
+        400
+      );
+    }
+
+    // 2. Kiểm tra user tồn tại
+    const targetUser = await User.findById(id);
+    if (!targetUser) {
+      return sendError(res, 'Không tìm thấy người dùng.', null, 404, ERROR_CODES.USER_NOT_FOUND);
+    }
+
+    // 3. Kiểm tra tính độc nhất của khuôn mặt (Chống trùng lặp giữa các tài khoản)
+    const otherUsersWithFace = await User.find({
+      _id: { $ne: targetUser._id },
+      isActive: true,
+      $or: [
+        { faceDescriptor: { $exists: true, $ne: null } },
+        { faceDescriptors: { $exists: true, $not: { $size: 0 } } },
+      ],
+    }).select('+faceDescriptor +faceDescriptors fullName email role departmentId');
+
+    let duplicateUser = null;
+    let closestDistance = Infinity;
+
+    for (const other of otherUsersWithFace) {
+      const otherCandidates = [];
+      if (Array.isArray(other.faceDescriptors) && other.faceDescriptors.length > 0) {
+        otherCandidates.push(...other.faceDescriptors);
+      } else if (Array.isArray(other.faceDescriptor) && other.faceDescriptor.length === 128) {
+        otherCandidates.push(other.faceDescriptor);
+      }
+
+      for (const inputVec of descriptorList) {
+        for (const existVec of otherCandidates) {
+          const dist = euclideanDistance(inputVec, existVec);
+          if (dist < closestDistance) closestDistance = dist;
+          if (dist < FACE_MATCH_THRESHOLD) {
+            duplicateUser = other;
+            break;
+          }
+        }
+        if (duplicateUser) break;
+      }
+      if (duplicateUser) break;
+    }
+
+    if (duplicateUser) {
+      return sendError(
+        res,
+        `Khuôn mặt này đã được đăng ký cho tài khoản "${duplicateUser.fullName}" (${duplicateUser.email}). Mỗi tài khoản chỉ được sở hữu một khuôn mặt duy nhất trên hệ thống!`,
+        {
+          duplicateUserId: duplicateUser._id,
+          duplicateFullName: duplicateUser.fullName,
+          duplicateEmail: duplicateUser.email,
+          distance: +closestDistance.toFixed(4),
+          threshold: FACE_MATCH_THRESHOLD,
+        },
+        409,
+        ERROR_CODES.USER_FACE_ALREADY_REGISTERED
+      );
+    }
+
+    // 4. Lưu faceDescriptor & faceDescriptors đa góc
+    targetUser.faceDescriptor = descriptorList[0];
+    targetUser.faceDescriptors = descriptorList;
+    await targetUser.save();
+
+    // 5. Xóa RAM cache để kiosk nhận diện ngay mẫu mới
+    invalidateFaceCache();
+
+    // 6. Ghi AuditLog
+    await AuditLog.create({
+      actor: req.user.id,
+      action: 'REGISTER_FACE_DESCRIPTOR',
+      targetId: targetUser._id.toString(),
+      targetType: 'User',
+      ipAddress: req.ip || req.connection?.remoteAddress,
+      timestamp: new Date(),
+      details: {
+        targetEmail: targetUser.email,
+        targetFullName: targetUser.fullName,
+        samplesCount: descriptorList.length,
+      },
+    });
+
+    return sendSuccess(res, 'Đăng ký vector khuôn mặt thành công.', {
+      userId: targetUser._id,
+      fullName: targetUser.fullName,
+      email: targetUser.email,
+      faceRegistered: true,
+      samplesCount: descriptorList.length,
+    }, 200);
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * @desc Xóa vector khuôn mặt Face ID của người dùng
+ * @route DELETE /api/users/:id/face-descriptor
+ * @access Admin only
+ */
+const deleteFaceDescriptor = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    const targetUser = await User.findById(id);
+    if (!targetUser) {
+      return sendError(res, 'Không tìm thấy người dùng.', null, 404, ERROR_CODES.USER_NOT_FOUND);
+    }
+
+    targetUser.faceDescriptor = undefined;
+    targetUser.faceDescriptors = undefined;
+    await targetUser.save();
+
+    // Xóa RAM cache
+    invalidateFaceCache();
+
+    await AuditLog.create({
+      actor: req.user.id,
+      action: 'DELETE_FACE_DESCRIPTOR',
+      targetId: targetUser._id.toString(),
+      targetType: 'User',
+      ipAddress: req.ip || req.connection?.remoteAddress,
+      timestamp: new Date(),
+      details: {
+        targetEmail: targetUser.email,
+        targetFullName: targetUser.fullName,
+      },
+    });
+
+    return sendSuccess(res, `Đã xóa dữ liệu Face ID của ${targetUser.fullName}.`, {
+      userId: targetUser._id,
+      fullName: targetUser.fullName,
+      faceRegistered: false,
+    }, 200);
+  } catch (error) {
+    next(error);
+  }
+};
+
 module.exports = {
   getAllUsers,
   getUserById,
   createUser,
   updateUser,
   deleteUser,
+  registerFaceDescriptor,
+  deleteFaceDescriptor,
 };

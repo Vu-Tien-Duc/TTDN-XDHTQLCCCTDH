@@ -342,6 +342,7 @@ const seedData = async () => {
     console.log('  - 2 Trưởng khoa: Trưởng khoa CNTT & CĐS, Trưởng khoa Kinh tế - QTKD');
     console.log('  - 4 Giảng viên: KTPM, HTTT, Kế toán, Thiết kế đồ họa');
     console.log('  - 2 Nhân viên hành chính: Phòng Đào tạo & Phòng Khảo thí');
+    console.log('  - ✔ Đã tích hợp sẵn Vector Face ID 128 số chuẩn hóa cho 5 tài khoản nòng cốt (Admin IT, TS. Bích, ThS. Cường, ThS. Linh, Đỗ Thu Hà)');
 
     console.log('\n--- 4. TẠO CÁC CA LÀM VIỆC CHUẨN (SHIFT_CONFIGS) ---');
     const shiftMorning = await ShiftConfig.create({
