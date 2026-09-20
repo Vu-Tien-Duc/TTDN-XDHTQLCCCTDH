@@ -1,7 +1,5 @@
-import React, { useEffect } from 'react';
+import React from 'react';
 import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom';
-import { useAuth } from '../contexts/AuthContext';
-import { axiosClient } from '../api/axiosClient';
 import { MainLayout } from '../layouts/MainLayout';
 import { ProtectedRoute, UnauthorizedPage } from './ProtectedRoute';
 
@@ -9,7 +7,6 @@ import { ProtectedRoute, UnauthorizedPage } from './ProtectedRoute';
 import {
   LoginPage,
   DashboardPage,
-  PlaceholderPage,
   DepartmentsPage,
   ShiftsPage,
   UsersPage,
@@ -26,37 +23,6 @@ import AttendanceDashboardPage from '../pages/dashboard/AttendanceDashboardPage'
 import AiInspectorPage from '../pages/ai/AiInspectorPage';
 
 export const AppRoutes: React.FC = () => {
-  const { user, login, isLoading } = useAuth();
-
-  // Tự động khởi tạo phiên demo Giảng viên nếu chưa đăng nhập và không ở trang login
-  useEffect(() => {
-    const autoInitDemoAuth = async () => {
-      const isAuthPath =
-        window.location.pathname === '/login' ||
-        window.location.pathname === '/unauthorized';
-
-      if (!user && !isLoading && !isAuthPath) {
-        try {
-          const res = (await axiosClient.post('/auth/login', {
-            email: 'giangvien.bich@university.edu.vn',
-            password: 'password123',
-          })) as unknown as {
-            success: boolean;
-            data?: { accessToken: string; user: import('../types').User };
-          };
-
-          if (res.success && res.data) {
-            login(res.data.accessToken, res.data.user);
-          }
-        } catch {
-          // Bỏ qua nếu backend chưa seed dữ liệu
-        }
-      }
-    };
-
-    autoInitDemoAuth();
-  }, [user, isLoading, login]);
-
   return (
     <BrowserRouter>
       <Routes>

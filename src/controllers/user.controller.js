@@ -187,6 +187,16 @@ const updateUser = async (req, res, next) => {
       { returnDocument: 'after', runValidators: true }
     ).populate('departmentId', 'name type');
 
+    // Đồng bộ chức vụ Trưởng khoa hai chiều:
+    if (role !== undefined && role !== 'truongkhoa' && targetUser.role === 'truongkhoa') {
+      // Bị chuyển vai trò khỏi Trưởng khoa -> Gỡ managerId ở các khoa người này từng phụ trách
+      await Department.updateMany({ managerId: targetUser._id }, { managerId: null });
+    } else if (role === 'truongkhoa' && (departmentId || targetUser.departmentId)) {
+      // Được nâng vai trò lên Trưởng khoa -> Gán làm managerId cho khoa trực thuộc
+      const targetDeptId = departmentId || targetUser.departmentId;
+      await Department.findByIdAndUpdate(targetDeptId, { managerId: targetUser._id });
+    }
+
     // Ghi nhận Audit Log tự động khi cập nhật thông tin người dùng
     await AuditLog.create({
       actor: req.user.id,
@@ -219,6 +229,12 @@ const deleteUser = async (req, res, next) => {
       return sendError(res, 'Không tìm thấy người dùng để xóa.', null, 404);
     }
 
+    // Nếu người dùng này đang là Trưởng đơn vị của Khoa/Bộ môn, tự động gỡ để tránh giữ tài khoản bị vô hiệu hóa
+    const managedDepts = await Department.find({ managerId: softDeleted._id });
+    if (managedDepts.length > 0) {
+      await Department.updateMany({ managerId: softDeleted._id }, { managerId: null });
+    }
+
     // Ghi nhận Audit Log tự động khi vô hiệu hóa người dùng (Soft delete)
     await AuditLog.create({
       actor: req.user.id,
@@ -231,10 +247,15 @@ const deleteUser = async (req, res, next) => {
         email: softDeleted.email,
         fullName: softDeleted.fullName,
         isActive: false,
+        vacatedDepartments: managedDepts.map((d) => ({ id: d._id, name: d.name })),
       },
     });
 
-    return sendSuccess(res, 'Vô hiệu hóa tài khoản người dùng thành công (soft delete).');
+    const warningNotice = managedDepts.length > 0
+      ? ` Đồng thời đã tự động miễn nhiệm chức vụ Trưởng đơn vị tại: ${managedDepts.map((d) => d.name).join(', ')}.`
+      : '';
+
+    return sendSuccess(res, `Vô hiệu hóa tài khoản người dùng thành công (soft delete).${warningNotice}`);
   } catch (error) {
     next(error);
   }

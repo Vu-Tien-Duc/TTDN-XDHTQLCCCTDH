@@ -5,21 +5,14 @@ import {
   Search,
   Filter,
   RefreshCw,
-  Calendar,
   Clock,
   Eye,
-  User as UserIcon,
   Globe,
-  Database,
   FileCode2,
-  CheckCircle2,
-  AlertTriangle,
-  Layers,
-  ArrowRight,
 } from 'lucide-react';
 import { auditLogService, AuditLogItem } from '../../services';
 import { formatDate, formatDateTime, showErrorToast } from '../../utils';
-import { Button, Badge, Modal, EmptyState } from '../../components';
+import { Button, Modal, EmptyState } from '../../components';
 
 const ACTION_MAP: Record<string, { label: string; color: string; bg: string }> = {
   APPROVE_LEAVE: { label: 'Phê Duyệt Đơn Nghỉ', color: 'text-emerald-700', bg: 'bg-emerald-50 border-emerald-200' },

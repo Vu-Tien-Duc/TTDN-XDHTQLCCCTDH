@@ -25,10 +25,14 @@ const departmentSchema = new mongoose.Schema(
     location: {
       lat: {
         type: Number,
+        min: [-90, 'Vĩ độ (lat) phải nằm trong khoảng -90 đến 90'],
+        max: [90, 'Vĩ độ (lat) phải nằm trong khoảng -90 đến 90'],
         default: null,
       },
       lng: {
         type: Number,
+        min: [-180, 'Kinh độ (lng) phải nằm trong khoảng -180 đến 180'],
+        max: [180, 'Kinh độ (lng) phải nằm trong khoảng -180 đến 180'],
         default: null,
       },
     },
@@ -38,5 +42,8 @@ const departmentSchema = new mongoose.Schema(
     collection: 'departments',
   }
 );
+
+departmentSchema.index({ parentId: 1, name: 1 });
+departmentSchema.index({ managerId: 1 });
 
 module.exports = mongoose.model('Department', departmentSchema, 'departments');

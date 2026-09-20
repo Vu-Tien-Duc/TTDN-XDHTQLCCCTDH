@@ -263,7 +263,7 @@ export const UsersPage: React.FC = () => {
               className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold shadow-md shadow-blue-500/20 transition active:scale-98"
             >
               <Plus className="w-4 h-4" />
-              <span>Thêm Người Dùng</span>
+              <span>Thêm Cán Bộ / Giảng Viên</span>
             </button>
           )}
         </div>

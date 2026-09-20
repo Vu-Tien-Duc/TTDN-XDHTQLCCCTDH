@@ -27,10 +27,10 @@ router.get('/login', (req, res) => {
 // 1. Xác thực & Đăng nhập (Áp dụng Rate Limiting tối đa 5 lần / 15 phút)
 router.post('/login', loginLimiter, login);
 
-// 2. Đăng ký tài khoản & Xác thực OTP 10 phút
+// 2. Tuyến đường đăng ký công khai (Bị chặn 403 - Chỉ Admin mới có quyền tạo tài khoản tại /api/v1/users)
 router.post('/register', register);
 router.post('/verify-otp', verifyAccount);
-router.post('/verify-account', verifyAccount); // Alias
+router.post('/verify-account', verifyAccount);
 
 // 3. Quên mật khẩu & Đặt lại mật khẩu qua OTP
 router.post('/forgot-password', forgotPassword);

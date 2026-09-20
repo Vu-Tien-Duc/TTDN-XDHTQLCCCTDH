@@ -19,9 +19,9 @@ router.get('/tree', verifyRole(['admin', 'truongkhoa', 'giangvien', 'nhanvien'])
 router.get('/', verifyRole(['admin', 'truongkhoa', 'giangvien', 'nhanvien']), getAllDepartments);
 router.get('/:id', verifyRole(['admin', 'truongkhoa', 'giangvien', 'nhanvien']), getDepartmentById);
 
-// Thao tác quản trị tổ chức
+// Thao tác quản trị tổ chức (Chỉ Quản trị viên - Admin)
 router.post('/', verifyRole(['admin']), createDepartment);
-router.put('/:id', verifyRole(['admin', 'truongkhoa']), updateDepartment);
+router.put('/:id', verifyRole(['admin']), updateDepartment);
 router.delete('/:id', verifyRole(['admin']), deleteDepartment);
 
 module.exports = router;
