@@ -7,14 +7,12 @@ import {
   Building2,
   Mail,
   Calendar,
-  Clock,
   CheckCircle2,
   AlertCircle,
   Eye,
   EyeOff,
   Lock,
   Camera,
-  RefreshCw,
   LogOut,
   Sparkles,
   Info,
@@ -22,7 +20,7 @@ import {
   UploadCloud,
 } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
-import { ROLE_LABELS, formatDate, showErrorToast, tokenStorage } from '../../utils';
+import { ROLE_LABELS, showErrorToast, tokenStorage } from '../../utils';
 import { authService, leaveService, LeaveBalanceData } from '../../services';
 import { Button, Badge } from '../../components';
 
