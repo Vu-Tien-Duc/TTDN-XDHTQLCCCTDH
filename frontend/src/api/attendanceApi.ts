@@ -56,13 +56,14 @@ export interface FaceCheckInOptions {
   mode?: 'auto' | 'check_in' | 'check_out';
   timeoutMs?: number;
   signal?: AbortSignal;
+  capturedImage?: string;
   location?: {
     lat: number;
     lng: number;
   };
 }
 
-const DEFAULT_KIOSK_KEY = (import.meta as any).env?.VITE_KIOSK_KEY || '';
+const DEFAULT_KIOSK_KEY = (import.meta as any).env?.VITE_KIOSK_KEY || 'kiosk_secret_key_university_2026';
 
 export const attendanceApi = {
   /**
@@ -135,6 +136,7 @@ export const attendanceApi = {
     let mode = legacyMode;
     let location: { lat: number; lng: number } | undefined;
     let signal: AbortSignal | undefined;
+    let capturedImage: string | undefined;
 
     if (Array.isArray(optionsOrDescriptor)) {
       faceDescriptor = optionsOrDescriptor;
@@ -144,11 +146,12 @@ export const attendanceApi = {
       mode = optionsOrDescriptor.mode || 'auto';
       signal = optionsOrDescriptor.signal;
       location = optionsOrDescriptor.location;
+      capturedImage = optionsOrDescriptor.capturedImage;
     }
 
     return axiosClient.post(
       '/attendance/face-checkin',
-      { faceDescriptor, mode, location },
+      { faceDescriptor, mode, location, capturedImage },
       {
         headers: {
           'x-kiosk-key': kioskKey,
