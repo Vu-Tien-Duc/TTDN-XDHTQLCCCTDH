@@ -5,3 +5,5 @@ export * from './admin/DepartmentsPage';
 export * from './admin/ShiftsPage';
 export * from './admin/UsersPage';
 export * from './schedule/SchedulesPage';
+export * from './profile/ProfilePage';
+export * from './admin/AuditLogsPage';

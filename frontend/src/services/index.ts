@@ -8,3 +8,4 @@ export * from './attendanceService';
 export * from './leave.service';
 export * from './report.service';
 export * from './ai.service';
+export * from './auditLogService';

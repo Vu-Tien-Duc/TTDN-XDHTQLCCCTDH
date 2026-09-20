@@ -1,7 +1,49 @@
 const mongoose = require('mongoose');
 const Department = require('../models/department.model');
 const User = require('../models/user.model');
+const AuditLog = require('../models/auditLog.model');
 const { sendSuccess, sendError } = require('../utils/responseHandler');
+
+/**
+ * Tự động đồng bộ vai trò (role) và khoa (departmentId) của người dùng khi được bổ nhiệm hoặc thôi chức
+ */
+const syncDepartmentManager = async (deptId, deptType, newManagerId, oldManagerId = null) => {
+  // 1. Nếu có Trưởng đơn vị cũ và khác Trưởng đơn vị mới
+  if (oldManagerId && (!newManagerId || oldManagerId.toString() !== newManagerId.toString())) {
+    // Kiểm tra xem người này còn đang quản lý khoa nào khác không
+    const otherDeptCount = await Department.countDocuments({
+      _id: { $ne: deptId },
+      managerId: oldManagerId,
+      type: 'khoa',
+    });
+    if (otherDeptCount === 0) {
+      // Nếu không còn quản lý khoa nào khác, chuyển về 'giangvien' nếu đang là 'truongkhoa'
+      await User.findOneAndUpdate(
+        { _id: oldManagerId, role: 'truongkhoa' },
+        { role: 'giangvien' }
+      );
+    }
+  }
+
+  // 2. Nếu có Trưởng đơn vị mới được chỉ định
+  if (newManagerId) {
+    const userToUpdate = await User.findById(newManagerId);
+    if (userToUpdate) {
+      const updates = {};
+      // Nếu đơn vị là Khoa đào tạo -> nâng quyền thành 'truongkhoa' (trừ khi người đó đang là admin)
+      if (deptType === 'khoa' && userToUpdate.role !== 'admin') {
+        updates.role = 'truongkhoa';
+      }
+      // Gán departmentId về khoa/bộ môn này nếu đang trống hoặc thuộc đơn vị khác
+      if (!userToUpdate.departmentId || userToUpdate.departmentId.toString() !== deptId.toString()) {
+        updates.departmentId = deptId;
+      }
+      if (Object.keys(updates).length > 0) {
+        await User.findByIdAndUpdate(newManagerId, updates);
+      }
+    }
+  }
+};
 
 /**
  * Kiểm tra xem potentialAncestorId có phải là con/cháu của targetDeptId không (chống vòng lặp tham chiếu)
@@ -18,13 +60,22 @@ const isDescendantOf = async (potentialAncestorId, targetDeptId) => {
   return false;
 };
 
+const getDeanDepartmentIds = async (user) => {
+  if (!user.departmentId) return [];
+  const childIds = await Department.find({ parentId: user.departmentId }).distinct('_id');
+  return [user.departmentId, ...childIds];
+};
+
 /**
  * Lấy danh sách phòng ban dạng cây phân cấp (Trường > Khoa > Bộ môn/Phòng ban)
  */
 const buildDepartmentTree = (departments, parentId = null) => {
   const tree = [];
   for (const dept of departments) {
-    const currentParentId = dept.parentId ? dept.parentId.toString() : null;
+    const rawParent = dept.parentId;
+    const currentParentId = rawParent
+      ? (rawParent._id ? rawParent._id.toString() : rawParent.toString())
+      : null;
     const targetParentId = parentId ? parentId.toString() : null;
 
     if (currentParentId === targetParentId) {
@@ -90,7 +141,18 @@ const createDepartment = async (req, res, next) => {
       return sendError(res, 'Loại đơn vị không hợp lệ. Chỉ chấp nhận khoa, bomon hoặc phongban.', null, 400);
     }
 
-    // 1. Kiểm tra ràng buộc phân cấp: Trường > Khoa > Bộ môn
+    const trimmedName = name.trim();
+
+    // 1. Kiểm tra trùng lặp tên đơn vị trong cùng cấp phân cấp (cùng parentId)
+    const duplicateDept = await Department.findOne({
+      name: { $regex: new RegExp(`^${trimmedName.replace(/[-[\]{}()*+?.,\\^$|#\s]/g, '\\$&')}$`, 'i') },
+      parentId: parentId || null,
+    });
+    if (duplicateDept) {
+      return sendError(res, `Đơn vị mang tên "${trimmedName}" đã tồn tại trong cùng cấp phân cấp.`, null, 400);
+    }
+
+    // 2. Kiểm tra ràng buộc phân cấp: Trường > Khoa > Bộ môn
     if (type === 'bomon') {
       if (!parentId) {
         return sendError(res, 'Đơn vị loại Bộ môn bắt buộc phải thuộc một Khoa (parentId không được để trống).', null, 400);
@@ -118,7 +180,7 @@ const createDepartment = async (req, res, next) => {
       }
     }
 
-    // 2. Kiểm tra tính hợp lệ của managerId nếu được cung cấp
+    // 3. Kiểm tra tính hợp lệ của managerId nếu được cung cấp
     if (managerId) {
       if (!mongoose.Types.ObjectId.isValid(managerId)) {
         return sendError(res, 'ID người quản lý (managerId) không đúng định dạng ObjectId.', null, 400);
@@ -133,11 +195,32 @@ const createDepartment = async (req, res, next) => {
     }
 
     const newDept = await Department.create({
-      name,
+      name: trimmedName,
       type,
       parentId: parentId || null,
       managerId: managerId || null,
       location: location || { lat: null, lng: null },
+    });
+
+    // 4. Tự động đồng bộ vai trò Trưởng khoa và DepartmentId cho người phụ trách
+    if (newDept.managerId) {
+      await syncDepartmentManager(newDept._id, newDept.type, newDept.managerId, null);
+    }
+
+    // 5. Ghi nhận Audit Log
+    await AuditLog.create({
+      actor: req.user.id,
+      action: 'CREATE_DEPARTMENT',
+      targetId: newDept._id.toString(),
+      targetType: 'Department',
+      ipAddress: req.ip || req.connection?.remoteAddress || null,
+      timestamp: new Date(),
+      details: {
+        name: newDept.name,
+        type: newDept.type,
+        parentId: newDept.parentId,
+        managerId: newDept.managerId,
+      },
     });
 
     const populatedDept = await Department.findById(newDept._id)
@@ -175,7 +258,38 @@ const updateDepartment = async (req, res, next) => {
       ? (req.body.managerId === 'null' || req.body.managerId === '' ? null : req.body.managerId) 
       : undefined;
 
-    // 1. Kiểm tra vòng lặp tham chiếu nếu cập nhật parentId
+    if (req.user.role === 'truongkhoa') {
+      const scopeIds = await getDeanDepartmentIds(req.user);
+      const inScope = (id) => id && scopeIds.some((scopeId) => scopeId.toString() === id.toString());
+
+      if (newParentId && !inScope(newParentId)) {
+        return sendError(res, 'Bạn không thể chuyển đơn vị sang khoa hoặc đơn vị ngoài phạm vi quản lý.', null, 403);
+      }
+      if (newType !== existingDept.type) {
+        return sendError(res, 'Trưởng khoa không được thay đổi loại đơn vị trong cơ cấu tổ chức.', null, 403);
+      }
+      if (newManagerId) {
+        const manager = await User.findById(newManagerId).select('departmentId');
+        if (!manager || !inScope(manager.departmentId)) {
+          return sendError(res, 'Người quản lý phải thuộc khoa hoặc bộ môn trong phạm vi của bạn.', null, 403);
+        }
+      }
+    }
+
+    // 1. Kiểm tra trùng lặp tên đơn vị trong cùng cấp phân cấp nếu có đổi tên hoặc đổi đơn vị cha
+    const targetName = req.body.name !== undefined ? req.body.name.trim() : existingDept.name;
+    if (req.body.name !== undefined || req.body.parentId !== undefined) {
+      const duplicateDept = await Department.findOne({
+        _id: { $ne: req.params.id },
+        name: { $regex: new RegExp(`^${targetName.replace(/[-[\]{}()*+?.,\\^$|#\s]/g, '\\$&')}$`, 'i') },
+        parentId: newParentId !== undefined ? newParentId : existingDept.parentId,
+      });
+      if (duplicateDept) {
+        return sendError(res, `Đơn vị mang tên "${targetName}" đã tồn tại trong cùng cấp phân cấp.`, null, 400);
+      }
+    }
+
+    // 2. Kiểm tra vòng lặp tham chiếu nếu cập nhật parentId
     if (newParentId) {
       if (!mongoose.Types.ObjectId.isValid(newParentId)) {
         return sendError(res, 'ID đơn vị cha (parentId) không đúng định dạng ObjectId.', null, 400);
@@ -189,7 +303,7 @@ const updateDepartment = async (req, res, next) => {
       }
     }
 
-    // 2. Kiểm tra ràng buộc phân cấp: Trường > Khoa > Bộ môn
+    // 3. Kiểm tra ràng buộc phân cấp: Trường > Khoa > Bộ môn
     if (newType === 'bomon') {
       if (!newParentId) {
         return sendError(res, 'Đơn vị loại Bộ môn bắt buộc phải thuộc một Khoa (parentId không được để trống).', null, 400);
@@ -211,7 +325,7 @@ const updateDepartment = async (req, res, next) => {
       }
     }
 
-    // 3. Kiểm tra tính hợp lệ của managerId nếu có cập nhật
+    // 4. Kiểm tra tính hợp lệ của managerId nếu có cập nhật
     if (newManagerId) {
       if (!mongoose.Types.ObjectId.isValid(newManagerId)) {
         return sendError(res, 'ID người quản lý (managerId) không đúng định dạng ObjectId.', null, 400);
@@ -226,6 +340,7 @@ const updateDepartment = async (req, res, next) => {
     }
 
     const updatePayload = { ...req.body };
+    if (req.body.name !== undefined) updatePayload.name = targetName;
     if (req.body.parentId === 'null' || req.body.parentId === '') updatePayload.parentId = null;
     if (req.body.managerId === 'null' || req.body.managerId === '') updatePayload.managerId = null;
 
@@ -235,6 +350,32 @@ const updateDepartment = async (req, res, next) => {
     })
       .populate('parentId', 'name type')
       .populate('managerId', 'fullName email role');
+
+    // 5. Tự động đồng bộ vai trò Trưởng khoa và DepartmentId cho người phụ trách
+    if (newManagerId !== undefined) {
+      await syncDepartmentManager(
+        updatedDept._id,
+        updatedDept.type,
+        updatedDept.managerId?._id || updatedDept.managerId,
+        existingDept.managerId?._id || existingDept.managerId
+      );
+    }
+
+    // 6. Ghi nhận Audit Log
+    await AuditLog.create({
+      actor: req.user.id,
+      action: 'UPDATE_DEPARTMENT',
+      targetId: updatedDept._id.toString(),
+      targetType: 'Department',
+      ipAddress: req.ip || req.connection?.remoteAddress || null,
+      timestamp: new Date(),
+      details: {
+        name: updatedDept.name,
+        type: updatedDept.type,
+        parentId: updatedDept.parentId,
+        managerId: updatedDept.managerId,
+      },
+    });
 
     return sendSuccess(res, 'Cập nhật Khoa / Phòng ban thành công.', updatedDept);
   } catch (error) {
@@ -270,6 +411,35 @@ const deleteDepartment = async (req, res, next) => {
     if (!deletedDept) {
       return sendError(res, 'Không tìm thấy Khoa / Phòng ban.', null, 404);
     }
+
+    // 3. Nếu đơn vị bị xóa có Trưởng khoa, hạ quyền của họ về 'giangvien' nếu không quản lý khoa khác
+    if (deletedDept.managerId && deletedDept.type === 'khoa') {
+      const otherDeptCount = await Department.countDocuments({
+        managerId: deletedDept.managerId,
+        type: 'khoa',
+      });
+      if (otherDeptCount === 0) {
+        await User.findOneAndUpdate(
+          { _id: deletedDept.managerId, role: 'truongkhoa' },
+          { role: 'giangvien' }
+        );
+      }
+    }
+
+    // 4. Ghi nhận Audit Log
+    await AuditLog.create({
+      actor: req.user.id,
+      action: 'DELETE_DEPARTMENT',
+      targetId: deletedDept._id.toString(),
+      targetType: 'Department',
+      ipAddress: req.ip || req.connection?.remoteAddress || null,
+      timestamp: new Date(),
+      details: {
+        name: deletedDept.name,
+        type: deletedDept.type,
+      },
+    });
+
     return sendSuccess(res, 'Xóa Khoa / Phòng ban thành công.');
   } catch (error) {
     next(error);

@@ -1,1387 +1,746 @@
 {
   "info": {
-    "_postman_id": "7c5a498c-73e8-46a8-ac1c-d551d95e2b89",
     "name": "Hệ Thống Quản Lý Chấm Công Trường Đại Học",
-    "description": "Bộ sưu tập Postman API chuẩn hóa cho 8 Collections (3.1 - 3.8), tích hợp sẵn ID mẫu từ cơ sở dữ liệu đã seed và script tự động lưu Token khi đăng nhập.",
+    "description": "Bộ sưu tập API đầy đủ cho hệ thống quản lý chấm công cán bộ, giảng viên trường đại học.\n\nBase URL: http://localhost:5000/api\nSwagger: http://localhost:5000/api-docs\n\nMật khẩu mặc định tất cả tài khoản: password123",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
   "variable": [
-    {
-      "key": "baseUrl",
-      "value": "http://localhost:5000/api",
-      "type": "string"
-    },
-    {
-      "key": "token",
-      "value": "",
-      "type": "string"
-    },
-    {
-      "key": "refreshToken",
-      "value": "",
-      "type": "string"
-    },
-    {
-      "key": "deptId",
-      "value": "6a9d57378cf3a6165de25dd1",
-      "type": "string"
-    },
-    {
-      "key": "userId",
-      "value": "6a9d57378cf3a6165de25dd8",
-      "type": "string"
-    },
-    {
-      "key": "shiftId",
-      "value": "6a9d57378cf3a6165de25ddc",
-      "type": "string"
-    },
-    {
-      "key": "scheduleId",
-      "value": "6a9d57378cf3a6165de25de0",
-      "type": "string"
-    },
-    {
-      "key": "leaveId",
-      "value": "6a9d57378cf3a6165de25dea",
-      "type": "string"
-    },
-    {
-      "key": "attendanceId",
-      "value": "6a9d57378cf3a6165de25deb",
-      "type": "string"
-    }
+    { "key": "baseUrl", "value": "http://localhost:5000/api" },
+    { "key": "accessToken", "value": "" },
+    { "key": "adminToken", "value": "" },
+    { "key": "deanToken", "value": "" },
+    { "key": "lecturerToken", "value": "" },
+    { "key": "userId", "value": "" },
+    { "key": "departmentId", "value": "" },
+    { "key": "shiftId", "value": "" },
+    { "key": "scheduleId", "value": "" },
+    { "key": "attendanceId", "value": "" },
+    { "key": "leaveRequestId", "value": "" }
   ],
   "item": [
     {
-      "name": "3.1 Auth & User",
+      "name": "0. Health Check",
       "item": [
         {
-          "name": "0a. Đăng ký tài khoản mới (Gửi OTP 10 phút)",
+          "name": "GET /health — Kiểm tra hệ thống",
           "request": {
-            "method": "POST",
-            "header": [
-              {
-                "key": "Content-Type",
-                "value": "application/json"
-              }
-            ],
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"fullName\": \"Giảng Viên Mới\",\n  \"email\": \"test.giangvien@gmail.com\",\n  \"password\": \"password123\",\n  \"role\": \"giangvien\",\n  \"departmentId\": \"{{deptId}}\",\n  \"annualLeaveQuota\": 12\n}"
-            },
-            "url": {
-              "raw": "{{baseUrl}}/auth/register",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "auth",
-                "register"
-              ]
-            }
+            "method": "GET",
+            "url": "{{baseUrl}}/health",
+            "description": "Kiểm tra hệ thống có đang hoạt động không. Không cần xác thực."
           }
-        },
+        }
+      ]
+    },
+    {
+      "name": "1. Auth — Xác Thực",
+      "item": [
         {
-          "name": "0b. Xác minh tài khoản qua mã OTP (Hạn 10 phút)",
-          "request": {
-            "method": "POST",
-            "header": [
-              {
-                "key": "Content-Type",
-                "value": "application/json"
-              }
-            ],
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"email\": \"test.giangvien@gmail.com\",\n  \"otp\": \"Điền_mã_OTP_vào_đây\"\n}"
-            },
-            "url": {
-              "raw": "{{baseUrl}}/auth/verify-otp",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "auth",
-                "verify-otp"
-              ]
-            }
-          }
-        },
-        {
-          "name": "0c. Quên mật khẩu (Gửi mã OTP qua Email)",
-          "request": {
-            "method": "POST",
-            "header": [
-              {
-                "key": "Content-Type",
-                "value": "application/json"
-              }
-            ],
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"email\": \"test.giangvien@gmail.com\"\n}"
-            },
-            "url": {
-              "raw": "{{baseUrl}}/auth/forgot-password",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "auth",
-                "forgot-password"
-              ]
-            }
-          }
-        },
-        {
-          "name": "0d. Đặt lại mật khẩu mới qua OTP",
-          "request": {
-            "method": "POST",
-            "header": [
-              {
-                "key": "Content-Type",
-                "value": "application/json"
-              }
-            ],
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"email\": \"test.giangvien@gmail.com\",\n  \"otp\": \"Điền_mã_OTP_vào_đây\",\n  \"newPassword\": \"matkhau_moi_123\"\n}"
-            },
-            "url": {
-              "raw": "{{baseUrl}}/auth/reset-password",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "auth",
-                "reset-password"
-              ]
-            }
-          }
-        },
-        {
-          "name": "1. Đăng nhập Admin (Auto-Save Token)",
+          "name": "POST /auth/login — Đăng nhập Admin",
           "event": [
             {
               "listen": "test",
               "script": {
                 "exec": [
-                  "const res = pm.response.json();",
-                  "if (res.data && res.data.token) {",
-                  "    pm.collectionVariables.set('token', res.data.token);",
-                  "    console.log('✔ Token đã được lưu tự động:', res.data.token);",
-                  "}",
-                  "if (res.data && res.data.refreshToken) {",
-                  "    pm.collectionVariables.set('refreshToken', res.data.refreshToken);",
+                  "var res = pm.response.json();",
+                  "if (res.success && res.data) {",
+                  "  var token = res.data.accessToken || res.data.token;",
+                  "  pm.collectionVariables.set('accessToken', token);",
+                  "  pm.collectionVariables.set('adminToken', token);",
+                  "  if (res.data.user) pm.collectionVariables.set('userId', res.data.user._id);",
                   "}"
-                ],
-                "type": "text/javascript"
+                ]
               }
             }
           ],
           "request": {
             "method": "POST",
-            "header": [
-              {
-                "key": "Content-Type",
-                "value": "application/json"
-              }
-            ],
+            "url": "{{baseUrl}}/auth/login",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
             "body": {
               "mode": "raw",
               "raw": "{\n  \"email\": \"daihocdtd@gmail.com\",\n  \"password\": \"password123\"\n}"
-            },
-            "url": {
-              "raw": "{{baseUrl}}/auth/login",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "auth",
-                "login"
-              ]
             }
           }
         },
         {
-          "name": "1b. Đăng nhập Giảng viên (TS. Bích)",
+          "name": "POST /auth/login — Đăng nhập Trưởng Khoa CNTT",
           "event": [
             {
               "listen": "test",
               "script": {
                 "exec": [
-                  "const res = pm.response.json();",
-                  "if (res.data && res.data.token) {",
-                  "    pm.collectionVariables.set('token', res.data.token);",
-                  "    console.log('✔ Giảng viên Token đã được lưu');",
+                  "var res = pm.response.json();",
+                  "if (res.success && res.data) {",
+                  "  var token = res.data.accessToken || res.data.token;",
+                  "  pm.collectionVariables.set('accessToken', token);",
+                  "  pm.collectionVariables.set('deanToken', token);",
                   "}"
-                ],
-                "type": "text/javascript"
+                ]
               }
             }
           ],
           "request": {
             "method": "POST",
-            "header": [
-              {
-                "key": "Content-Type",
-                "value": "application/json"
+            "url": "{{baseUrl}}/auth/login",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"truongkhoa.cntt@university.edu.vn\",\n  \"password\": \"password123\"\n}"
+            }
+          }
+        },
+        {
+          "name": "POST /auth/login — Đăng nhập Giảng Viên",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "var res = pm.response.json();",
+                  "if (res.success && res.data) {",
+                  "  var token = res.data.accessToken || res.data.token;",
+                  "  pm.collectionVariables.set('accessToken', token);",
+                  "  pm.collectionVariables.set('lecturerToken', token);",
+                  "}"
+                ]
               }
-            ],
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "url": "{{baseUrl}}/auth/login",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
             "body": {
               "mode": "raw",
               "raw": "{\n  \"email\": \"giangvien.bich@university.edu.vn\",\n  \"password\": \"password123\"\n}"
-            },
-            "url": {
-              "raw": "{{baseUrl}}/auth/login",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "auth",
-                "login"
-              ]
             }
           }
         },
         {
-          "name": "2. Lấy thông tin cá nhân hiện tại (/me)",
-          "request": {
-            "method": "GET",
-            "header": [
-              {
-                "key": "Authorization",
-                "value": "Bearer {{token}}"
-              }
-            ],
-            "url": {
-              "raw": "{{baseUrl}}/auth/me",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "auth",
-                "me"
-              ]
-            }
-          }
-        },
-        {
-          "name": "3. Cấp lại Access Token mới (Refresh)",
+          "name": "POST /auth/register — Đăng ký tài khoản",
           "request": {
             "method": "POST",
-            "header": [
-              {
-                "key": "Content-Type",
-                "value": "application/json"
-              }
-            ],
+            "url": "{{baseUrl}}/auth/register",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"refreshToken\": \"{{refreshToken}}\"\n}"
-            },
-            "url": {
-              "raw": "{{baseUrl}}/auth/refresh",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "auth",
-                "refresh"
-              ]
+              "raw": "{\n  \"fullName\": \"Nguyễn Văn Test\",\n  \"email\": \"test@university.edu.vn\",\n  \"password\": \"password123\",\n  \"role\": \"giangvien\",\n  \"departmentId\": \"{{departmentId}}\"\n}"
             }
           }
         },
         {
-          "name": "4. Đăng xuất hệ thống (Logout)",
+          "name": "POST /auth/verify-otp — Xác minh OTP",
           "request": {
             "method": "POST",
-            "header": [
-              {
-                "key": "Content-Type",
-                "value": "application/json"
-              },
-              {
-                "key": "Authorization",
-                "value": "Bearer {{token}}"
-              }
-            ],
+            "url": "{{baseUrl}}/auth/verify-otp",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"refreshToken\": \"{{refreshToken}}\"\n}"
-            },
-            "url": {
-              "raw": "{{baseUrl}}/auth/logout",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "auth",
-                "logout"
-              ]
+              "raw": "{\n  \"email\": \"test@university.edu.vn\",\n  \"otp\": \"123456\"\n}"
             }
           }
         },
         {
-          "name": "5. Danh sách người dùng (Users)",
-          "request": {
-            "method": "GET",
-            "header": [
-              {
-                "key": "Authorization",
-                "value": "Bearer {{token}}"
-              }
-            ],
-            "url": {
-              "raw": "{{baseUrl}}/users?role=giangvien&page=1&limit=20",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "users"
-              ],
-              "query": [
-                {
-                  "key": "role",
-                  "value": "giangvien"
-                },
-                {
-                  "key": "page",
-                  "value": "1"
-                },
-                {
-                  "key": "limit",
-                  "value": "20"
-                }
-              ]
-            }
-          }
-        },
-        {
-          "name": "6. Chi tiết một người dùng",
-          "request": {
-            "method": "GET",
-            "header": [
-              {
-                "key": "Authorization",
-                "value": "Bearer {{token}}"
-              }
-            ],
-            "url": {
-              "raw": "{{baseUrl}}/users/{{userId}}",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "users",
-                "{{userId}}"
-              ]
-            }
-          }
-        },
-        {
-          "name": "7. Tạo mới tài khoản Giảng viên/Nhân viên",
+          "name": "POST /auth/forgot-password — Quên mật khẩu",
           "request": {
             "method": "POST",
-            "header": [
-              {
-                "key": "Content-Type",
-                "value": "application/json"
-              },
-              {
-                "key": "Authorization",
-                "value": "Bearer {{token}}"
-              }
-            ],
+            "url": "{{baseUrl}}/auth/forgot-password",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"fullName\": \"ThS. Nguyễn Văn Mới\",\n  \"email\": \"nguyenvanmoi@university.edu.vn\",\n  \"password\": \"password123\",\n  \"role\": \"giangvien\",\n  \"departmentId\": \"{{deptId}}\",\n  \"annualLeaveQuota\": 12\n}"
-            },
-            "url": {
-              "raw": "{{baseUrl}}/users",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "users"
-              ]
+              "raw": "{\n  \"email\": \"giangvien.bich@university.edu.vn\"\n}"
             }
           }
         },
         {
-          "name": "8. Cập nhật thông tin người dùng",
+          "name": "POST /auth/reset-password — Đặt lại mật khẩu",
           "request": {
-            "method": "PUT",
-            "header": [
-              {
-                "key": "Content-Type",
-                "value": "application/json"
-              },
-              {
-                "key": "Authorization",
-                "value": "Bearer {{token}}"
-              }
-            ],
+            "method": "POST",
+            "url": "{{baseUrl}}/auth/reset-password",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"fullName\": \"TS. Trần Thị Bích (Cập nhật)\",\n  \"annualLeaveQuota\": 14\n}"
-            },
-            "url": {
-              "raw": "{{baseUrl}}/users/{{userId}}",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "users",
-                "{{userId}}"
-              ]
+              "raw": "{\n  \"email\": \"giangvien.bich@university.edu.vn\",\n  \"otp\": \"123456\",\n  \"newPassword\": \"newpassword123\"\n}"
             }
           }
         },
         {
-          "name": "9. Soft delete người dùng (isActive = false)",
+          "name": "POST /auth/refresh — Làm mới Token",
           "request": {
-            "method": "DELETE",
+            "method": "POST",
+            "url": "{{baseUrl}}/auth/refresh",
+            "header": [{ "key": "Content-Type", "value": "application/json" }]
+          }
+        },
+        {
+          "name": "POST /auth/logout — Đăng xuất",
+          "request": {
+            "method": "POST",
+            "url": "{{baseUrl}}/auth/logout",
             "header": [
-              {
-                "key": "Authorization",
-                "value": "Bearer {{token}}"
-              }
-            ],
-            "url": {
-              "raw": "{{baseUrl}}/users/{{userId}}",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "users",
-                "{{userId}}"
-              ]
-            }
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{accessToken}}" }
+            ]
+          }
+        },
+        {
+          "name": "GET /auth/me — Thông tin tài khoản hiện tại",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/auth/me",
+            "header": [{ "key": "Authorization", "value": "Bearer {{accessToken}}" }]
           }
         }
       ]
     },
     {
-      "name": "3.2 Department",
+      "name": "2. Users — Quản Lý Nhân Sự",
       "item": [
         {
-          "name": "1. Danh sách Khoa/Bộ môn (Dạng cây phân cấp)",
+          "name": "GET /users — Danh sách người dùng",
           "request": {
             "method": "GET",
-            "header": [
-              {
-                "key": "Authorization",
-                "value": "Bearer {{token}}"
-              }
-            ],
-            "url": {
-              "raw": "{{baseUrl}}/departments?tree=true",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "departments"
-              ],
-              "query": [
-                {
-                  "key": "tree",
-                  "value": "true"
-                }
-              ]
-            }
+            "url": { "raw": "{{baseUrl}}/users?search=&role=&departmentId=", "host": ["{{baseUrl}}"], "path": ["users"], "query": [{ "key": "search", "value": "" }, { "key": "role", "value": "" }, { "key": "departmentId", "value": "" }] },
+            "header": [{ "key": "Authorization", "value": "Bearer {{adminToken}}" }]
           }
         },
         {
-          "name": "2. Xem chi tiết một đơn vị",
-          "request": {
-            "method": "GET",
-            "header": [
-              {
-                "key": "Authorization",
-                "value": "Bearer {{token}}"
-              }
-            ],
-            "url": {
-              "raw": "{{baseUrl}}/departments/{{deptId}}",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "departments",
-                "{{deptId}}"
-              ]
-            }
-          }
-        },
-        {
-          "name": "3. Tạo đơn vị mới (Khoa / Bộ môn / Phòng ban)",
+          "name": "POST /users — Thêm người dùng (Admin)",
           "request": {
             "method": "POST",
+            "url": "{{baseUrl}}/users",
             "header": [
-              {
-                "key": "Content-Type",
-                "value": "application/json"
-              },
-              {
-                "key": "Authorization",
-                "value": "Bearer {{token}}"
-              }
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{adminToken}}" }
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"name\": \"Bộ môn Khoa Học Dữ Liệu\",\n  \"type\": \"bomon\",\n  \"parentId\": \"{{deptId}}\",\n  \"managerId\": \"{{userId}}\",\n  \"location\": {\n    \"lat\": 21.028511,\n    \"lng\": 105.854167\n  }\n}"
-            },
-            "url": {
-              "raw": "{{baseUrl}}/departments",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "departments"
-              ]
+              "raw": "{\n  \"fullName\": \"Nguyễn Văn Mới\",\n  \"email\": \"nguoimoi@university.edu.vn\",\n  \"password\": \"password123\",\n  \"role\": \"giangvien\",\n  \"departmentId\": \"{{departmentId}}\",\n  \"annualLeaveQuota\": 12\n}"
             }
           }
         },
         {
-          "name": "4. Cập nhật đơn vị",
+          "name": "GET /users/:id — Chi tiết người dùng",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/users/{{userId}}",
+            "header": [{ "key": "Authorization", "value": "Bearer {{adminToken}}" }]
+          }
+        },
+        {
+          "name": "PUT /users/:id — Cập nhật người dùng",
           "request": {
             "method": "PUT",
+            "url": "{{baseUrl}}/users/{{userId}}",
             "header": [
-              {
-                "key": "Content-Type",
-                "value": "application/json"
-              },
-              {
-                "key": "Authorization",
-                "value": "Bearer {{token}}"
-              }
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{adminToken}}" }
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"name\": \"Khoa Công Nghệ Thông Tin & Truyền Thông\",\n  \"managerId\": \"{{userId}}\"\n}"
-            },
-            "url": {
-              "raw": "{{baseUrl}}/departments/{{deptId}}",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "departments",
-                "{{deptId}}"
-              ]
+              "raw": "{\n  \"fullName\": \"Tên đã cập nhật\",\n  \"annualLeaveQuota\": 15\n}"
             }
           }
         },
         {
-          "name": "5. Xóa đơn vị (Kiểm tra ràng buộc nhân sự)",
+          "name": "DELETE /users/:id — Khóa tài khoản (Soft Delete)",
           "request": {
             "method": "DELETE",
-            "header": [
-              {
-                "key": "Authorization",
-                "value": "Bearer {{token}}"
-              }
-            ],
-            "url": {
-              "raw": "{{baseUrl}}/departments/{{deptId}}",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "departments",
-                "{{deptId}}"
-              ]
-            }
+            "url": "{{baseUrl}}/users/{{userId}}",
+            "header": [{ "key": "Authorization", "value": "Bearer {{adminToken}}" }]
           }
         }
       ]
     },
     {
-      "name": "3.3 Schedule & Shift Config",
+      "name": "3. Departments — Cơ Cấu Tổ Chức",
       "item": [
         {
-          "name": "1. Danh sách ca làm việc chuẩn (Shifts)",
+          "name": "GET /departments — Danh sách phẳng",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "var res = pm.response.json();",
+                  "if (res.success && res.data && res.data.length > 0) {",
+                  "  pm.collectionVariables.set('departmentId', res.data[0]._id);",
+                  "}"
+                ]
+              }
+            }
+          ],
           "request": {
             "method": "GET",
-            "header": [
-              {
-                "key": "Authorization",
-                "value": "Bearer {{token}}"
-              }
-            ],
-            "url": {
-              "raw": "{{baseUrl}}/shifts",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "shifts"
-              ]
-            }
+            "url": "{{baseUrl}}/departments",
+            "header": [{ "key": "Authorization", "value": "Bearer {{accessToken}}" }]
           }
         },
         {
-          "name": "2. Tạo ca làm việc mới",
+          "name": "GET /departments/tree — Cây cấu trúc phân cấp",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/departments/tree",
+            "header": [{ "key": "Authorization", "value": "Bearer {{accessToken}}" }]
+          }
+        },
+        {
+          "name": "GET /departments/:id — Chi tiết đơn vị",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/departments/{{departmentId}}",
+            "header": [{ "key": "Authorization", "value": "Bearer {{accessToken}}" }]
+          }
+        },
+        {
+          "name": "POST /departments — Tạo đơn vị (Admin)",
           "request": {
             "method": "POST",
+            "url": "{{baseUrl}}/departments",
             "header": [
-              {
-                "key": "Content-Type",
-                "value": "application/json"
-              },
-              {
-                "key": "Authorization",
-                "value": "Bearer {{token}}"
-              }
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{adminToken}}" }
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"name\": \"Ca Chiều Muộn (Tiết 7-9)\",\n  \"startTime\": \"15:00\",\n  \"endTime\": \"18:00\",\n  \"lateThresholdMinutes\": 15\n}"
-            },
-            "url": {
-              "raw": "{{baseUrl}}/shifts",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "shifts"
-              ]
+              "raw": "{\n  \"name\": \"Khoa Test\",\n  \"type\": \"khoa\",\n  \"parentId\": \"{{departmentId}}\"\n}"
             }
           }
         },
         {
-          "name": "3. Cập nhật ca làm việc",
+          "name": "PUT /departments/:id — Cập nhật đơn vị",
           "request": {
             "method": "PUT",
+            "url": "{{baseUrl}}/departments/{{departmentId}}",
             "header": [
-              {
-                "key": "Content-Type",
-                "value": "application/json"
-              },
-              {
-                "key": "Authorization",
-                "value": "Bearer {{token}}"
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{adminToken}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Tên đã cập nhật\"\n}"
+            }
+          }
+        },
+        {
+          "name": "DELETE /departments/:id — Xóa đơn vị (Admin)",
+          "request": {
+            "method": "DELETE",
+            "url": "{{baseUrl}}/departments/{{departmentId}}",
+            "header": [{ "key": "Authorization", "value": "Bearer {{adminToken}}" }]
+          }
+        }
+      ]
+    },
+    {
+      "name": "4. Shifts — Ca Làm Việc",
+      "item": [
+        {
+          "name": "GET /shifts — Danh sách ca",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "var res = pm.response.json();",
+                  "if (res.success && res.data && res.data.length > 0) {",
+                  "  pm.collectionVariables.set('shiftId', res.data[0]._id);",
+                  "}"
+                ]
               }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/shifts",
+            "header": [{ "key": "Authorization", "value": "Bearer {{accessToken}}" }]
+          }
+        },
+        {
+          "name": "GET /shifts/:id — Chi tiết ca",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/shifts/{{shiftId}}",
+            "header": [{ "key": "Authorization", "value": "Bearer {{accessToken}}" }]
+          }
+        },
+        {
+          "name": "POST /shifts — Tạo ca mới (Admin)",
+          "request": {
+            "method": "POST",
+            "url": "{{baseUrl}}/shifts",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{adminToken}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Ca Test\",\n  \"startTime\": \"08:00\",\n  \"endTime\": \"12:00\",\n  \"lateThresholdMinutes\": 10,\n  \"earlyExitThresholdMinutes\": 10,\n  \"isActive\": true\n}"
+            }
+          }
+        },
+        {
+          "name": "PUT /shifts/:id — Cập nhật ca (Admin)",
+          "request": {
+            "method": "PUT",
+            "url": "{{baseUrl}}/shifts/{{shiftId}}",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{adminToken}}" }
             ],
             "body": {
               "mode": "raw",
               "raw": "{\n  \"lateThresholdMinutes\": 20\n}"
-            },
-            "url": {
-              "raw": "{{baseUrl}}/shifts/{{shiftId}}",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "shifts",
-                "{{shiftId}}"
-              ]
             }
           }
         },
         {
-          "name": "4. Xóa ca làm việc",
+          "name": "DELETE /shifts/:id — Xóa ca (Admin)",
           "request": {
             "method": "DELETE",
-            "header": [
-              {
-                "key": "Authorization",
-                "value": "Bearer {{token}}"
-              }
-            ],
-            "url": {
-              "raw": "{{baseUrl}}/shifts/{{shiftId}}",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "shifts",
-                "{{shiftId}}"
-              ]
-            }
-          }
-        },
-        {
-          "name": "5. Danh sách lịch công tác / giảng dạy (Học kỳ)",
-          "request": {
-            "method": "GET",
-            "header": [
-              {
-                "key": "Authorization",
-                "value": "Bearer {{token}}"
-              }
-            ],
-            "url": {
-              "raw": "{{baseUrl}}/schedules?startDate=2026-01-01&endDate=2026-12-31",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "schedules"
-              ],
-              "query": [
-                {
-                  "key": "startDate",
-                  "value": "2026-01-01"
-                },
-                {
-                  "key": "endDate",
-                  "value": "2026-12-31"
-                }
-              ]
-            }
-          }
-        },
-        {
-          "name": "6. Chi tiết một lịch",
-          "request": {
-            "method": "GET",
-            "header": [
-              {
-                "key": "Authorization",
-                "value": "Bearer {{token}}"
-              }
-            ],
-            "url": {
-              "raw": "{{baseUrl}}/schedules/{{scheduleId}}",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "schedules",
-                "{{scheduleId}}"
-              ]
-            }
-          }
-        },
-        {
-          "name": "7. Tạo lịch mới (Validate chống trùng giờ)",
-          "request": {
-            "method": "POST",
-            "header": [
-              {
-                "key": "Content-Type",
-                "value": "application/json"
-              },
-              {
-                "key": "Authorization",
-                "value": "Bearer {{token}}"
-              }
-            ],
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"userId\": \"{{userId}}\",\n  \"shiftId\": \"{{shiftId}}\",\n  \"roomId\": \"Giảng đường B3-401\",\n  \"weekday\": 2,\n  \"isRecurring\": true,\n  \"startDate\": \"2026-01-15T00:00:00.000Z\",\n  \"endDate\": \"2026-12-31T23:59:59.000Z\"\n}"
-            },
-            "url": {
-              "raw": "{{baseUrl}}/schedules",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "schedules"
-              ]
-            }
-          }
-        },
-        {
-          "name": "8. Cập nhật lịch (Đổi phòng / gia hạn)",
-          "request": {
-            "method": "PUT",
-            "header": [
-              {
-                "key": "Content-Type",
-                "value": "application/json"
-              },
-              {
-                "key": "Authorization",
-                "value": "Bearer {{token}}"
-              }
-            ],
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"roomId\": \"Giảng đường B3-502\"\n}"
-            },
-            "url": {
-              "raw": "{{baseUrl}}/schedules/{{scheduleId}}",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "schedules",
-                "{{scheduleId}}"
-              ]
-            }
-          }
-        },
-        {
-          "name": "9. Xóa lịch",
-          "request": {
-            "method": "DELETE",
-            "header": [
-              {
-                "key": "Authorization",
-                "value": "Bearer {{token}}"
-              }
-            ],
-            "url": {
-              "raw": "{{baseUrl}}/schedules/{{scheduleId}}",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "schedules",
-                "{{scheduleId}}"
-              ]
-            }
+            "url": "{{baseUrl}}/shifts/{{shiftId}}",
+            "header": [{ "key": "Authorization", "value": "Bearer {{adminToken}}" }]
           }
         }
       ]
     },
     {
-      "name": "3.4 Attendance",
+      "name": "5. Schedules — Lịch Giảng Dạy",
       "item": [
         {
-          "name": "TC01 - [Thành công] Giảng viên Check-in đúng giờ trong ca (201 ON_TIME)",
+          "name": "GET /schedules — Danh sách lịch",
           "event": [
             {
               "listen": "test",
               "script": {
                 "exec": [
-                  "const res = pm.response.json();",
-                  "if (res.data && res.data._id) {",
-                  "    pm.collectionVariables.set('attendanceId', res.data._id);",
-                  "    console.log('✔ Đã tự động lưu attendanceId:', res.data._id);",
+                  "var res = pm.response.json();",
+                  "if (res.success && res.data && res.data.length > 0) {",
+                  "  pm.collectionVariables.set('scheduleId', res.data[0]._id);",
                   "}"
-                ],
-                "type": "text/javascript"
+                ]
               }
             }
           ],
           "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/schedules",
+            "header": [{ "key": "Authorization", "value": "Bearer {{accessToken}}" }]
+          }
+        },
+        {
+          "name": "GET /schedules/today — Lịch dạy hôm nay",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/schedules/today",
+            "header": [{ "key": "Authorization", "value": "Bearer {{accessToken}}" }]
+          }
+        },
+        {
+          "name": "GET /schedules/:id — Chi tiết lịch",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/schedules/{{scheduleId}}",
+            "header": [{ "key": "Authorization", "value": "Bearer {{accessToken}}" }]
+          }
+        },
+        {
+          "name": "POST /schedules — Tạo lịch mới",
+          "request": {
             "method": "POST",
+            "url": "{{baseUrl}}/schedules",
             "header": [
-              {
-                "key": "Content-Type",
-                "value": "application/json"
-              },
-              {
-                "key": "Authorization",
-                "value": "Bearer {{token}}"
-              }
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{adminToken}}" }
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"method\": \"qr\",\n  \"deviceId\": \"KIOSK_GATE_A2\",\n  \"location\": {\n    \"lat\": 21.028511,\n    \"lng\": 105.854167\n  }\n}"
-            },
-            "url": {
-              "raw": "{{baseUrl}}/attendance/check-in",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "attendance",
-                "check-in"
-              ]
+              "raw": "{\n  \"userId\": \"{{userId}}\",\n  \"shiftId\": \"{{shiftId}}\",\n  \"weekday\": 1,\n  \"roomId\": \"Phòng A2-301\",\n  \"isRecurring\": true,\n  \"startDate\": \"2026-01-15\",\n  \"endDate\": \"2026-12-31\",\n  \"subjectName\": \"Lập trình Web\",\n  \"subjectCode\": \"CS201\"\n}"
             }
           }
         },
         {
-          "name": "TC01b - [Thành công] Check-in thủ công chỉ định ca (shiftId & method manual)",
+          "name": "PUT /schedules/:id — Cập nhật lịch",
+          "request": {
+            "method": "PUT",
+            "url": "{{baseUrl}}/schedules/{{scheduleId}}",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{adminToken}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"roomId\": \"Phòng B1-201\"\n}"
+            }
+          }
+        },
+        {
+          "name": "DELETE /schedules/:id — Xóa lịch",
+          "request": {
+            "method": "DELETE",
+            "url": "{{baseUrl}}/schedules/{{scheduleId}}",
+            "header": [{ "key": "Authorization", "value": "Bearer {{adminToken}}" }]
+          }
+        }
+      ]
+    },
+    {
+      "name": "6. Attendance — Chấm Công",
+      "item": [
+        {
+          "name": "POST /attendance/check-in — Check-in (tự động)",
+          "request": {
+            "method": "POST",
+            "url": "{{baseUrl}}/attendance/check-in",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{lecturerToken}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"method\": \"manual\"\n}"
+            },
+            "description": "Tự động tìm lịch dạy phù hợp trong khung giờ hiện tại (± 30 phút)"
+          }
+        },
+        {
+          "name": "POST /attendance/check-in — Check-in (chỉ định ca)",
+          "request": {
+            "method": "POST",
+            "url": "{{baseUrl}}/attendance/check-in",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{lecturerToken}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"shiftId\": \"{{shiftId}}\",\n  \"method\": \"manual\",\n  \"deviceId\": \"POSTMAN_TEST\"\n}"
+            }
+          }
+        },
+        {
+          "name": "POST /attendance/check-out — Check-out",
+          "request": {
+            "method": "POST",
+            "url": "{{baseUrl}}/attendance/check-out",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{lecturerToken}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"shiftId\": \"{{shiftId}}\"\n}"
+            }
+          }
+        },
+        {
+          "name": "GET /attendance/history — Lịch sử chấm công",
           "event": [
             {
               "listen": "test",
               "script": {
                 "exec": [
-                  "const res = pm.response.json();",
-                  "if (res.data && res.data._id) {",
-                  "    pm.collectionVariables.set('attendanceId', res.data._id);",
-                  "    console.log('✔ Đã tự động lưu attendanceId:', res.data._id);",
+                  "var res = pm.response.json();",
+                  "if (res.success && res.data && res.data.length > 0) {",
+                  "  pm.collectionVariables.set('attendanceId', res.data[0]._id);",
                   "}"
-                ],
-                "type": "text/javascript"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "url": { "raw": "{{baseUrl}}/attendance/history?page=1&limit=20", "host": ["{{baseUrl}}"], "path": ["attendance", "history"], "query": [{ "key": "page", "value": "1" }, { "key": "limit", "value": "20" }] },
+            "header": [{ "key": "Authorization", "value": "Bearer {{accessToken}}" }]
+          }
+        },
+        {
+          "name": "GET /attendance/:id — Chi tiết bản ghi",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/attendance/{{attendanceId}}",
+            "header": [{ "key": "Authorization", "value": "Bearer {{accessToken}}" }]
+          }
+        },
+        {
+          "name": "PUT /attendance/:id — Admin chỉnh sửa chấm công",
+          "request": {
+            "method": "PUT",
+            "url": "{{baseUrl}}/attendance/{{attendanceId}}",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{adminToken}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"status\": \"EXCUSED_ABSENCE\",\n  \"note\": \"Đã có đơn nghỉ phép được duyệt\"\n}"
+            }
+          }
+        },
+        {
+          "name": "POST /attendance/trigger-absent-check — Chạy kiểm tra vắng mặt (Admin)",
+          "request": {
+            "method": "POST",
+            "url": "{{baseUrl}}/attendance/trigger-absent-check",
+            "header": [{ "key": "Authorization", "value": "Bearer {{adminToken}}" }]
+          }
+        }
+      ]
+    },
+    {
+      "name": "7. Leave Requests — Đơn Nghỉ Phép",
+      "item": [
+        {
+          "name": "POST /leave-requests — Tạo đơn xin nghỉ",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "var res = pm.response.json();",
+                  "if (res.success && res.data) {",
+                  "  pm.collectionVariables.set('leaveRequestId', res.data._id);",
+                  "}"
+                ]
               }
             }
           ],
           "request": {
             "method": "POST",
+            "url": "{{baseUrl}}/leave-requests",
             "header": [
-              {
-                "key": "Content-Type",
-                "value": "application/json"
-              },
-              {
-                "key": "Authorization",
-                "value": "Bearer {{token}}"
-              }
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{lecturerToken}}" }
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"shiftId\": \"{{shiftId}}\",\n  \"method\": \"manual\",\n  \"deviceId\": \"WEB_PORTAL\",\n  \"location\": {\n    \"lat\": 21.028511,\n    \"lng\": 105.854167\n  }\n}"
-            },
-            "url": {
-              "raw": "{{baseUrl}}/attendance/check-in",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "attendance",
-                "check-in"
-              ]
+              "raw": "{\n  \"type\": \"nghi_phep\",\n  \"reason\": \"Lý do cá nhân — test từ Postman\",\n  \"startDate\": \"2026-09-25\",\n  \"endDate\": \"2026-09-26\"\n}"
             }
           }
         },
         {
-          "name": "TC02 - [Test Lỗi] Check-in ngoài khung ca hoặc không có lịch (400 ATTENDANCE_004)",
+          "name": "GET /leave-requests — Danh sách đơn",
           "request": {
-            "method": "POST",
-            "header": [
-              {
-                "key": "Content-Type",
-                "value": "application/json"
-              },
-              {
-                "key": "Authorization",
-                "value": "Bearer {{token}}"
-              }
-            ],
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"method\": \"gps\",\n  \"deviceId\": \"MOBILE_APP_01\",\n  \"location\": {\n    \"lat\": 21.028511,\n    \"lng\": 105.854167\n  }\n}"
-            },
-            "url": {
-              "raw": "{{baseUrl}}/attendance/check-in",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "attendance",
-                "check-in"
-              ]
-            }
+            "method": "GET",
+            "url": "{{baseUrl}}/leave-requests",
+            "header": [{ "key": "Authorization", "value": "Bearer {{accessToken}}" }]
           }
         },
         {
-          "name": "TC03 - [Test Lỗi] Check-in lần 2 trong cùng 1 ca hôm nay (409 ATTENDANCE_002)",
+          "name": "GET /leave-requests/balance — Quỹ ngày phép",
           "request": {
-            "method": "POST",
-            "header": [
-              {
-                "key": "Content-Type",
-                "value": "application/json"
-              },
-              {
-                "key": "Authorization",
-                "value": "Bearer {{token}}"
-              }
-            ],
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"method\": \"face\",\n  \"deviceId\": \"KIOSK_GATE_A2\"\n}"
-            },
-            "url": {
-              "raw": "{{baseUrl}}/attendance/check-in",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "attendance",
-                "check-in"
-              ]
-            }
+            "method": "GET",
+            "url": "{{baseUrl}}/leave-requests/balance",
+            "header": [{ "key": "Authorization", "value": "Bearer {{lecturerToken}}" }]
           }
         },
         {
-          "name": "TC04 - [Thành công] Check-out ca đang mở hôm nay (200 OK & workingDuration)",
+          "name": "GET /leave-requests/:id — Chi tiết đơn",
           "request": {
-            "method": "POST",
-            "header": [
-              {
-                "key": "Content-Type",
-                "value": "application/json"
-              },
-              {
-                "key": "Authorization",
-                "value": "Bearer {{token}}"
-              }
-            ],
-            "body": {
-              "mode": "raw",
-              "raw": "{}"
-            },
-            "url": {
-              "raw": "{{baseUrl}}/attendance/check-out",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "attendance",
-                "check-out"
-              ]
-            }
+            "method": "GET",
+            "url": "{{baseUrl}}/leave-requests/{{leaveRequestId}}",
+            "header": [{ "key": "Authorization", "value": "Bearer {{accessToken}}" }]
           }
         },
         {
-          "name": "TC05 - [Test Lỗi] Check-out khi chưa từng Check-in (404 ATTENDANCE_003)",
-          "request": {
-            "method": "POST",
-            "header": [
-              {
-                "key": "Content-Type",
-                "value": "application/json"
-              },
-              {
-                "key": "Authorization",
-                "value": "Bearer {{token}}"
-              }
-            ],
-            "body": {
-              "mode": "raw",
-              "raw": "{}"
-            },
-            "url": {
-              "raw": "{{baseUrl}}/attendance/check-out",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "attendance",
-                "check-out"
-              ]
-            }
-          }
-        },
-        {
-          "name": "TC06 - [Thành công] Admin can thiệp sửa log (200 OK & Ghi Audit Log)",
+          "name": "PUT /leave-requests/:id/approve — Phê duyệt đơn",
           "request": {
             "method": "PUT",
+            "url": "{{baseUrl}}/leave-requests/{{leaveRequestId}}/approve",
             "header": [
-              {
-                "key": "Content-Type",
-                "value": "application/json"
-              },
-              {
-                "key": "Authorization",
-                "value": "Bearer {{token}}"
-              }
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{adminToken}}" }
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"status\": \"ON_TIME\",\n  \"checkInTime\": \"2026-09-11T07:05:00.000Z\"\n}"
-            },
-            "url": {
-              "raw": "{{baseUrl}}/attendance/{{attendanceId}}",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "attendance",
-                "{{attendanceId}}"
-              ]
+              "raw": "{\n  \"approvalNote\": \"Đã duyệt — test từ Postman\"\n}"
             }
           }
         },
         {
-          "name": "7. Lịch sử chấm công (Phân quyền 4 cấp, phân trang, lọc)",
+          "name": "PUT /leave-requests/:id/reject — Từ chối đơn",
           "request": {
-            "method": "GET",
+            "method": "PUT",
+            "url": "{{baseUrl}}/leave-requests/{{leaveRequestId}}/reject",
             "header": [
-              {
-                "key": "Authorization",
-                "value": "Bearer {{token}}"
-              }
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{adminToken}}" }
             ],
-            "url": {
-              "raw": "{{baseUrl}}/attendance/history?page=1&limit=20",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "attendance",
-                "history"
-              ],
-              "query": [
-                {
-                  "key": "page",
-                  "value": "1"
-                },
-                {
-                  "key": "limit",
-                  "value": "20"
-                }
-              ]
-            }
-          }
-        },
-        {
-          "name": "8. Chi tiết một bản ghi chấm công (Bảo mật theo role)",
-          "request": {
-            "method": "GET",
-            "header": [
-              {
-                "key": "Authorization",
-                "value": "Bearer {{token}}"
-              }
-            ],
-            "url": {
-              "raw": "{{baseUrl}}/attendance/{{attendanceId}}",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "attendance",
-                "{{attendanceId}}"
-              ]
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"rejectionReason\": \"Trùng lịch thi cuối kỳ — test từ Postman\"\n}"
             }
           }
         }
       ]
     },
     {
-      "name": "3.5 Leave Request",
+      "name": "8. Reports — Báo Cáo Thống Kê",
       "item": [
         {
-          "name": "1. Tạo đơn xin nghỉ phép / dạy bù / đổi ca",
+          "name": "GET /reports/attendance — Báo cáo tổng hợp",
+          "request": {
+            "method": "GET",
+            "url": { "raw": "{{baseUrl}}/reports/attendance?from=2026-09-01&to=2026-09-30", "host": ["{{baseUrl}}"], "path": ["reports", "attendance"], "query": [{ "key": "from", "value": "2026-09-01" }, { "key": "to", "value": "2026-09-30" }] },
+            "header": [{ "key": "Authorization", "value": "Bearer {{accessToken}}" }]
+          }
+        },
+        {
+          "name": "GET /reports/monthly — Báo cáo theo tháng",
+          "request": {
+            "method": "GET",
+            "url": { "raw": "{{baseUrl}}/reports/monthly?month=9&year=2026", "host": ["{{baseUrl}}"], "path": ["reports", "monthly"], "query": [{ "key": "month", "value": "9" }, { "key": "year", "value": "2026" }] },
+            "header": [{ "key": "Authorization", "value": "Bearer {{adminToken}}" }]
+          }
+        }
+      ]
+    },
+    {
+      "name": "9. AI Chat — Trợ Lý AI Gemini",
+      "item": [
+        {
+          "name": "POST /ai/chat — Hỏi Trợ lý AI",
           "request": {
             "method": "POST",
+            "url": "{{baseUrl}}/ai/chat",
             "header": [
-              {
-                "key": "Content-Type",
-                "value": "application/json"
-              },
-              {
-                "key": "Authorization",
-                "value": "Bearer {{token}}"
-              }
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Authorization", "value": "Bearer {{accessToken}}" }
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"type\": \"nghi_phep\",\n  \"reason\": \"Tham dự hội thảo khoa học\",\n  \"startDate\": \"2026-11-10T00:00:00.000Z\",\n  \"endDate\": \"2026-11-12T23:59:59.000Z\",\n  \"attachmentUrl\": \"https://storage.university.edu.vn/attachments/file.pdf\"\n}"
-            },
-            "url": {
-              "raw": "{{baseUrl}}/leave-requests",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "leave-requests"
-              ]
-            }
-          }
-        },
-        {
-          "name": "2. Danh sách đơn xin nghỉ phép",
-          "request": {
-            "method": "GET",
-            "header": [
-              {
-                "key": "Authorization",
-                "value": "Bearer {{token}}"
-              }
-            ],
-            "url": {
-              "raw": "{{baseUrl}}/leave-requests?status=PENDING",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "leave-requests"
-              ],
-              "query": [
-                {
-                  "key": "status",
-                  "value": "PENDING"
-                }
-              ]
-            }
-          }
-        },
-        {
-          "name": "3. Chi tiết một đơn",
-          "request": {
-            "method": "GET",
-            "header": [
-              {
-                "key": "Authorization",
-                "value": "Bearer {{token}}"
-              }
-            ],
-            "url": {
-              "raw": "{{baseUrl}}/leave-requests/{{leaveId}}",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "leave-requests",
-                "{{leaveId}}"
-              ]
-            }
-          }
-        },
-        {
-          "name": "4. Phê duyệt đơn xin nghỉ",
-          "request": {
-            "method": "PUT",
-            "header": [
-              {
-                "key": "Content-Type",
-                "value": "application/json"
-              },
-              {
-                "key": "Authorization",
-                "value": "Bearer {{token}}"
-              }
-            ],
-            "body": {
-              "mode": "raw",
-              "raw": "{}"
-            },
-            "url": {
-              "raw": "{{baseUrl}}/leave-requests/{{leaveId}}/approve",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "leave-requests",
-                "{{leaveId}}",
-                "approve"
-              ]
-            }
-          }
-        },
-        {
-          "name": "5. Từ chối đơn xin nghỉ (Bắt buộc kèm lý do)",
-          "request": {
-            "method": "PUT",
-            "header": [
-              {
-                "key": "Content-Type",
-                "value": "application/json"
-              },
-              {
-                "key": "Authorization",
-                "value": "Bearer {{token}}"
-              }
-            ],
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"rejectionReason\": \"Trùng lịch thi chung của khoa, đề nghị đổi ngày\"\n}"
-            },
-            "url": {
-              "raw": "{{baseUrl}}/leave-requests/{{leaveId}}/reject",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "leave-requests",
-                "{{leaveId}}",
-                "reject"
-              ]
-            }
-          }
-        },
-        {
-          "name": "6. Xem số ngày phép còn lại (Leave Balance)",
-          "request": {
-            "method": "GET",
-            "header": [
-              {
-                "key": "Authorization",
-                "value": "Bearer {{token}}"
-              }
-            ],
-            "url": {
-              "raw": "{{baseUrl}}/leave-requests/balance",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "leave-requests",
-                "balance"
-              ]
+              "raw": "{\n  \"question\": \"Hôm nay có bao nhiêu giảng viên đi muộn? Liệt kê tên và ca.\"\n}"
             }
           }
         }
       ]
     },
     {
-      "name": "3.6 Audit Log",
+      "name": "10. Audit Logs — Nhật Ký Kiểm Toán",
       "item": [
         {
-          "name": "Tra cứu nhật ký kiểm toán hệ thống (Admin)",
+          "name": "GET /audit-logs — Danh sách nhật ký (Admin)",
           "request": {
             "method": "GET",
-            "header": [
-              {
-                "key": "Authorization",
-                "value": "Bearer {{token}}"
-              }
-            ],
-            "url": {
-              "raw": "{{baseUrl}}/audit-logs",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "audit-logs"
-              ]
-            }
+            "url": { "raw": "{{baseUrl}}/audit-logs?action=&startDate=2026-09-01&endDate=2026-09-30", "host": ["{{baseUrl}}"], "path": ["audit-logs"], "query": [{ "key": "action", "value": "" }, { "key": "startDate", "value": "2026-09-01" }, { "key": "endDate", "value": "2026-09-30" }] },
+            "header": [{ "key": "Authorization", "value": "Bearer {{adminToken}}" }]
           }
         }
       ]
     },
     {
-      "name": "3.7 Báo cáo thống kê",
+      "name": "11. Upload — Tải File",
       "item": [
         {
-          "name": "Báo cáo thống kê chấm công & nghỉ phép",
+          "name": "POST /upload — Tải file lên",
           "request": {
-            "method": "GET",
-            "header": [
-              {
-                "key": "Authorization",
-                "value": "Bearer {{token}}"
-              }
-            ],
-            "url": {
-              "raw": "{{baseUrl}}/reports/attendance?from=2026-01-01&to=2026-12-31",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "reports",
-                "attendance"
-              ],
-              "query": [
-                {
-                  "key": "from",
-                  "value": "2026-01-01"
-                },
-                {
-                  "key": "to",
-                  "value": "2026-12-31"
-                }
-              ]
-            }
-          }
-        }
-      ]
-    },
-    {
-      "name": "3.8 Hạ tầng kỹ thuật",
-      "item": [
-        {
-          "name": "Kiểm tra sức khỏe hệ thống (Health Check)",
-          "request": {
-            "method": "GET",
-            "url": {
-              "raw": "{{baseUrl}}/health",
-              "host": [
-                "{{baseUrl}}"
-              ],
-              "path": [
-                "health"
+            "method": "POST",
+            "url": "{{baseUrl}}/upload",
+            "header": [{ "key": "Authorization", "value": "Bearer {{accessToken}}" }],
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                { "key": "file", "type": "file", "src": "" }
               ]
             }
           }

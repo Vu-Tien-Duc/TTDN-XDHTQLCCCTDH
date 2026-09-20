@@ -9,6 +9,8 @@ const {
   refreshToken,
   logout,
   getMe,
+  changePassword,
+  updateAvatar,
 } = require('../controllers/auth.controller');
 const { verifyToken } = require('../middlewares/auth.middleware');
 const { loginLimiter } = require('../middlewares/rateLimiter.middleware');
@@ -25,10 +27,10 @@ router.get('/login', (req, res) => {
 // 1. Xác thực & Đăng nhập (Áp dụng Rate Limiting tối đa 5 lần / 15 phút)
 router.post('/login', loginLimiter, login);
 
-// 2. Đăng ký tài khoản & Xác thực OTP 10 phút
+// 2. Tuyến đường đăng ký công khai (Bị chặn 403 - Chỉ Admin mới có quyền tạo tài khoản tại /api/v1/users)
 router.post('/register', register);
 router.post('/verify-otp', verifyAccount);
-router.post('/verify-account', verifyAccount); // Alias
+router.post('/verify-account', verifyAccount);
 
 // 3. Quên mật khẩu & Đặt lại mật khẩu qua OTP
 router.post('/forgot-password', forgotPassword);
@@ -39,6 +41,8 @@ router.post('/refresh-token', refreshToken);
 router.post('/refresh', refreshToken); // Alias hỗ trợ theo mục 3.1
 router.post('/logout', logout);
 router.get('/me', verifyToken, getMe);
+router.put('/change-password', verifyToken, changePassword);
+router.put('/avatar', verifyToken, updateAvatar);
 
 module.exports = router;
 

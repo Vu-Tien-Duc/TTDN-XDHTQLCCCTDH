@@ -34,24 +34,15 @@ const options = {
           bearerFormat: 'JWT',
           description: 'Nhập Token JWT dưới dạng: Bearer <token>',
         },
-        bearerAuth: {
-          type: 'http',
-          scheme: 'bearer',
-          bearerFormat: 'JWT',
-          description: 'Nhập Token JWT dưới dạng: Bearer <token>',
-        },
       },
     },
     security: [
       {
         BearerAuth: [],
       },
-      {
-        bearerAuth: [],
-      },
     ],
   },
-  apis: ['./src/routes/*.js', './src/controllers/*.js'], // Hỗ trợ quét thêm JSDoc annotation nếu có
+  apis: [], // Sử dụng swaggerPaths tập trung để tránh trùng lặp tags, endpoints và authorizations
 };
 
 const swaggerSpec = swaggerJsdoc(options);

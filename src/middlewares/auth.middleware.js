@@ -31,9 +31,14 @@ const verifyToken = async (req, res, next) => {
     }
 
     // 2. Xác thực tính hợp lệ và thời hạn của Token
+    if (!process.env.JWT_SECRET) {
+      console.error('[Auth Error] Biến môi trường JWT_SECRET chưa được cấu hình.');
+      return sendError(res, 'Lỗi cấu hình hệ thống xác thực máy chủ.', null, 500);
+    }
+
     let decoded;
     try {
-      decoded = jwt.verify(token, process.env.JWT_SECRET || 'secret_key');
+      decoded = jwt.verify(token, process.env.JWT_SECRET);
     } catch (err) {
       if (err.name === 'TokenExpiredError') {
         return sendError(res, 'Token đã hết hạn. Vui lòng làm mới token hoặc đăng nhập lại.', null, 401);

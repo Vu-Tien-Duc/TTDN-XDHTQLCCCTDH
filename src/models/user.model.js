@@ -56,9 +56,28 @@ const userSchema = new mongoose.Schema(
       default: null,
       select: false,
     },
+    otpAttempts: {
+      type: Number,
+      default: 0,
+      select: false,
+    },
+    otpSentAt: {
+      type: Date,
+      default: null,
+      select: false,
+    },
     annualLeaveQuota: {
       type: Number,
       default: 12,
+    },
+    avatar: {
+      type: String,
+      default: null,
+    },
+    faceDescriptor: {
+      type: [Number],
+      default: undefined,
+      select: false, // 128-dimensional vector, excluded from default queries
     },
   },
   {

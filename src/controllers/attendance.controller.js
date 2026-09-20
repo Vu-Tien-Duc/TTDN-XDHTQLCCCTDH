@@ -71,6 +71,16 @@ const checkIn = async (req, res, next) => {
         startDate: { $lte: endOfDay },
         endDate: { $gte: startOfDay },
       });
+
+      if (!selectedSchedule) {
+        return sendError(
+          res,
+          'Bạn không có lịch được phân công cho ca này hôm nay.',
+          null,
+          400,
+          ERROR_CODES.ATTENDANCE_NO_MATCHING_SCHEDULE
+        );
+      }
     } else {
       // TRƯỜNG HỢP 2: Tự động quét lịch dạy hôm nay của user trong khung ca
       const schedules = await Schedule.find({
@@ -402,9 +412,21 @@ const updateAttendanceByAdmin = async (req, res, next) => {
       leaveRequestId: log.leaveRequestId,
     };
 
+    const nextCheckInTime = checkInTime !== undefined ? new Date(checkInTime) : log.checkInTime;
+    const nextCheckOutTime = checkOutTime !== undefined ? new Date(checkOutTime) : log.checkOutTime;
+    if (checkInTime !== undefined && Number.isNaN(nextCheckInTime.getTime())) {
+      return sendError(res, 'Thời điểm check-in không hợp lệ.', null, 400);
+    }
+    if (checkOutTime !== undefined && Number.isNaN(nextCheckOutTime.getTime())) {
+      return sendError(res, 'Thời điểm check-out không hợp lệ.', null, 400);
+    }
+    if (nextCheckInTime && nextCheckOutTime && nextCheckOutTime < nextCheckInTime) {
+      return sendError(res, 'Thời điểm check-out không thể trước thời điểm check-in.', null, 400);
+    }
+
     if (status !== undefined) log.status = status;
-    if (checkInTime !== undefined) log.checkInTime = new Date(checkInTime);
-    if (checkOutTime !== undefined) log.checkOutTime = new Date(checkOutTime);
+    if (checkInTime !== undefined) log.checkInTime = nextCheckInTime;
+    if (checkOutTime !== undefined) log.checkOutTime = nextCheckOutTime;
     if (leaveRequestId !== undefined) log.leaveRequestId = leaveRequestId;
 
     // Bắt buộc gán cờ: isManualOverride = true và method = 'admin_override'
@@ -450,20 +472,35 @@ const updateAttendanceByAdmin = async (req, res, next) => {
 };
 
 /**
- * Kích hoạt thủ công tiến trình quét kiểm tra vắng mặt ngày hôm nay (Dành cho Admin kiểm thử qua Postman)
+ * Kích hoạt thủ công tiến trình quét kiểm tra vắng mặt ngày hôm nay (Dành cho Admin kiểm thử Swagger / Postman)
+ * POST /api/attendance/trigger-absent-cron
  * POST /api/attendance/cron/test-daily-check
  */
 const triggerDailyAbsentCheck = async (req, res, next) => {
   try {
-    const targetDate = req.query.date ? new Date(req.query.date) : new Date();
+    const inputDate = req.body?.date || req.query?.date;
+    let targetDate = new Date();
+    if (inputDate) {
+      targetDate = new Date(inputDate);
+      if (isNaN(targetDate.getTime())) {
+        return sendError(res, 'Định dạng ngày không hợp lệ. Vui lòng truyền YYYY-MM-DD.', null, 400);
+      }
+    }
+
     const summary = await runDailyAbsentCheck(targetDate);
+
+    // Chuẩn hóa đúng cấu trúc nghiệp vụ Ngày 4
+    const responseData = {
+      scannedSchedules: summary.totalSchedules,
+      alreadyAttended: summary.skippedCount,
+      excusedAbsences: summary.excusedCreatedCount,
+      newlyMarkedAbsent: summary.absentCreatedCount,
+    };
+
     return sendSuccess(
       res,
-      'Kích hoạt tiến trình quét vắng mặt tự động thành công (Xem chi tiết log tại console máy chủ).',
-      {
-        triggeredAt: new Date().toISOString(),
-        summary,
-      }
+      'Tiến trình quét vắng mặt hoàn tất.',
+      responseData
     );
   } catch (error) {
     next(error);

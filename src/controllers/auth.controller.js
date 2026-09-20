@@ -1,10 +1,25 @@
 const jwt = require('jsonwebtoken');
 const bcrypt = require('bcryptjs');
+const crypto = require('crypto');
 const User = require('../models/user.model');
 const RefreshToken = require('../models/refreshToken.model');
 const TokenBlacklist = require('../models/tokenBlacklist.model');
 const { sendSuccess, sendError } = require('../utils/responseHandler');
 const { sendOtpEmail, sendRegistrationSuccessEmail } = require('../services/email.service');
+
+const OTP_TTL_MS = 10 * 60 * 1000;
+const OTP_RESEND_COOLDOWN_MS = 60 * 1000;
+const OTP_HASH_SECRET = process.env.OTP_HASH_SECRET || process.env.JWT_SECRET;
+const generateOtp = () => crypto.randomInt(100000, 1000000).toString();
+const hashOtp = (otp) => crypto.createHmac('sha256', OTP_HASH_SECRET).update(String(otp).trim()).digest('hex');
+const clearOtp = (user) => {
+  user.otpCode = null;
+  user.otpExpiresAt = null;
+  user.otpType = null;
+  user.otpAttempts = 0;
+  user.otpSentAt = null;
+};
+const isOtpCooldownActive = (user) => user.otpSentAt && Date.now() - user.otpSentAt.getTime() < OTP_RESEND_COOLDOWN_MS;
 
 /**
  * @desc Đăng nhập hệ thống
@@ -45,7 +60,7 @@ const login = async (req, res, next) => {
     // 1. Cấp Access Token: Thời hạn 15 phút theo chuẩn nghiệp vụ
     const token = jwt.sign(
       { id: user._id, role: user.role, email: user.email },
-      process.env.JWT_SECRET || 'secret_key',
+      process.env.JWT_SECRET,
       { expiresIn: process.env.JWT_EXPIRES_IN || '15m' }
     );
 
@@ -53,7 +68,7 @@ const login = async (req, res, next) => {
     const refreshTokenExpiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
     const refreshTokenString = jwt.sign(
       { id: user._id },
-      process.env.REFRESH_TOKEN_SECRET || 'refresh_secret_key',
+      process.env.REFRESH_TOKEN_SECRET,
       { expiresIn: '7d' }
     );
 
@@ -84,7 +99,6 @@ const login = async (req, res, next) => {
 
     return sendSuccess(res, 'Đăng nhập thành công.', {
       token,
-      refreshToken: refreshTokenString,
       user: userData,
     });
   } catch (error) {
@@ -93,77 +107,19 @@ const login = async (req, res, next) => {
 };
 
 /**
- * @desc Đăng ký tài khoản người dùng mới & Gửi mã OTP xác thực (TTL 10 phút)
+ * @desc Đăng ký tài khoản công khai (ĐÃ VÔ HIỆU HÓA THEO CHÍNH SÁCH BẢO MẬT NHÀ TRƯỜNG)
  * @route POST /api/v1/auth/register
+ * @note Đây là hệ thống quản lý chấm công & đào tạo trường đại học. Giảng viên và nhân sự
+ *       không được phép tự đăng ký tự do, toàn bộ tài khoản phải do Quản trị viên (Admin)
+ *       khởi tạo và cấp phát theo email tên miền chính thức của nhà trường.
  */
-const register = async (req, res, next) => {
-  try {
-    const { fullName, email, password, role, departmentId, annualLeaveQuota } = req.body;
-
-    if (!fullName || !email || !password || !departmentId) {
-      return sendError(res, 'Vui lòng cung cấp đầy đủ họ tên, email, mật khẩu và departmentId.', null, 400);
-    }
-
-    const normalizedEmail = email.toLowerCase().trim();
-    const existingUser = await User.findOne({ email: normalizedEmail });
-
-    // Nếu tài khoản đã tồn tại và đã xác minh
-    if (existingUser && existingUser.isVerified) {
-      return sendError(res, 'Email này đã được sử dụng bởi một tài khoản đã kích hoạt.', null, 400);
-    }
-
-    const salt = await bcrypt.genSalt(12);
-    const passwordHash = await bcrypt.hash(password, salt);
-
-    // Sinh mã OTP 6 chữ số ngẫu nhiên có hạn 10 phút
-    const otp = Math.floor(100000 + Math.random() * 900000).toString();
-    const otpExpiresAt = new Date(Date.now() + 10 * 60 * 1000);
-
-    let targetUser;
-
-    // Nếu tài khoản đã đăng ký trước đó nhưng chưa xác minh -> cập nhật lại và cấp OTP mới
-    if (existingUser && !existingUser.isVerified) {
-      existingUser.fullName = fullName;
-      existingUser.passwordHash = passwordHash;
-      existingUser.role = role || existingUser.role || 'giangvien';
-      existingUser.departmentId = departmentId;
-      existingUser.annualLeaveQuota = annualLeaveQuota !== undefined ? annualLeaveQuota : 12;
-      existingUser.otpCode = otp;
-      existingUser.otpExpiresAt = otpExpiresAt;
-      existingUser.otpType = 'VERIFY_ACCOUNT';
-      targetUser = await existingUser.save();
-    } else {
-      targetUser = await User.create({
-        fullName,
-        email: normalizedEmail,
-        passwordHash,
-        role: role || 'giangvien',
-        departmentId,
-        annualLeaveQuota: annualLeaveQuota !== undefined ? annualLeaveQuota : 12,
-        isActive: true,
-        isVerified: false,
-        otpCode: otp,
-        otpExpiresAt,
-        otpType: 'VERIFY_ACCOUNT',
-      });
-    }
-
-    // Gửi email OTP (kèm fallback in ra terminal)
-    await sendOtpEmail(targetUser.email, targetUser.fullName, otp, 'VERIFY_ACCOUNT');
-
-    return sendSuccess(
-      res,
-      'Đăng ký tài khoản thành công! Mã OTP 6 chữ số đã được gửi đến email của bạn. Vui lòng xác minh trong vòng 10 phút.',
-      {
-        email: targetUser.email,
-        fullName: targetUser.fullName,
-        expiresIn: '10 minutes',
-      },
-      201
-    );
-  } catch (error) {
-    next(error);
-  }
+const register = async (req, res) => {
+  return sendError(
+    res,
+    'Hệ thống không hỗ trợ tự đăng ký tài khoản. Tài khoản cán bộ, giảng viên phải do Quản trị viên (Admin) nhà trường cấp theo quy chế phân quyền.',
+    null,
+    403
+  );
 };
 
 /**
@@ -179,7 +135,7 @@ const verifyAccount = async (req, res, next) => {
     }
 
     const normalizedEmail = email.toLowerCase().trim();
-    const user = await User.findOne({ email: normalizedEmail }).select('+otpCode +otpExpiresAt +otpType');
+    const user = await User.findOne({ email: normalizedEmail }).select('+otpCode +otpExpiresAt +otpType +otpAttempts +otpSentAt');
 
     if (!user) {
       return sendError(res, 'Không tìm thấy tài khoản với email này.', null, 404);
@@ -207,8 +163,15 @@ const verifyAccount = async (req, res, next) => {
     }
 
     // 2. Kiểm tra mã OTP không khớp
-    if (user.otpCode !== otp.toString().trim()) {
-      return sendError(res, 'Mã OTP không hợp lệ.', null, 400);
+    if (user.otpCode !== hashOtp(otp)) {
+      user.otpAttempts = (user.otpAttempts || 0) + 1;
+      if (user.otpAttempts >= OTP_MAX_ATTEMPTS) {
+        clearOtp(user);
+        await user.save();
+        return sendError(res, 'Bạn đã nhập sai OTP quá số lần cho phép. Vui lòng yêu cầu mã mới.', null, 429);
+      }
+      await user.save();
+      return sendError(res, `Mã OTP không hợp lệ. Bạn còn ${OTP_MAX_ATTEMPTS - user.otpAttempts} lần thử.`, null, 400);
     }
 
     // 3. Hợp lệ trong vòng 10 phút -> Kích hoạt tài khoản
@@ -216,6 +179,8 @@ const verifyAccount = async (req, res, next) => {
     user.otpCode = null;
     user.otpExpiresAt = null;
     user.otpType = null;
+    user.otpAttempts = 0;
+    user.otpSentAt = null;
     await user.save();
 
     // Gửi email chúc mừng tạo tài khoản thành công
@@ -245,25 +210,26 @@ const forgotPassword = async (req, res, next) => {
     }
 
     const normalizedEmail = email.toLowerCase().trim();
-    const user = await User.findOne({ email: normalizedEmail });
+    const user = await User.findOne({ email: normalizedEmail }).select('+otpSentAt +otpAttempts');
 
-    if (!user) {
-      return sendError(res, 'Không tìm thấy người dùng với email này.', null, 404);
+    if (!user || !user.isActive || !user.isVerified) {
+      return sendSuccess(res, 'Nếu email hợp lệ, mã OTP đặt lại mật khẩu sẽ được gửi đến email của bạn.', {
+        email: normalizedEmail,
+        expiresIn: '10 minutes',
+      });
     }
 
-    if (!user.isActive) {
-      return sendError(res, 'Tài khoản của bạn đã bị vô hiệu hóa. Vui lòng liên hệ Quản trị viên.', null, 403);
-    }
-
-    if (!user.isVerified) {
-      return sendError(res, 'Tài khoản chưa được kích hoạt qua mã OTP. Vui lòng xác minh tài khoản trước.', null, 403);
+    if (isOtpCooldownActive(user)) {
+      return sendError(res, 'Vui lòng chờ 60 giây trước khi yêu cầu mã OTP mới.', null, 429);
     }
 
     // Sinh mã OTP 6 chữ số ngẫu nhiên
-    const otp = Math.floor(100000 + Math.random() * 900000).toString();
-    user.otpCode = otp;
-    user.otpExpiresAt = new Date(Date.now() + 10 * 60 * 1000); // 10 phút
+    const otp = generateOtp();
+    user.otpCode = hashOtp(otp);
+    user.otpExpiresAt = new Date(Date.now() + OTP_TTL_MS);
     user.otpType = 'FORGOT_PASSWORD';
+    user.otpAttempts = 0;
+    user.otpSentAt = new Date();
     await user.save();
 
     // Gửi email OTP đặt lại mật khẩu
@@ -296,7 +262,7 @@ const resetPassword = async (req, res, next) => {
     }
 
     const normalizedEmail = email.toLowerCase().trim();
-    const user = await User.findOne({ email: normalizedEmail }).select('+passwordHash +otpCode +otpExpiresAt +otpType');
+    const user = await User.findOne({ email: normalizedEmail }).select('+passwordHash +otpCode +otpExpiresAt +otpType +otpAttempts +otpSentAt');
 
     if (!user) {
       return sendError(res, 'Không tìm thấy tài khoản với email này.', null, 404);
@@ -310,16 +276,21 @@ const resetPassword = async (req, res, next) => {
 
     // 1. Kiểm tra hết hạn 10 phút
     if (!user.otpExpiresAt || now > user.otpExpiresAt) {
-      user.otpCode = null;
-      user.otpExpiresAt = null;
-      user.otpType = null;
+      clearOtp(user);
       await user.save();
       return sendError(res, 'Mã OTP đã hết hạn (quá 10 phút). Vui lòng gửi lại yêu cầu quên mật khẩu mới.', null, 400);
     }
 
     // 2. Kiểm tra mã OTP không khớp
-    if (user.otpCode !== otp.toString().trim()) {
-      return sendError(res, 'Mã OTP không hợp lệ.', null, 400);
+    if (user.otpCode !== hashOtp(otp)) {
+      user.otpAttempts = (user.otpAttempts || 0) + 1;
+      if (user.otpAttempts >= OTP_MAX_ATTEMPTS) {
+        clearOtp(user);
+        await user.save();
+        return sendError(res, 'Bạn đã nhập sai OTP quá số lần cho phép. Vui lòng yêu cầu mã mới.', null, 429);
+      }
+      await user.save();
+      return sendError(res, `Mã OTP không hợp lệ. Bạn còn ${OTP_MAX_ATTEMPTS - user.otpAttempts} lần thử.`, null, 400);
     }
 
     // 3. Cập nhật mật khẩu mới mã hóa bcrypt cost 12
@@ -328,6 +299,8 @@ const resetPassword = async (req, res, next) => {
     user.otpCode = null;
     user.otpExpiresAt = null;
     user.otpType = null;
+    user.otpAttempts = 0;
+    user.otpSentAt = null;
     await user.save();
 
     // Thu hồi toàn bộ Refresh Token cũ để bảo mật
@@ -355,7 +328,12 @@ const refreshToken = async (req, res, next) => {
       return sendError(res, 'Refresh token không hợp lệ hoặc đã hết hạn.', null, 403);
     }
 
-    const decoded = jwt.verify(token, process.env.REFRESH_TOKEN_SECRET || 'refresh_secret_key');
+    if (savedToken.expiresAt <= new Date()) {
+      await RefreshToken.deleteOne({ _id: savedToken._id });
+      return sendError(res, 'Refresh token đã hết hạn.', null, 403);
+    }
+
+    const decoded = jwt.verify(token, process.env.REFRESH_TOKEN_SECRET);
     const user = await User.findById(decoded.id);
     if (!user || !user.isActive) {
       return sendError(res, 'Người dùng không tồn tại hoặc đã bị vô hiệu hóa.', null, 403);
@@ -363,9 +341,27 @@ const refreshToken = async (req, res, next) => {
 
     const newAccessToken = jwt.sign(
       { id: user._id, role: user.role, email: user.email },
-      process.env.JWT_SECRET || 'secret_key',
+      process.env.JWT_SECRET,
       { expiresIn: process.env.JWT_EXPIRES_IN || '15m' }
     );
+
+    const newRefreshTokenString = jwt.sign(
+      { id: user._id },
+      process.env.REFRESH_TOKEN_SECRET,
+      { expiresIn: '7d' }
+    );
+    await RefreshToken.deleteOne({ _id: savedToken._id });
+    await RefreshToken.create({
+      token: newRefreshTokenString,
+      userId: user._id,
+      expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
+    });
+    res.cookie('refreshToken', newRefreshTokenString, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: process.env.NODE_ENV === 'production' ? 'strict' : 'lax',
+      maxAge: 7 * 24 * 60 * 60 * 1000,
+    });
 
     return sendSuccess(res, 'Cấp mới token thành công.', { token: newAccessToken });
   } catch (error) {
@@ -432,6 +428,72 @@ const getMe = async (req, res, next) => {
   }
 };
 
+/**
+ * @desc Đổi mật khẩu cho người dùng đang đăng nhập
+ * @route PUT /api/auth/change-password
+ */
+const changePassword = async (req, res, next) => {
+  try {
+    const { currentPassword, newPassword } = req.body;
+    if (!currentPassword || !newPassword) {
+      return sendError(res, 'Vui lòng cung cấp mật khẩu hiện tại và mật khẩu mới.', null, 400);
+    }
+    if (newPassword.length < 6) {
+      return sendError(res, 'Mật khẩu mới phải có độ dài tối thiểu 6 ký tự.', null, 400);
+    }
+
+    const user = await User.findById(req.user.id).select('+passwordHash');
+    if (!user) {
+      return sendError(res, 'Không tìm thấy người dùng.', null, 404);
+    }
+
+    const isMatch = await bcrypt.compare(currentPassword, user.passwordHash);
+    if (!isMatch) {
+      return sendError(res, 'Mật khẩu hiện tại không chính xác.', null, 400, 'INVALID_CREDENTIALS');
+    }
+
+    const salt = await bcrypt.genSalt(12);
+    user.passwordHash = await bcrypt.hash(newPassword, salt);
+    await user.save();
+
+    return sendSuccess(res, 'Đổi mật khẩu thành công! Vui lòng sử dụng mật khẩu mới cho các lần đăng nhập tiếp theo.');
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * @desc Cập nhật ảnh đại diện / ảnh mẫu Face ID của người dùng
+ * @route PUT /api/auth/avatar
+ */
+const updateAvatar = async (req, res, next) => {
+  try {
+    const { avatar, faceDescriptor } = req.body;
+    if (!avatar) {
+      return sendError(res, 'Vui lòng cung cấp đường dẫn ảnh đại diện.', null, 400);
+    }
+
+    const updateData = { avatar };
+    if (Array.isArray(faceDescriptor) && faceDescriptor.length === 128) {
+      updateData.faceDescriptor = faceDescriptor;
+    }
+
+    const user = await User.findByIdAndUpdate(
+      req.user.id,
+      { $set: updateData },
+      { new: true }
+    ).populate('departmentId', 'name type location');
+
+    if (!user) {
+      return sendError(res, 'Không tìm thấy thông tin người dùng.', null, 404);
+    }
+
+    return sendSuccess(res, 'Cập nhật ảnh khuôn mặt / đại diện thành công.', user);
+  } catch (error) {
+    next(error);
+  }
+};
+
 module.exports = {
   login,
   register,
@@ -441,4 +503,6 @@ module.exports = {
   refreshToken,
   logout,
   getMe,
+  changePassword,
+  updateAvatar,
 };

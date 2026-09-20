@@ -153,7 +153,6 @@ router.use(verifyToken);
  *     description: Lấy userId từ JWT. Client chỉ cần gửi method, deviceId, location. Backend tự động quy đổi giờ Asia/Ho_Chi_Minh (UTC+7), tìm lịch dạy khớp hôm nay trong khung [startTime - 30p, endTime] và đánh giá ON_TIME hoặc LATE.
  *     tags: [Attendance]
  *     security:
- *       - bearerAuth: []
  *       - BearerAuth: []
  *     requestBody:
  *       required: false
@@ -206,7 +205,6 @@ router.post('/check-in', checkIn);
  *     description: Tự động tìm bản ghi Check-in đang mở trong ngày hôm nay theo giờ UTC+7. So khớp với endTime của ca; nếu ra sớm và ban đầu là ON_TIME thì chuyển sang EARLY_LEAVE (nếu ban đầu đã LATE thì giữ nguyên). Trả về workingDuration thực tế.
  *     tags: [Attendance]
  *     security:
- *       - bearerAuth: []
  *       - BearerAuth: []
  *     requestBody:
  *       required: false
@@ -273,7 +271,6 @@ router.post('/check-out', checkOut);
  *     description: Giảng viên/Nhân viên chỉ xem của chính mình. Trưởng khoa tự động lọc theo khoa mình (departmentId). Admin xem toàn trường và lọc theo userId, departmentId, status, from, to.
  *     tags: [Attendance]
  *     security:
- *       - bearerAuth: []
  *       - BearerAuth: []
  *     parameters:
  *       - in: query
@@ -361,28 +358,70 @@ router.get('/history', getAttendanceHistory);
 
 /**
  * @swagger
- * /api/attendance/cron/test-daily-check:
+ * /api/attendance/trigger-absent-cron:
  *   post:
- *     summary: "[🔒 Admin] Kích hoạt thủ công tiến trình quét kiểm tra vắng mặt ngày hôm nay (Test Postman)"
- *     description: Kích hoạt thủ công tiến trình cron kiểm tra vắng mặt ngay lập tức trên Postman mà không cần đợi lịch 23:59 đêm.
+ *     summary: "[🔒 Admin] Kích hoạt thủ công tiến trình quét vắng mặt tự động (trigger-absent-cron)"
+ *     description: Dành riêng cho Quản trị viên (Admin) hoặc người chấm đồ án có thể kích hoạt tiến trình quét vắng mặt ngay tức thì mà không cần đợi đến 23:59 đêm. Cho phép truyền body hoặc query ?date=YYYY-MM-DD để quét bù các ngày trong quá khứ.
  *     tags: [Attendance]
  *     security:
- *       - bearerAuth: []
  *       - BearerAuth: []
+ *     requestBody:
+ *       required: false
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               date:
+ *                 type: string
+ *                 format: date
+ *                 example: "2026-09-15"
+ *                 description: Ngày cần quét vắng mặt (YYYY-MM-DD). Mặc định là ngày hôm nay.
  *     parameters:
  *       - in: query
  *         name: date
  *         schema:
  *           type: string
  *           format: date
- *           example: "2026-09-14"
- *         description: Ngày kiểm tra (YYYY-MM-DD). Mặc định là ngày hôm nay.
+ *           example: "2026-09-15"
+ *         description: Ngày cần quét vắng mặt (nếu truyền qua query string)
  *     responses:
  *       200:
- *         description: Kích hoạt tiến trình quét kiểm tra vắng mặt thành công
+ *         description: Tiến trình quét vắng mặt hoàn tất thành công
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 message:
+ *                   type: string
+ *                   example: "Tiến trình quét vắng mặt hoàn tất."
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     scannedSchedules:
+ *                       type: integer
+ *                       example: 12
+ *                     alreadyAttended:
+ *                       type: integer
+ *                       example: 10
+ *                     excusedAbsences:
+ *                       type: integer
+ *                       example: 1
+ *                     newlyMarkedAbsent:
+ *                       type: integer
+ *                       example: 1
+ *       400:
+ *         description: Định dạng ngày không hợp lệ
+ *       401:
+ *         description: Chưa xác thực hoặc Token không hợp lệ
  *       403:
- *         description: Không có quyền truy cập (Chỉ Admin)
+ *         description: Quyền truy cập bị từ chối (Chỉ Admin)
  */
+router.post('/trigger-absent-cron', authorizeRoles('admin'), triggerDailyAbsentCheck);
 router.post('/cron/test-daily-check', authorizeRoles('admin'), triggerDailyAbsentCheck);
 
 /**
@@ -393,7 +432,6 @@ router.post('/cron/test-daily-check', authorizeRoles('admin'), triggerDailyAbsen
  *     description: Kiểm tra phân quyền truy cập. Giảng viên chỉ xem được bản ghi của mình, Trưởng khoa xem của khoa mình, Admin xem toàn bộ.
  *     tags: [Attendance]
  *     security:
- *       - bearerAuth: []
  *       - BearerAuth: []
  *     parameters:
  *       - in: path
@@ -437,7 +475,6 @@ router.get('/:id', getAttendanceById);
  *     description: Chỉ Admin có quyền can thiệp. Bắt buộc hệ thống tự động gán isManualOverride = true và method = 'admin_override'. Tự động lưu vết dữ liệu trước và sau khi sửa vào Collection audit_logs.
  *     tags: [Attendance]
  *     security:
- *       - bearerAuth: []
  *       - BearerAuth: []
  *     parameters:
  *       - in: path

@@ -1,5 +1,6 @@
 const fs = require('fs');
 const path = require('path');
+const fs = require('fs');
 const express = require('express');
 const cors = require('cors');
 const helmet = require('helmet');
@@ -27,6 +28,8 @@ try {
 const swaggerSpec = require('./config/swagger');
 const apiRoutes = require('./routes');
 const { errorHandler, notFoundHandler } = require('./middlewares/error.middleware');
+const { verifyToken } = require('./middlewares/auth.middleware');
+const { downloadFile } = require('./controllers/upload.controller');
 
 const app = express();
 
@@ -63,8 +66,13 @@ app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use(cookieParser());
 
-// 3. Static Files Serving (File minh chứng, tài liệu đính kèm)
-app.use('/uploads', express.static(path.join(__dirname, '../uploads')));
+// 3. Phục vụ file tĩnh uploads (ảnh đại diện, ảnh Face ID, ảnh minh chứng)
+const uploadsStaticDir = path.join(__dirname, '../uploads');
+if (!fs.existsSync(uploadsStaticDir)) {
+  fs.mkdirSync(uploadsStaticDir, { recursive: true });
+}
+app.use('/uploads', express.static(uploadsStaticDir));
+app.get('/uploads/:filename', verifyToken, downloadFile);
 
 // 4. Swagger UI Documentation Route
 const swaggerUiOptions = {
@@ -76,7 +84,6 @@ const swaggerUiOptions = {
 app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec, swaggerUiOptions));
 
 // 5. Health Check Route
-
 app.get('/health', (req, res) => {
   res.status(200).json({
     status: 'OK',
@@ -97,7 +104,7 @@ app.get('/health', (req, res) => {
   });
 });
 
-// 5. Main API Routes (Hỗ trợ cả /api và /api/v1)
+// 6. Main API Routes (Hỗ trợ cả /api và /api/v1)
 app.use('/api', apiRoutes);
 app.use('/api/v1', apiRoutes);
 
@@ -133,6 +140,7 @@ if (fs.existsSync(distPath)) {
     });
   });
 }
+
 // 6. Error & 404 Handling Middlewares
 app.use(notFoundHandler);
 app.use(errorHandler);

@@ -1,7 +1,16 @@
 const bcrypt = require('bcryptjs');
 const User = require('../models/user.model');
+const Department = require('../models/department.model');
 const AuditLog = require('../models/auditLog.model');
 const { sendSuccess, sendError } = require('../utils/responseHandler');
+
+const ADMIN_ROLE = 'admin';
+
+const getDeanDepartmentIds = async (user) => {
+  if (!user.departmentId) return [];
+  const childIds = await Department.find({ parentId: user.departmentId }).distinct('_id');
+  return [user.departmentId, ...childIds];
+};
 
 /**
  * @desc Lấy danh sách người dùng (Hỗ trợ lọc, tìm kiếm; Trưởng khoa chỉ xem thuộc khoa mình)
@@ -18,7 +27,8 @@ const getAllUsers = async (req, res, next) => {
       if (!req.user.departmentId) {
         return sendError(res, 'Tài khoản Trưởng khoa chưa được gán mã khoa trực thuộc.', null, 403);
       }
-      query.departmentId = req.user.departmentId;
+      const departmentIds = await getDeanDepartmentIds(req.user);
+      query.departmentId = { $in: departmentIds };
     } else if (departmentId) {
       // Admin có thể chỉ định lọc theo bất kỳ phòng ban nào
       query.departmentId = departmentId;
@@ -57,7 +67,8 @@ const getUserById = async (req, res, next) => {
     // Nếu là Trưởng khoa, kiểm tra người dùng được xem có thuộc khoa mình phụ trách hay không
     if (req.user.role === 'truongkhoa') {
       const userDeptId = user.departmentId?._id ? user.departmentId._id.toString() : user.departmentId?.toString();
-      if (userDeptId !== req.user.departmentId) {
+      const departmentIds = await getDeanDepartmentIds(req.user);
+      if (!departmentIds.some((id) => id.toString() === userDeptId)) {
         return sendError(res, 'Bạn chỉ có quyền xem thông tin nhân sự thuộc khoa của mình.', null, 403);
       }
     }
@@ -85,6 +96,11 @@ const createUser = async (req, res, next) => {
       return sendError(res, 'Email đã tồn tại trên hệ thống.', null, 400);
     }
 
+    const requestedRole = role || 'giangvien';
+    if (requestedRole === ADMIN_ROLE) {
+      return sendError(res, 'Không thể bổ nhiệm quyền Quản trị viên qua chức năng quản lý cán bộ.', null, 403);
+    }
+
     // Mã hóa mật khẩu bcrypt với cost 12
     const salt = await bcrypt.genSalt(12);
     const passwordHash = await bcrypt.hash(password, salt);
@@ -93,7 +109,7 @@ const createUser = async (req, res, next) => {
       fullName,
       email,
       passwordHash,
-      role: role || 'giangvien',
+      role: requestedRole,
       departmentId,
       annualLeaveQuota: annualLeaveQuota !== undefined ? annualLeaveQuota : 12,
       isActive: true,
@@ -141,13 +157,22 @@ const updateUser = async (req, res, next) => {
     // Phân quyền cập nhật giữa Admin và Trưởng khoa:
     if (req.user.role === 'truongkhoa') {
       const targetDeptId = targetUser.departmentId ? targetUser.departmentId.toString() : null;
-      if (targetDeptId !== req.user.departmentId) {
+      const departmentIds = await getDeanDepartmentIds(req.user);
+      if (!departmentIds.some((id) => id.toString() === targetDeptId)) {
         return sendError(res, 'Bạn chỉ có quyền cập nhật nhân sự thuộc khoa của mình.', null, 403);
       }
-      // Trưởng khoa chỉ được sửa thông tin cơ bản, không được tự ý đổi role, chuyển khoa hoặc kích hoạt/vô hiệu hóa
+      // Trưởng khoa chỉ được sửa thông tin cơ bản (fullName, annualLeaveQuota)
+      // Nếu gửi các trường ngoài phạm vi -> trả về 403 Forbidden
+      if (role !== undefined || departmentId !== undefined || isActive !== undefined) {
+        return sendError(res, 'Trưởng khoa không có quyền thay đổi vai trò, phòng ban hoặc trạng thái hoạt động của nhân sự.', null, 403);
+      }
       if (fullName !== undefined) updateData.fullName = fullName;
       if (annualLeaveQuota !== undefined) updateData.annualLeaveQuota = annualLeaveQuota;
     } else {
+      if (role === ADMIN_ROLE && targetUser.role !== ADMIN_ROLE) {
+        return sendError(res, 'Không thể bổ nhiệm quyền Quản trị viên cho người dùng.', null, 403);
+      }
+
       // Admin có toàn quyền sửa đổi
       if (fullName !== undefined) updateData.fullName = fullName;
       if (departmentId !== undefined) updateData.departmentId = departmentId;
@@ -161,6 +186,16 @@ const updateUser = async (req, res, next) => {
       updateData,
       { returnDocument: 'after', runValidators: true }
     ).populate('departmentId', 'name type');
+
+    // Đồng bộ chức vụ Trưởng khoa hai chiều:
+    if (role !== undefined && role !== 'truongkhoa' && targetUser.role === 'truongkhoa') {
+      // Bị chuyển vai trò khỏi Trưởng khoa -> Gỡ managerId ở các khoa người này từng phụ trách
+      await Department.updateMany({ managerId: targetUser._id }, { managerId: null });
+    } else if (role === 'truongkhoa' && (departmentId || targetUser.departmentId)) {
+      // Được nâng vai trò lên Trưởng khoa -> Gán làm managerId cho khoa trực thuộc
+      const targetDeptId = departmentId || targetUser.departmentId;
+      await Department.findByIdAndUpdate(targetDeptId, { managerId: targetUser._id });
+    }
 
     // Ghi nhận Audit Log tự động khi cập nhật thông tin người dùng
     await AuditLog.create({
@@ -194,6 +229,12 @@ const deleteUser = async (req, res, next) => {
       return sendError(res, 'Không tìm thấy người dùng để xóa.', null, 404);
     }
 
+    // Nếu người dùng này đang là Trưởng đơn vị của Khoa/Bộ môn, tự động gỡ để tránh giữ tài khoản bị vô hiệu hóa
+    const managedDepts = await Department.find({ managerId: softDeleted._id });
+    if (managedDepts.length > 0) {
+      await Department.updateMany({ managerId: softDeleted._id }, { managerId: null });
+    }
+
     // Ghi nhận Audit Log tự động khi vô hiệu hóa người dùng (Soft delete)
     await AuditLog.create({
       actor: req.user.id,
@@ -206,10 +247,15 @@ const deleteUser = async (req, res, next) => {
         email: softDeleted.email,
         fullName: softDeleted.fullName,
         isActive: false,
+        vacatedDepartments: managedDepts.map((d) => ({ id: d._id, name: d.name })),
       },
     });
 
-    return sendSuccess(res, 'Vô hiệu hóa tài khoản người dùng thành công (soft delete).');
+    const warningNotice = managedDepts.length > 0
+      ? ` Đồng thời đã tự động miễn nhiệm chức vụ Trưởng đơn vị tại: ${managedDepts.map((d) => d.name).join(', ')}.`
+      : '';
+
+    return sendSuccess(res, `Vô hiệu hóa tài khoản người dùng thành công (soft delete).${warningNotice}`);
   } catch (error) {
     next(error);
   }

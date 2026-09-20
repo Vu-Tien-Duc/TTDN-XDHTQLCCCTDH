@@ -459,7 +459,19 @@ const seedData = async () => {
     console.log('✔ Đã phân công lịch giảng dạy cho Giảng viên & Lịch ca hành chính cho Chuyên viên.');
 
     console.log('\n--- 6. TẠO ĐƠN NGHỈ PHÉP MẪU (LEAVE_REQUESTS) ---');
-    // Đơn 1: Đang chờ duyệt (PENDING) của GV Cường (để Trưởng khoa CNTT kiểm thử duyệt)
+    // Đơn 1: Đã duyệt (APPROVED) 3 ngày của GV Bích (12 - 3 = 9 ngày còn lại)
+    const leaveApproved = await LeaveRequest.create({
+      userId: lecturerBich._id,
+      type: 'nghi_phep',
+      reason: 'Đi công tác hội thảo khoa học quốc tế về Công nghệ phần mềm',
+      startDate: new Date(now.getFullYear(), now.getMonth(), 1),
+      endDate: new Date(now.getFullYear(), now.getMonth(), 3),
+      attachmentUrl: 'https://storage.university.edu.vn/attachments/quyet-dinh-hoi-thao.pdf',
+      status: 'APPROVED',
+      approvedBy: itDean._id,
+    });
+
+    // Đơn 2: Đang chờ duyệt (PENDING) của GV Cường
     await LeaveRequest.create({
       userId: lecturerCuong._id,
       type: 'nghi_phep',
@@ -507,13 +519,13 @@ const seedData = async () => {
     console.log('\n--- 8. TẠO NHẬT KÝ KIỂM TOÁN MẪU (AUDIT_LOGS) ---');
     await AuditLog.create({
       actor: itDean._id,
-      action: 'UPDATE_SCHEDULE',
-      targetId: scheduleToday._id.toString(),
-      targetType: 'Schedule',
+      action: 'APPROVE_LEAVE',
+      targetId: leaveApproved._id.toString(),
+      targetType: 'LeaveRequest',
       ipAddress: '127.0.0.1',
       timestamp: new Date(),
       details: {
-        reason: 'Trưởng khoa CNTT phê duyệt thời khóa biểu giảng dạy học kỳ',
+        reason: 'Trưởng khoa CNTT duyệt đơn nghỉ phép của GV Bích',
       },
     });
     console.log('✔ Đã tạo bản ghi kiểm toán mẫu cho thao tác của Trưởng Khoa.');
@@ -524,10 +536,10 @@ const seedData = async () => {
     console.log('Danh sách tài khoản đăng nhập mẫu (Mật khẩu chung: password123):');
     console.log('1. Admin IT:          daihocdtd@gmail.com');
     console.log('2. Admin HR:          admin.hr@university.edu.vn');
-    console.log('3. Trưởng Khoa CNTT:  truongkhoa.cntt@university.edu.vn (Có đơn chờ Admin duyệt)');
+    console.log('3. Trưởng Khoa CNTT:  truongkhoa.cntt@university.edu.vn');
     console.log('4. Trưởng Khoa KinhTế:truongkhoa.kinhte@university.edu.vn');
-    console.log('5. Giảng viên KTPM:   giangvien.bich@university.edu.vn (Quỹ phép nguyên vẹn 12/12 ngày, đã dùng 0)');
-    console.log('6. Giảng viên HTTT:   giangvien.cuong@university.edu.vn (Đang có đơn chờ Trưởng khoa duyệt)');
+    console.log('5. Giảng viên KTPM:   giangvien.bich@university.edu.vn (Quỹ phép còn 9/12)');
+    console.log('6. Giảng viên HTTT:   giangvien.cuong@university.edu.vn (Đang có đơn chờ duyệt)');
     console.log('7. Chuyên viên ĐàoTạo:nhanvien.ha@university.edu.vn (Ca hành chính)');
     console.log('8. Chuyên viên KhảoThí:nhanvien.thanh@university.edu.vn (Ca hành chính)');
     console.log('================================================================\n');

@@ -1,126 +1,310 @@
-# HỆ THỐNG QUẢN LÝ CHẤM CÔNG CHO TRƯỜNG ĐẠI HỌC - BACKEND NODE.JS
+# He Thong Quan Ly Cham Cong Can Bo, Giang Vien Truong Dai Hoc
 
-Dự án Backend xây dựng trên nền tảng **Node.js**, **Express 5**, **MongoDB (Mongoose 9)** và **Swagger UI** theo kiến trúc **Layered MVC (Model - Controller - Route - Service)** phục vụ nghiệp vụ quản lý chấm công, lịch giảng dạy/công tác, đơn xin nghỉ phép và báo cáo thống kê dành cho Giảng viên và Cán bộ Nhân viên Trường Đại học.
+> De tai: Xay dung he thong quan ly cham cong can bo, giang vien truong dai hoc  
+> Repository: https://github.com/Vu-Tien-Duc/TTDN-XDHTQLCCCTDH
 
----
+## Tong Quan
 
-## 🛠 Công nghệ cốt lõi (Core Stack)
+Day la he thong quan ly cham cong, lich giang day, don nghi phep va bao cao thong ke cho moi truong truong dai hoc. Project gom backend Node.js/Express, MongoDB va frontend React/Vite/TypeScript.
 
-- **Web Framework**: [`express`](https://expressjs.com/) (v5.x)
-- **Database ODM**: [`mongoose`](https://mongoosejs.com/) (v9.x)
-- **API Documentation**: [`swagger-jsdoc`](https://github.com/Swaagie/swagger-jsdoc) & [`swagger-ui-express`](https://github.com/scottie1984/swagger-ui-express)
-- **Bảo mật & Middleware**:
-  - [`jsonwebtoken`](https://github.com/auth0/node-jsonwebtoken) (Xác thực JWT: Access Token 15 phút + Refresh Token 7 ngày)
-  - [`cookie-parser`](https://github.com/expressjs/cookie-parser) (Lưu trữ và trích xuất Refresh Token trong `httpOnly cookie` an toàn)
-  - [`bcryptjs`](https://github.com/dcodeIO/bcrypt.js) (Mã hóa mật khẩu chi phí cao cost 12)
-  - [`helmet`](https://helmetjs.github.io/) (Bảo mật HTTP Headers)
-  - [`cors`](https://github.com/expressjs/cors) (Quản lý Cross-Origin Resource Sharing)
-  - [`morgan`](https://github.com/expressjs/morgan) (HTTP Logger)
-  - [`dotenv`](https://github.com/motdotla/dotenv) (Quản lý biến môi trường)
-- **Dev Tool**: [`nodemon`](https://nodemon.io/) (Tự động tải lại mã nguồn khi phát triển)
+He thong hien co cac nhom chuc nang chinh:
 
----
+| Phan he | Mo ta ngan |
+| --- | --- |
+| Xac thuc va phien dang nhap | Dang nhap JWT, refresh token, logout, quen mat khau bang OTP email, route guard frontend |
+| Phan quyen RBAC | 4 vai tro: `admin`, `truongkhoa`, `giangvien`, `nhanvien` |
+| Co cau to chuc | Quan ly Truong, Khoa, Bo mon, Phong ban theo cay phong ban |
+| Quan ly can bo | Tao, xem, sua, khoa tai khoan; loc theo vai tro, phong ban, tu khoa |
+| Ca lam viec | Cau hinh ca sang, chieu, toi, hanh chinh; nguong di tre/ve som |
+| Lich giang day va cong tac | Quan ly lich theo ngay/thu, ca, phong, nguoi duoc phan cong; chan trung lich |
+| Cham cong | Check-in/check-out, lich su cham cong, cap nhat thu cong boi admin, cron tu dong danh vang |
+| Don nghi phep | Tao don, upload minh chung, theo doi don ca nhan, duyet/tu choi theo phan quyen |
+| Bao cao thong ke | Tong hop cham cong, bao cao thang, bieu do, xuat Excel, in PDF |
+| Tro ly AI | Chat hoi dap ve du lieu he thong bang Gemini API hoac fallback analytics |
+| Audit log | Ghi nhan cac thao tac nhay cam phuc vu truy vet |
 
-## 🗄 Danh mục Collections MongoDB
+Tai lieu chi tiet cac chuc nang hien co nam tai [FEATURES.md](./FEATURES.md).
 
-1. **`users`**: Quản lý tài khoản (Admin, Trưởng khoa, Giảng viên, Nhân viên), mật khẩu mã hóa bcrypt cost 12, hạn mức nghỉ phép năm `annualLeaveQuota`.
-2. **`departments`**: Cơ cấu tổ chức phân cấp (Trường > Khoa > Bộ môn / Phòng ban), quản lý bởi `managerId`.
-3. **`shift_configs`**: Danh mục các ca làm việc chuẩn (Giờ bắt đầu/kết thúc, ngưỡng trễ).
-4. **`schedules`**: Lịch phân công giảng dạy/công tác theo học kỳ (Compound index: `{ userId: 1, weekday: 1, startDate: 1, endDate: 1 }`).
-5. **`attendance_logs`**: Nhật ký chấm công, tự động suy luận ca từ giờ thực tế, cờ `isManualOverride` & `method = admin_override`.
-6. **`leave_requests`**: Đơn xin nghỉ phép, dạy bù, đổi ca (Compound index: `{ userId: 1, status: 1, type: 1 }`).
-7. **`audit_logs`**: Nhật ký kiểm toán truy vết các thao tác nhạy cảm (duyệt đơn, điều chỉnh log chấm công).
-8. **`refresh_tokens`**: Quản lý phiên đăng nhập và thu hồi token, tự hủy với TTL Index `{ expiresAt: 1 }`.
-9. **`token_blacklists`**: Danh sách Access Token bị thu hồi khi Logout, tự động hủy qua MongoDB TTL Index.
+## Cong Nghe Su Dung
 
----
+### Backend
 
-## 📂 Cấu trúc thư mục (Project Structure)
+| Thanh phan | Cong nghe |
+| --- | --- |
+| Runtime | Node.js |
+| Framework | Express.js 5 |
+| Database | MongoDB, Mongoose |
+| Xac thuc | JWT, refresh token, bcryptjs, cookie-parser |
+| Bao mat | Helmet, CORS, rate limiter dang nhap |
+| Upload | Multer |
+| Email | Nodemailer |
+| Cron | node-cron |
+| Tai lieu API | Swagger UI Express |
+
+### Frontend
+
+| Thanh phan | Cong nghe |
+| --- | --- |
+| Framework | React 19 |
+| Build tool | Vite |
+| Ngon ngu | TypeScript |
+| Routing | React Router DOM |
+| UI | TailwindCSS, lucide-react, react-hot-toast |
+| Form/validate | React Hook Form, Zod |
+| HTTP client | Axios voi interceptor refresh token |
+| Export | SheetJS `xlsx`, print PDF qua trinh duyet |
+
+## Cau Truc Thu Muc
 
 ```text
 TTDN-XDHTQLCCCTDH/
-├── requests.http                 # File test trực tiếp bằng VS Code REST Client / Thunder Client
-├── postman_collection.json       # File Postman Collection v2.1 import vào Postman
-├── API_DOCUMENTATION.md          # Tài liệu chi tiết 37 endpoints dùng cho báo cáo đồ án
 ├── src/
+│   ├── app.js
+│   ├── server.js
 │   ├── config/
-│   │   ├── db.js                 # Kết nối MongoDB (Mongoose)
-│   │   └── swagger.js            # Cấu hình OpenAPI / Swagger Docs
-│   ├── controllers/              # Điều hướng logic nghiệp vụ
-│   │   ├── auth.controller.js        # Đăng nhập, Đăng ký, Refresh Token, Logout, Me
-│   │   ├── user.controller.js        # Quản lý người dùng & Soft delete
-│   │   ├── department.controller.js  # Quản lý đơn vị tổ chức dạng cây
-│   │   ├── shiftConfig.controller.js # Quản lý danh mục ca làm việc (Shifts)
-│   │   ├── schedule.controller.js    # Phân lịch & Kiểm tra chống trùng giờ
-│   │   ├── attendance.controller.js  # Chấm công Check-in / Check-out tự động
-│   │   ├── leaveRequest.controller.js# Quản lý nghỉ phép & Tính số ngày phép động
-│   │   ├── auditLog.controller.js    # Tra cứu nhật ký kiểm toán (Admin)
-│   │   └── report.controller.js      # Báo cáo thống kê tổng hợp
-│   ├── models/                   # Đúng chuẩn 8 Collections Mongoose
-│   │   ├── user.model.js             # Collection: users
-│   │   ├── department.model.js       # Collection: departments
-│   │   ├── shiftConfig.model.js      # Collection: shift_configs
-│   │   ├── schedule.model.js         # Collection: schedules
-│   │   ├── attendanceLog.model.js    # Collection: attendance_logs
-│   │   ├── leaveRequest.model.js     # Collection: leave_requests
-│   │   ├── auditLog.model.js         # Collection: audit_logs
-│   │   ├── refreshToken.model.js     # Collection: refresh_tokens
-│   │   └── tokenBlacklist.model.js   # Collection: token_blacklists
-│   ├── routes/                   # Định tuyến API (Endpoints)
-│   │   ├── index.js                  # Router tổng hợp
-│   │   ├── auth.routes.js            # /api/auth
-│   │   ├── user.routes.js            # /api/users
-│   │   ├── department.routes.js      # /api/departments
-│   │   ├── shiftConfig.routes.js     # /api/shifts & /api/shift-configs
-│   │   ├── schedule.routes.js        # /api/schedules
-│   │   ├── attendance.routes.js      # /api/attendance
-│   │   ├── leaveRequest.routes.js    # /api/leave-requests
-│   │   ├── auditLog.routes.js        # /api/audit-logs
-│   │   └── report.routes.js          # /api/reports
-│   ├── middlewares/              # Xác thực JWT & Bắt lỗi hệ thống
-│   │   ├── auth.middleware.js        # verifyToken, verifyRole (RBAC)
-│   │   └── error.middleware.js       # errorHandler, notFoundHandler
-│   ├── services/                 # Helper tính toán logic
-│   │   ├── attendance.service.js     # Tính toán trạng thái ON_TIME/LATE theo ca
-│   │   └── report.service.js         # Thống kê báo cáo tháng
+│   │   ├── db.js
+│   │   ├── mailer.js
+│   │   ├── swagger.js
+│   │   └── swaggerPaths.js
+│   ├── controllers/
+│   ├── middlewares/
+│   ├── models/
+│   ├── routes/
+│   ├── services/
 │   └── utils/
-│       ├── responseHandler.js        # Chuẩn hóa format JSON phản hồi
-│       └── seeder.js                 # Script nạp dữ liệu mẫu vào CSDL
-├── .env.example
-├── package.json
-└── server.js
+├── frontend/
+│   ├── src/
+│   │   ├── api/
+│   │   ├── components/
+│   │   ├── contexts/
+│   │   ├── layouts/
+│   │   ├── pages/
+│   │   │   ├── admin/
+│   │   │   ├── ai/
+│   │   │   ├── auth/
+│   │   │   ├── common/
+│   │   │   ├── dashboard/
+│   │   │   ├── leave/
+│   │   │   └── schedule/
+│   │   ├── routes/
+│   │   ├── services/
+│   │   ├── types/
+│   │   └── utils/
+│   └── public/
+├── uploads/
+├── postman/
+├── API_DOCUMENTATION.md
+├── FEATURES.md
+├── postman_collection.json
+└── requests.http
 ```
 
----
+## Cai Dat Va Chay Project
 
-## 🚀 Hướng dẫn Cài đặt & Chạy thử nghiệm
+### Yeu cau
 
-### 1. Khởi tạo dữ liệu mẫu (Seed Data)
-Để nạp sẵn 1 Admin, 1 Trưởng khoa, 3 Giảng viên, 1 Nhân viên, các phòng ban, ca làm việc, lịch dạy hôm nay và đơn nghỉ phép mẫu, chạy:
+- Node.js 20+
+- MongoDB local hoac MongoDB Atlas
+- npm
+
+### Cai dependencies
+
+```bash
+npm install
+npm install --prefix frontend
+```
+
+### Cau hinh bien moi truong
+
+Tao file `.env` tu `.env.example` va cap nhat cac bien can thiet:
+
+```env
+PORT=5000
+NODE_ENV=development
+MONGODB_URI=mongodb://localhost:27017/university_attendance_db
+JWT_SECRET=your_jwt_secret_key_here
+JWT_EXPIRES_IN=15m
+REFRESH_TOKEN_SECRET=your_refresh_token_secret_key_here
+CLIENT_URL=http://localhost:5173
+
+EMAIL_HOST=smtp.gmail.com
+EMAIL_PORT=587
+EMAIL_USER=your_email@gmail.com
+EMAIL_PASS=your_google_app_password
+
+GEMINI_API_KEY=your_gemini_api_key_optional
+```
+
+Neu chua cau hinh email, he thong van co che do dev fallback va in OTP trong terminal cho mot so luong lien quan OTP.
+
+### Seed du lieu mau
+
 ```bash
 npm run seed
 ```
 
-### 2. Danh sách tài khoản thử nghiệm:
-| Vai trò | Email | Mật khẩu | Ghi chú |
-| :--- | :--- | :--- | :--- |
-| **Admin** | `daihocdtd@gmail.com` | `password123` | Toàn quyền quản trị hệ thống (Email trường) |
-| **Trưởng Khoa** | `truongkhoa.cntt@university.edu.vn` | `password123` | Quản lý nhân sự Khoa CNTT |
-| **Giảng Viên 1** | `giangvien.bich@university.edu.vn` | `password123` | Có lịch dạy hôm nay, đã duyệt nghỉ 3 ngày |
-| **Giảng Viên 2** | `giangvien.cuong@university.edu.vn` | `password123` | Có đơn xin nghỉ đang chờ duyệt (PENDING) |
-| **Giảng Viên 3** | `giangvien.linh@university.edu.vn` | `password123` | Giảng viên Khoa CNTT |
-| **Nhân Viên** | `nhanvien.ha@university.edu.vn` | `password123` | Chuyên viên Phòng Đào tạo |
+Seed tao du lieu mau gom co cau to chuc, tai khoan demo, ca lam viec, lich giang day, don nghi phep, cham cong va audit log mau.
 
-### 3. Chạy Server
+### Chay development
+
+Terminal backend:
+
 ```bash
-# Môi trường phát triển
 npm run dev
+```
 
-# Môi trường production
+Terminal frontend:
+
+```bash
+npm run dev --prefix frontend
+```
+
+Mac dinh:
+
+- Backend API: `http://localhost:5000`
+- Swagger UI: `http://localhost:5000/api-docs`
+- Frontend dev: `http://localhost:5173`
+
+### Build production
+
+```bash
+npm run build
 npm start
 ```
 
-### 4. Kiểm thử API
-- **Swagger UI**: Truy cập trình duyệt tại `http://localhost:5000/api-docs`
-- **VS Code**: Mở file [`requests.http`](file:///d:/Th%E1%BB%B1c%20t%E1%BA%ADp%20t%E1%BB%91t%20nghi%C3%AAp/project/TTDN-XDHTQLCCCTDH/requests.http) và bấm `Send Request`
-- **Postman**: Import file [`postman_collection.json`](file:///d:/Th%E1%BB%B1c%20t%E1%BA%ADp%20t%E1%BB%91t%20nghi%C3%AAp/project/TTDN-XDHTQLCCCTDH/postman_collection.json)
+Sau khi build, Express co the serve SPA trong `frontend/dist` cung API tren cong backend.
+
+## Scripts
+
+| Lenh | Mo ta |
+| --- | --- |
+| `npm run dev` | Chay backend bang nodemon |
+| `npm start` | Chay backend production |
+| `npm run seed` | Khoi tao du lieu mau MongoDB |
+| `npm run build` | Build frontend |
+| `npm run build --prefix frontend` | Typecheck va build frontend |
+| `npm run lint --prefix frontend` | Chay oxlint frontend |
+
+Ghi chu: `npm test` hien chua co test suite that, script mac dinh se bao `no test specified`.
+
+## Tai Khoan Demo
+
+Tat ca tai khoan seed mac dinh co mat khau `password123`.
+
+| Vai tro | Email |
+| --- | --- |
+| Admin | `daihocdtd@gmail.com` |
+| Admin | `admin.hr@university.edu.vn` |
+| Truong khoa | `truongkhoa.cntt@university.edu.vn` |
+| Truong khoa | `truongkhoa.kinhte@university.edu.vn` |
+| Giang vien | `giangvien.bich@university.edu.vn` |
+| Giang vien | `giangvien.cuong@university.edu.vn` |
+| Giang vien | `giangvien.linh@university.edu.vn` |
+| Giang vien | `giangvien.an@university.edu.vn` |
+| Nhan vien | `nhanvien.ha@university.edu.vn` |
+| Nhan vien | `nhanvien.thanh@university.edu.vn` |
+
+Frontend co menu chuyen nhanh tai khoan demo trong header de phuc vu trinh bay va kiem thu.
+
+## Phan Quyen Hien Tai
+
+| Chuc nang | Admin | Truong khoa | Giang vien | Nhan vien |
+| --- | --- | --- | --- | --- |
+| Dashboard | Co | Co | Co | Co |
+| Quan ly co cau to chuc | Co | Khong | Khong | Khong |
+| Quan ly can bo | Co | Xem/sua trong khoa | Khong | Khong |
+| Bo nhiem user thanh admin | Khong qua man hinh quan ly can bo | Khong | Khong | Khong |
+| Quan ly ca lam viec | Co | Khong | Khong | Khong |
+| Xem lich | Toan truong | Theo khoa | Ca nhan | Ca nhan |
+| Tao/sua/xoa lich | Co | Trong pham vi khoa | Khong | Khong |
+| Cham cong | Co | Co | Co | Co |
+| Xem bao cao tong hop | Co | Co | Qua API theo pham vi ca nhan | Qua API theo pham vi ca nhan |
+| Man hinh bao cao chi tiet | Co | Co | Khong | Khong |
+| Tao don nghi phep ca nhan tren frontend | Khong | Co | Co | Co |
+| Xem don nghi cua toi tren frontend | Khong | Co | Co | Co |
+| Duyet/tu choi don nghi | Co | Trong pham vi khoa | Khong | Khong |
+| Tro ly AI | Co | Co | Co | Co |
+| Audit log | Co | Khong | Khong | Khong |
+
+Luu y bao mat:
+
+- Route frontend dung `ProtectedRoute allowedRoles` de chan truy cap truc tiep bang URL.
+- Backend van kiem tra role bang `verifyToken`, `verifyRole` hoac `authorizeRoles`.
+- API quan ly user khong cho tao user role `admin` va khong cho promote user thuong thanh `admin`.
+- He thong khong cho tu dang ky cong khai qua `/auth/register`; tai khoan duoc cap boi admin.
+
+## API Tong Quan
+
+Tat ca API chinh nam duoi prefix `/api`.
+
+| Nhom | Prefix | Endpoint chinh | Quyen |
+| --- | --- | --- | --- |
+| Health | `/health` | `GET /` | Public |
+| Auth | `/auth` | `POST /login`, `POST /forgot-password`, `POST /reset-password`, `POST /refresh`, `POST /logout`, `GET /me` | Tuy endpoint |
+| Users | `/users` | `GET /`, `POST /`, `GET /:id`, `PUT /:id`, `DELETE /:id` | Admin, Truong khoa |
+| Departments | `/departments` | `GET /`, `GET /tree`, `GET /:id`, `POST /`, `PUT /:id`, `DELETE /:id` | Token, CRUD gioi han theo role |
+| Shifts | `/shifts`, `/shift-configs` | `GET /`, `GET /:id`, `POST /`, `PUT /:id`, `DELETE /:id` | Token, CRUD admin |
+| Schedules | `/schedules` | `GET /`, `GET /today`, `GET /:id`, `POST /`, `PUT /:id`, `DELETE /:id` | Token, ghi admin/truong khoa |
+| Attendance | `/attendance` | `POST /check-in`, `POST /check-out`, `GET /history`, `GET /:id`, `PUT /:id` | Token, override admin |
+| Leave | `/leave-requests` | `POST /`, `GET /`, `GET /balance`, `GET /:id`, `PUT /:id/approve`, `PUT /:id/reject` | Token, duyet admin/truong khoa |
+| Reports | `/reports` | `GET /attendance`, `GET /monthly` | Token, monthly admin/truong khoa |
+| AI | `/ai` | `POST /chat` | Token |
+| Audit | `/audit-logs` | `GET /` | Admin |
+| Upload | `/upload` | `POST /` | Token |
+
+Tai lieu API day du co the xem tai:
+
+- [API_DOCUMENTATION.md](./API_DOCUMENTATION.md)
+- Swagger UI: `http://localhost:5000/api-docs`
+- [postman_collection.json](./postman_collection.json)
+- [requests.http](./requests.http)
+
+## Trang Frontend
+
+| Route | Trang | Vai tro |
+| --- | --- | --- |
+| `/login` | Dang nhap | Public |
+| `/dashboard` | Dashboard tong quan | Tat ca role |
+| `/departments` | Co cau to chuc | Admin |
+| `/users` | Quan ly can bo | Admin, truong khoa |
+| `/shifts` | Danh muc ca day/ca lam viec | Admin |
+| `/schedules` | Lich giang day va cong tac | Tat ca role |
+| `/leave/create` | Tao don nghi | Truong khoa, giang vien, nhan vien |
+| `/leave/my-requests` | Don nghi cua toi | Truong khoa, giang vien, nhan vien |
+| `/leave/approvals` | Hop duyet don | Admin, truong khoa |
+| `/reports` | Bao cao thong ke chi tiet | Admin, truong khoa |
+| `/ai-assistant` | Tro ly AI | Tat ca role |
+| `/audit-logs` | Nhat ky kiem toan | Admin |
+
+## Collection MongoDB
+
+| Collection | Model |
+| --- | --- |
+| `users` | Tai khoan nguoi dung |
+| `departments` | Don vi to chuc |
+| `shift_configs` | Cau hinh ca lam viec |
+| `schedules` | Lich giang day/cong tac |
+| `attendance_logs` | Log cham cong |
+| `leave_requests` | Don nghi phep |
+| `audit_logs` | Nhat ky kiem toan |
+| `refresh_tokens` | Refresh token |
+| `token_blacklists` | Access token da logout |
+
+## Kiem Tra Nhanh Truoc Khi Nghiem Thu
+
+```bash
+npm run build --prefix frontend
+npm run lint --prefix frontend
+node --check src/server.js
+node --check src/controllers/user.controller.js
+```
+
+Mot so warning lint hien co lien quan toi React compiler/purity va `setState` trong effect; build frontend van pass sau khi cac loi TypeScript unused da duoc xu ly.
+
+## Ghi Chu Trien Khai
+
+- Port backend mac dinh nen dung `PORT=5000`.
+- MongoDB local mac dinh: `mongodb://localhost:27017/university_attendance_db`.
+- Neu dung production, can cau hinh `JWT_SECRET`, `REFRESH_TOKEN_SECRET`, email SMTP va `GEMINI_API_KEY` that.
+- Thu muc `uploads/` luu file minh chung/dinh kem duoc upload.
+- Frontend production duoc build vao `frontend/dist/`.
