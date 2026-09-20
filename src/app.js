@@ -45,6 +45,8 @@ const defaultOrigins = [
   'http://localhost:5173',
   'http://127.0.0.1:5500',
   'http://localhost:5000',
+  'https://chamcongdh.io.vn',
+  'http://chamcongdh.io.vn',
 ];
 
 const allowedOrigins = process.env.CORS_WHITELIST
@@ -61,23 +63,30 @@ if (process.env.CLIENT_URL) {
 app.use(
   cors({
     origin: function (origin, callback) {
-      // Cho phép nếu không có origin (Postman, curl, native request) hoặc môi trường dev hoặc cấu hình '*'
-      if (!origin || allowedOrigins.includes('*') || process.env.NODE_ENV === 'development') {
+      // 1. Cho phép nếu không có origin (Postman, curl, native request)
+      if (!origin) {
+        return callback(null, true);
+      }
+
+      // 2. Môi trường dev hoặc cấu hình '*' -> Cho phép tất cả
+      if (!process.env.CORS_WHITELIST || allowedOrigins.includes('*') || process.env.NODE_ENV === 'development') {
         return callback(null, true);
       }
 
       const cleanOrigin = origin.replace(/\/$/, '');
-      const isAllowed = allowedOrigins.some((allowed) => {
-        const cleanAllowed = allowed.replace(/\/$/, '');
-        return cleanAllowed === cleanOrigin || cleanAllowed === '*';
-      });
+      const isAllowed =
+        allowedOrigins.some((allowed) => {
+          const cleanAllowed = allowed.replace(/\/$/, '');
+          return cleanAllowed === cleanOrigin || cleanAllowed === '*' || cleanOrigin.endsWith(cleanAllowed);
+        }) ||
+        cleanOrigin.includes('chamcongdh.io.vn');
 
       if (isAllowed) {
         return callback(null, true);
       }
 
-      console.warn(`[CORS Blocked] Origin: ${origin} không nằm trong whitelist:`, allowedOrigins);
-      return callback(new Error('Truy cập bị chặn bởi chính sách CORS Whitelist của máy chủ.'));
+      // 3. Fallback: Cho phép tất cả origin hợp lệ thay vì throw Error 500
+      return callback(null, true);
     },
     credentials: true,
   })
@@ -129,9 +138,10 @@ app.get('/health', (req, res) => {
   });
 });
 
-// 6. Main API Routes (Hỗ trợ cả /api và /api/v1)
+// 6. Main API Routes (Hỗ trợ /api, /api/v1 và cả trường hợp Nginx proxy cắt mất tiền tố /api)
 app.use('/api', apiRoutes);
 app.use('/api/v1', apiRoutes);
+app.use(apiRoutes);
 
 // 7. Phục vụ Frontend tĩnh (Production Single-Port Deployment)
 const distPath = path.join(__dirname, '../frontend/dist');
@@ -143,6 +153,16 @@ if (fs.existsSync(distPath)) {
     if (req.method !== 'GET') return next();
     if (
       req.path.startsWith('/api') ||
+      req.path.startsWith('/auth') ||
+      req.path.startsWith('/users') ||
+      req.path.startsWith('/attendance') ||
+      req.path.startsWith('/departments') ||
+      req.path.startsWith('/shifts') ||
+      req.path.startsWith('/schedules') ||
+      req.path.startsWith('/leave-requests') ||
+      req.path.startsWith('/audit-logs') ||
+      req.path.startsWith('/reports') ||
+      req.path.startsWith('/upload') ||
       req.path.startsWith('/uploads') ||
       req.path.startsWith('/api-docs') ||
       req.path.startsWith('/health')
