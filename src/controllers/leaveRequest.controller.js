@@ -444,22 +444,20 @@ const approveLeaveRequest = async (req, res, next) => {
       timestamp: new Date(),
     });
 
-    // Thông báo email là tùy chọn: lỗi mail không làm thất bại nghiệp vụ duyệt đơn.
+    // Thông báo email là tác vụ nền (non-blocking): không dùng await để tránh làm chậm phản hồi HTTP
     const applicant = await User.findById(request.userId).select('email fullName');
     const mailUser = process.env.MAIL_USER || process.env.EMAIL_USER;
     const mailPass = process.env.MAIL_PASSWORD || process.env.EMAIL_PASS;
     if (applicant?.email && mailUser && mailPass) {
-      try {
-        await sendLeaveApprovedEmail({
-          to: applicant.email,
-          fullName: applicant.fullName,
-          fromDate: request.startDate,
-          toDate: request.endDate,
-          approvalNote: request.approvalNote,
-        });
-      } catch (mailError) {
+      sendLeaveApprovedEmail({
+        to: applicant.email,
+        fullName: applicant.fullName,
+        fromDate: request.startDate,
+        toDate: request.endDate,
+        approvalNote: request.approvalNote,
+      }).catch((mailError) => {
         console.error('Gửi email duyệt đơn thất bại:', mailError.message);
-      }
+      });
     }
 
     return sendSuccess(res, 'Đã phê duyệt đơn thành công và đồng bộ chấm công có phép (EXCUSED_ABSENCE).', request);
@@ -510,21 +508,20 @@ const rejectLeaveRequest = async (req, res, next) => {
       timestamp: new Date(),
     });
 
+    // Thông báo email là tác vụ nền (non-blocking): không dùng await để tránh làm chậm phản hồi HTTP
     const applicant = await User.findById(request.userId).select('email fullName');
     const mailUser = process.env.MAIL_USER || process.env.EMAIL_USER;
     const mailPass = process.env.MAIL_PASSWORD || process.env.EMAIL_PASS;
     if (applicant?.email && mailUser && mailPass) {
-      try {
-        await sendLeaveRejectedEmail({
-          to: applicant.email,
-          fullName: applicant.fullName,
-          fromDate: request.startDate,
-          toDate: request.endDate,
-          rejectionReason: request.rejectionReason,
-        });
-      } catch (mailError) {
+      sendLeaveRejectedEmail({
+        to: applicant.email,
+        fullName: applicant.fullName,
+        fromDate: request.startDate,
+        toDate: request.endDate,
+        rejectionReason: request.rejectionReason,
+      }).catch((mailError) => {
         console.error('Gửi email từ chối đơn thất bại:', mailError.message);
-      }
+      });
     }
 
     return sendSuccess(res, 'Đã từ chối đơn thành công.', request);

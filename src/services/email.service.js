@@ -165,24 +165,24 @@ const { transporter } = require('../config/mailer');
  * Gửi email thông báo đơn nghỉ được duyệt
  */
 const sendLeaveApprovedEmail = async ({
-    to,
-    fullName,
-    fromDate,
-    toDate,
-    approvalNote = '',
+  to,
+  fullName,
+  fromDate,
+  toDate,
+  approvalNote = '',
 }) => {
-    if (!to) {
-        throw new Error(
-            'Không có email người nhận'
-        );
-    }
+  if (!to) {
+    throw new Error(
+      'Không có email người nhận'
+    );
+  }
 
-    const mailOptions = {
-        from: `"Hệ thống quản lý chấm công" <${process.env.MAIL_USER}>`,
-        to,
-        subject: 'Đơn xin nghỉ của bạn đã được duyệt',
+  const mailOptions = {
+    from: `"Hệ thống quản lý chấm công" <${process.env.MAIL_USER}>`,
+    to,
+    subject: 'Đơn xin nghỉ của bạn đã được duyệt',
 
-        html: `
+    html: `
       <div style="font-family: Arial, sans-serif; line-height: 1.6;">
         <h2>Thông báo duyệt đơn xin nghỉ</h2>
 
@@ -214,14 +214,14 @@ const sendLeaveApprovedEmail = async ({
         </table>
 
         ${approvalNote
-                ? `
+        ? `
               <p>
                 <strong>Ghi chú:</strong>
                 ${approvalNote}
               </p>
             `
-                : ''
-            }
+        : ''
+      }
 
         <p>
           Vui lòng kiểm tra hệ thống để xem
@@ -234,34 +234,34 @@ const sendLeaveApprovedEmail = async ({
         </p>
       </div>
     `,
-    };
+  };
 
-    return await transporter.sendMail(mailOptions);
+  return await transporter.sendMail(mailOptions);
 };
 
 /**
  * Gửi email thông báo đơn nghỉ bị từ chối
  */
 const sendLeaveRejectedEmail = async ({
-    to,
-    fullName,
-    fromDate,
-    toDate,
-    rejectionReason,
+  to,
+  fullName,
+  fromDate,
+  toDate,
+  rejectionReason,
 }) => {
-    if (!to) {
-        throw new Error(
-            'Không có email người nhận'
-        );
-    }
+  if (!to) {
+    throw new Error(
+      'Không có email người nhận'
+    );
+  }
 
-    const mailOptions = {
-        from: `"Hệ thống quản lý chấm công" <${process.env.MAIL_USER}>`,
-        to,
+  const mailOptions = {
+    from: `"Hệ thống quản lý chấm công" <${process.env.MAIL_USER}>`,
+    to,
 
-        subject: 'Đơn xin nghỉ của bạn đã bị từ chối',
+    subject: 'Đơn xin nghỉ của bạn đã bị từ chối',
 
-        html: `
+    html: `
       <div style="font-family: Arial, sans-serif; line-height: 1.6;">
         <h2>Thông báo từ chối đơn xin nghỉ</h2>
 
@@ -308,24 +308,24 @@ const sendLeaveRejectedEmail = async ({
         </p>
       </div>
     `,
-    };
+  };
 
-    return await transporter.sendMail(mailOptions);
+  return await transporter.sendMail(mailOptions);
 };
 
 /**
  * Format ngày theo DD/MM/YYYY
  */
 const formatDate = (date) => {
-    if (!date) return '';
+  if (!date) return '';
 
-    const d = new Date(date);
+  const d = new Date(date);
 
-    return d.toLocaleDateString('vi-VN', {
-        day: '2-digit',
-        month: '2-digit',
-        year: 'numeric',
-    });
+  return d.toLocaleDateString('vi-VN', {
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric',
+  });
 };
 
 /**
