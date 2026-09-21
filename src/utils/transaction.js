@@ -21,22 +21,29 @@ const runInTransaction = async (workFn) => {
         await session.abortTransaction();
       } catch (_) {}
     }
-    // Nếu MongoDB cục bộ là standalone chưa bật replica set
-    if (
-      error.message &&
-      (error.message.includes('replica set') ||
-        error.message.includes('Transaction numbers are only allowed') ||
-        error.message.includes('This MongoDB deployment does not support transactions'))
-    ) {
+    // Fallback nếu MongoDB không hỗ trợ Transaction (Standalone hoặc Atlas M0 Free Tier)
+    const msg = error?.message || '';
+    const isTransactionUnsupported =
+      msg.includes('replica set') ||
+      msg.includes('Transaction numbers are only allowed') ||
+      msg.includes('This MongoDB deployment does not support transactions') ||
+      msg.includes('does not support retryable') ||
+      msg.includes('Multi-document transactions') ||
+      msg.includes('not allowed on Atlas free cluster') ||
+      msg.includes('Transactions are not supported') ||
+      error?.code === 20 || // MongoServerError: command not supported
+      error?.codeName === 'IllegalOperation';
+
+    if (isTransactionUnsupported) {
       console.warn(
-        '⚠️ [TRANSACTION WARNING]: MongoDB hiện tại hoạt động ở chế độ Standalone (không hỗ trợ Transaction). Đang fallback thực thi không dùng transaction. Khuyến nghị bật Replica Set hoặc dùng MongoDB Atlas cho môi trường chính thức để đảm bảo tính toàn vẹn dữ liệu.'
+        '⚠️ [TRANSACTION WARNING]: MongoDB không hỗ trợ Transaction (Standalone / Atlas M0). Fallback chạy không dùng transaction.'
       );
       return await workFn(null);
     }
     throw error;
   } finally {
     if (session) {
-      session.endSession();
+      try { session.endSession(); } catch (_) {}
     }
   }
 };
