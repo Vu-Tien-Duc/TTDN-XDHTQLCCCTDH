@@ -6,14 +6,17 @@ const { verifyToken } = require('../middlewares/auth.middleware');
 
 router.use(verifyToken);
 
-// Upload 1 file đính kèm với trường form field là 'file' hoặc 'attachment'
+// Upload 1 file đính kèm (hỗ trợ mọi field name: 'file', 'avatar', 'image', 'photo', 'attachment')
 router.post('/', (req, res, next) => {
-  upload.single('file')(req, res, function (err) {
+  upload.any()(req, res, function (err) {
     if (err) {
       return res.status(400).json({
         success: false,
         message: err.message || 'Lỗi khi tải file lên.',
       });
+    }
+    if (!req.file && req.files && req.files.length > 0) {
+      req.file = req.files[0];
     }
     next();
   });

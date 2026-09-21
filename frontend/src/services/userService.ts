@@ -6,6 +6,15 @@ export interface UserQueryParams {
   departmentId?: string;
   isActive?: boolean;
   search?: string;
+  page?: number;
+  limit?: number;
+}
+
+export interface UserPaginationResult {
+  total: number;
+  page: number;
+  totalPages: number;
+  records: User[];
 }
 
 export interface CreateUserPayload {
@@ -25,13 +34,26 @@ export interface UpdateUserPayload {
   annualLeaveQuota?: number;
 }
 
-export const userService = {
+export interface UserService {
+  getAllUsers(params: UserQueryParams & { page: number; limit: number }): Promise<UserPaginationResult>;
+  getAllUsers(params?: UserQueryParams): Promise<User[]>;
+
+  getUsers(params: UserQueryParams & { page: number; limit: number }): Promise<UserPaginationResult>;
+  getUsers(params?: UserQueryParams): Promise<User[]>;
+
+  getUserById(id: string): Promise<User>;
+  createUser(payload: CreateUserPayload): Promise<User>;
+  updateUser(id: string, payload: UpdateUserPayload): Promise<User>;
+  deleteUser(id: string): Promise<void>;
+}
+
+export const userService: UserService = {
   /**
    * Lấy danh sách người dùng (Admin xem toàn bộ, Trưởng khoa xem theo khoa)
    * GET /api/users
    */
-  async getAllUsers(params?: UserQueryParams): Promise<User[]> {
-    const res = await axiosClient.get<unknown, { success: boolean; data: User[] }>('/users', {
+  async getAllUsers(params?: UserQueryParams): Promise<any> {
+    const res = await axiosClient.get<unknown, { success: boolean; data: User[] | UserPaginationResult }>('/users', {
       params,
     });
     return res.data;
@@ -40,8 +62,8 @@ export const userService = {
   /**
    * Alias cho getAllUsers
    */
-  async getUsers(params?: UserQueryParams): Promise<User[]> {
-    return this.getAllUsers(params);
+  async getUsers(params?: UserQueryParams): Promise<any> {
+    return this.getAllUsers(params as any);
   },
 
   /**

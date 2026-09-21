@@ -1,6 +1,16 @@
 import { axiosClient } from '../api/axiosClient';
 import { ApiResponse } from '../types';
 
+export interface WeeklyTrendItem {
+  label: string;
+  subLabel?: string;
+  rate: number;
+  lateRate: number;
+  total: number;
+  onTime: number;
+  late: number;
+}
+
 export interface AttendanceReportData {
   totalRecords: number;
   onTimeCount: number;
@@ -9,6 +19,7 @@ export interface AttendanceReportData {
   absentCount: number;
   excusedAbsenceCount: number;
   approvedLeaveDays: number;
+  weeklyTrend?: WeeklyTrendItem[];
 }
 
 export interface MonthlyStaffReportItem {

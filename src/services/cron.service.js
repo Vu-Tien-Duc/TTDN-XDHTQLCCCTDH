@@ -227,10 +227,11 @@ const runDailyAbsentCheck = async (targetDate = new Date()) => {
     // 5. Ghi nhận tự động vào Collection audit_logs (#21)
     try {
       const adminUser = await User.findOne({ role: 'admin' });
-      const actorId = adminUser ? adminUser._id : new mongoose.Types.ObjectId();
+      const actorId = adminUser ? adminUser._id : null;
 
       await AuditLog.create({
         actor: actorId,
+        actorType: 'SYSTEM',
         action: 'CRON_AUTO_ABSENT',
         targetId: `CRON_${dayRange.dateStr}`,
         targetType: 'AttendanceLog',

@@ -111,7 +111,9 @@ export type AttendanceMethod =
   | 'fingerprint'
   | 'admin_override'
   | 'FACE_ID'
-  | 'MANUAL';
+  | 'MANUAL'
+  | 'GPS'
+  | 'QR';
 
 export interface AttendanceLog {
   _id: string;
