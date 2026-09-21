@@ -23,6 +23,7 @@ const {
   validateGeofence,
   generateDynamicQRCode,
   verifyDynamicQRCode,
+  evaluateUserScheduleForCheckIn,
 } = require('../services/attendance.service');
 const { runDailyAbsentCheck } = require('../services/cron.service');
 const {
@@ -40,9 +41,23 @@ const ERROR_CODES = require('../utils/errorCodes');
 const checkIn = async (req, res, next) => {
   try {
     const userId = req.user.id; // Lấy từ token, không nhận từ client
-    const { deviceId, deviceInfo, location, latitude, longitude, method, shiftId, scheduleId } = req.body || {};
+    const { deviceId, deviceInfo, location, latitude, longitude, accuracy, method, shiftId, scheduleId } = req.body || {};
     const finalDeviceId = deviceId || deviceInfo || null;
     const finalLocation = location || (latitude !== undefined && longitude !== undefined ? { lat: latitude, lng: longitude } : { lat: null, lng: null });
+    if (accuracy !== undefined && finalLocation) {
+      finalLocation.accuracy = accuracy;
+    }
+
+    // Chặn hoàn toàn phương thức điểm danh thủ công (Manual)
+    if (method === 'manual') {
+      return sendError(
+        res,
+        'Phương thức điểm danh thủ công đã bị vô hiệu hóa. Vui lòng sử dụng Định vị GPS, Quét mã QR hoặc Nhận diện khuôn mặt Face ID.',
+        null,
+        400,
+        'MANUAL_ATTENDANCE_DISABLED'
+      );
+    }
 
     // 0. Geofencing Validation: Nếu phương thức là 'gps' hoặc client gửi tọa độ
     if (method === 'gps' || (finalLocation && finalLocation.lat !== null && finalLocation.lng !== null)) {
@@ -99,7 +114,10 @@ const checkIn = async (req, res, next) => {
       const existingLog = await AttendanceLog.findOne({
         userId,
         scheduleId: selectedSchedule._id,
-        checkInTime: { $gte: startOfDay, $lte: endOfDay },
+        $or: [
+          { checkInTime: { $gte: startOfDay, $lte: endOfDay } },
+          { createdAt: { $gte: startOfDay, $lte: endOfDay } },
+        ],
       });
 
       if (existingLog) {
@@ -111,123 +129,43 @@ const checkIn = async (req, res, next) => {
           ERROR_CODES.ATTENDANCE_ALREADY_EXISTS
         );
       }
-    } else if (shiftId) {
-      // TRƯỜNG HỢP 2: Client truyền shiftId trực tiếp (Check-in thủ công theo ca)
-      if (!mongoose.Types.ObjectId.isValid(shiftId)) {
-        return sendError(res, 'Định dạng shiftId không hợp lệ.', null, 400);
-      }
-      shift = await ShiftConfig.findById(shiftId);
-      if (!shift) {
-        return sendError(res, 'Không tìm thấy ca làm việc.', null, 404, ERROR_CODES.SHIFT_NOT_FOUND);
-      }
 
-      // Kiểm tra xem hôm nay đã check-in cho ca này chưa
-      const existingLog = await AttendanceLog.findOne({
-        userId,
-        shiftId: shift._id,
-        checkInTime: { $gte: startOfDay, $lte: endOfDay },
-      });
-
-      if (existingLog) {
+      // Kiểm tra quá 15 phút -> Tự động hủy lịch và đánh vắng
+      const shiftStartStr = selectedSchedule.startTime || shift.startTime;
+      const startMinutes = timeStringToMinutes(shiftStartStr);
+      const lateThreshold = shift.lateThresholdMinutes !== undefined ? shift.lateThresholdMinutes : 15;
+      if (currentMinutes > startMinutes + lateThreshold) {
+        try {
+          const { processScheduleAttendanceCheck } = require('../services/cron.service');
+          if (processScheduleAttendanceCheck) {
+            await processScheduleAttendanceCheck(selectedSchedule, { startOfDay, endOfDay, dateStr: nowVN.toISOString().slice(0, 10) });
+          }
+        } catch (e) {}
         return sendError(
           res,
-          'Bạn đã thực hiện check-in cho ca này hôm nay rồi.',
-          existingLog,
-          409,
-          ERROR_CODES.ATTENDANCE_ALREADY_EXISTS
-        );
-      }
-
-      // Tìm lịch tương ứng hôm nay nếu có để liên kết
-      selectedSchedule = await Schedule.findOne({
-        userId,
-        shiftId: shift._id,
-        weekday: currentWeekday,
-        startDate: { $lte: endOfDay },
-        endDate: { $gte: startOfDay },
-      });
-
-      if (!selectedSchedule) {
-        return sendError(
-          res,
-          'Bạn không có lịch được phân công cho ca này hôm nay.',
+          `Ca làm việc ${shift.name} (${shiftStartStr}) đã quá hạn check-in (vượt ngưỡng cho phép đi muộn ${lateThreshold} phút) và đã tự động bị hủy lịch / ghi nhận vắng mặt.`,
           null,
           400,
-          ERROR_CODES.ATTENDANCE_NO_MATCHING_SCHEDULE
+          'SCHEDULE_CANCELLED_LATE'
         );
       }
+      evaluatedStatus = currentMinutes > startMinutes ? 'LATE' : 'ON_TIME';
+      evaluatedLateMinutes = evaluatedStatus === 'LATE' ? currentMinutes - startMinutes : 0;
     } else {
-      // TRƯỜNG HỢP 2: Tự động quét lịch dạy hôm nay của user trong khung ca
-      const schedules = await Schedule.find({
-        userId,
-        weekday: currentWeekday,
-        startDate: { $lte: endOfDay },
-        endDate: { $gte: startOfDay },
-      }).populate('shiftId');
-
-      // Lọc trong các lịch tìm được, CHỈ giữ lại lịch mà:
-      // thời điểm hiện tại nằm trong khoảng [startTime - 30 phút, endTime]
-      const matchingSchedules = schedules.filter((sch) => {
-        const window = getTodayScheduleWindow(sch.shiftId);
-        if (!window) return false;
-        return currentMinutes >= window.windowStartMinutes && currentMinutes <= window.windowEndMinutes;
-      });
-
-      // Không có lịch nào thỏa khoảng trên -> trả lỗi ATTENDANCE_004
-      if (matchingSchedules.length === 0) {
-        return sendError(
-          res,
-          'Không tìm thấy ca làm việc hoặc lịch công tác hiệu lực tại thời điểm này.',
-          null,
-          400,
-          ERROR_CODES.ATTENDANCE_NO_MATCHING_SCHEDULE
-        );
+      // Tự động tìm và đánh giá lịch hôm nay theo chuẩn nghiệp vụ (sớm bao nhiêu cũng được, muộn tối đa 15p)
+      const evalResult = await evaluateUserScheduleForCheckIn(userId, shiftId);
+      if (!evalResult.canCheckIn) {
+        const statusCode = evalResult.status === 'ALREADY_CHECKED_IN' ? 409 : 400;
+        return sendError(res, evalResult.message, evalResult, statusCode, evalResult.status);
       }
-
-      selectedSchedule = matchingSchedules[0];
-
-      if (matchingSchedules.length > 1) {
-        // Ưu tiên lịch có endTime gần thời điểm hiện tại nhất
-        matchingSchedules.sort((a, b) => {
-          const diffA = Math.abs(timeStringToMinutes(a.shiftId.endTime) - currentMinutes);
-          const diffB = Math.abs(timeStringToMinutes(b.shiftId.endTime) - currentMinutes);
-          return diffA - diffB;
-        });
-        selectedSchedule = matchingSchedules[0];
-
-        // Ghi audit log cảnh báo lỗi trùng lịch
-        await AuditLog.create({
-          actor: userId,
-          action: 'ATTENDANCE_OVERLAPPING_SCHEDULES_WARNING',
-          targetId: selectedSchedule._id.toString(),
-          targetType: 'Schedule',
-          ipAddress: req.ip || req.connection?.remoteAddress,
-          timestamp: new Date(),
-        });
-      }
-
-      shift = selectedSchedule.shiftId;
-
-      // Kiểm tra xem hôm nay đã check-in cho lịch này chưa (chống check-in trùng)
-      const existingLog = await AttendanceLog.findOne({
-        userId,
-        scheduleId: selectedSchedule._id,
-        checkInTime: { $gte: startOfDay, $lte: endOfDay },
-      });
-
-      if (existingLog) {
-        return sendError(
-          res,
-          'Bạn đã thực hiện check-in cho ca này hôm nay rồi.',
-          existingLog,
-          409,
-          ERROR_CODES.ATTENDANCE_ALREADY_EXISTS
-        );
-      }
+      selectedSchedule = evalResult.selectedSchedule;
+      shift = evalResult.shift;
+      evaluatedStatus = evalResult.status;
+      evaluatedLateMinutes = evalResult.lateMinutes;
     }
 
     const checkInTime = new Date();
-    const status = calculateAttendanceStatus(checkInTime, shift, nowVN);
+    const status = evaluatedStatus || calculateAttendanceStatus(checkInTime, shift, nowVN);
     const workDate = nowVN.toISOString().slice(0, 10);
 
     const validMethod = ['manual', 'face', 'qr', 'gps', 'fingerprint'].includes(method)
@@ -755,10 +693,10 @@ const processFaceAttendanceUser = async ({
   };
 
   // Helper thực hiện Check-in
-  const executeCheckIn = async (selectedSchedule) => {
+  const executeCheckIn = async (selectedSchedule, precalculatedStatus = null, precalculatedLateMinutes = null) => {
     const shift = selectedSchedule.shiftId;
     const checkInTime = new Date();
-    const status = calculateAttendanceStatus(checkInTime, shift, nowVN);
+    const status = precalculatedStatus || calculateAttendanceStatus(checkInTime, shift, nowVN);
     const workDate = nowVN.toISOString().slice(0, 10);
 
     let log;
@@ -797,8 +735,8 @@ const processFaceAttendanceUser = async ({
       .populate('scheduleId', 'roomId weekday subjectName subjectCode');
 
     // Gửi email thông báo Face Check-in (Đúng giờ hoặc Đi muộn)
-    let lateMinutes = 0;
-    if (status === 'LATE' && shift?.startTime) {
+    let lateMinutes = precalculatedLateMinutes !== null ? precalculatedLateMinutes : 0;
+    if (precalculatedLateMinutes === null && status === 'LATE' && shift?.startTime) {
       const vnDate = getVietnamTime(checkInTime);
       const currentMinutes = vnDate.getHours() * 60 + vnDate.getMinutes();
       const startMinutes = timeStringToMinutes(shift.startTime);
@@ -834,6 +772,7 @@ const processFaceAttendanceUser = async ({
         confidenceScore,
         distance: bestDistance,
         status,
+        lateMinutes,
         location,
       },
     }).catch(() => {});
@@ -881,51 +820,20 @@ const processFaceAttendanceUser = async ({
 
   // 2. Chế độ VÀO CA (CHECK_IN)
   if (mode === 'check_in') {
-    const schedules = await Schedule.find({
-      userId,
-      weekday: currentWeekday,
-      startDate: { $lte: endOfDay },
-      endDate: { $gte: startOfDay },
-    }).populate('shiftId');
-
-    const matchingSchedules = schedules.filter((sch) => {
-      const window = getTodayScheduleWindow(sch.shiftId);
-      if (!window) return false;
-      return currentMinutes >= window.windowStartMinutes && currentMinutes <= window.windowEndMinutes;
-    });
-
-    if (matchingSchedules.length === 0) {
+    const evalResult = await evaluateUserScheduleForCheckIn(userId);
+    if (!evalResult.canCheckIn) {
       return {
-        status: 'NO_SCHEDULE',
-        message: `${bestMatch.fullName}: Không tìm thấy ca làm việc tại thời điểm này.`,
+        status: evalResult.status,
+        message: `${bestMatch.fullName}: ${evalResult.message}`,
         userId,
         fullName: bestMatch.fullName,
         confidenceScore,
         distance: +bestDistance.toFixed(4),
+        evalResult,
       };
     }
 
-    const selectedSchedule = matchingSchedules[0];
-
-    const existingLog = await AttendanceLog.findOne({
-      userId,
-      scheduleId: selectedSchedule._id,
-      checkInTime: { $gte: startOfDay, $lte: endOfDay },
-    });
-
-    if (existingLog) {
-      return {
-        status: 'ALREADY_CHECKED_IN',
-        message: `${bestMatch.fullName} đã check-in cho ca này hôm nay rồi.`,
-        userId,
-        fullName: bestMatch.fullName,
-        existingLog,
-        confidenceScore,
-        distance: +bestDistance.toFixed(4),
-      };
-    }
-
-    return await executeCheckIn(selectedSchedule);
+    return await executeCheckIn(evalResult.selectedSchedule, evalResult.status, evalResult.lateMinutes);
   }
 
   // 3. Chế độ TỰ ĐỘNG THÔNG MINH (AUTO)
@@ -971,53 +879,21 @@ const processFaceAttendanceUser = async ({
     return await executeCheckOut(openLog);
   }
 
-  // Nếu không có ca mở: Tìm ca hôm nay để Check-in
-  const schedules = await Schedule.find({
-    userId,
-    weekday: currentWeekday,
-    startDate: { $lte: endOfDay },
-    endDate: { $gte: startOfDay },
-  }).populate('shiftId');
-
-  const matchingSchedules = schedules.filter((sch) => {
-    const window = getTodayScheduleWindow(sch.shiftId);
-    if (!window) return false;
-    return currentMinutes >= window.windowStartMinutes && currentMinutes <= window.windowEndMinutes;
-  });
-
-  if (matchingSchedules.length === 0) {
+  // Nếu không có ca mở: Tìm ca hôm nay để Check-in theo nghiệp vụ mới (sớm bao nhiêu cũng được, muộn tối đa 15p)
+  const evalResult = await evaluateUserScheduleForCheckIn(userId);
+  if (!evalResult.canCheckIn) {
     return {
-      status: 'NO_SCHEDULE',
-      message: `Nhận diện: ${bestMatch.fullName}. Không tìm thấy ca làm việc tại thời điểm này.`,
+      status: evalResult.status,
+      message: `${bestMatch.fullName}: ${evalResult.message}`,
       userId,
       fullName: bestMatch.fullName,
       confidenceScore,
       distance: +bestDistance.toFixed(4),
+      evalResult,
     };
   }
 
-  const selectedSchedule = matchingSchedules[0];
-
-  // Kiểm tra nếu đã hoàn thành cả check-in và check-out ca này
-  const completedLog = await AttendanceLog.findOne({
-    userId,
-    scheduleId: selectedSchedule._id,
-    checkInTime: { $gte: startOfDay, $lte: endOfDay },
-    checkOutTime: { $ne: null },
-  });
-
-  if (completedLog) {
-    return {
-      status: 'ALREADY_COMPLETED',
-      message: `${bestMatch.fullName} đã hoàn thành cả Check-in và Check-out ca này hôm nay.`,
-      userId,
-      fullName: bestMatch.fullName,
-      confidenceScore,
-      distance: +bestDistance.toFixed(4),
-    };
-  }
-
-  return await executeCheckIn(selectedSchedule);
+  return await executeCheckIn(evalResult.selectedSchedule, evalResult.status, evalResult.lateMinutes);
 };
 
 /**
@@ -1034,19 +910,8 @@ const faceCheckIn = async (req, res, next) => {
       return sendError(res, 'faceDescriptor phải là mảng 128 số thực.', null, 400);
     }
 
-    // 2. Bảo mật 2 lớp (2FA): Nếu thiết bị có gửi kèm tọa độ GPS, kiểm tra xem có nằm trong khuôn viên trường không
-    if (finalLocation && finalLocation.lat !== null && finalLocation.lng !== null) {
-      const geofenceResult = validateGeofence(finalLocation);
-      if (!geofenceResult.isInside) {
-        return sendError(
-          res,
-          `Bảo mật 2FA thất bại: Nhận diện khuôn mặt hợp lệ nhưng thiết bị nằm ngoài khuôn viên trường (${geofenceResult.distanceMeters}m > ${geofenceResult.allowedRadius}m).`,
-          { geofence: geofenceResult },
-          400,
-          'FACE_2FA_OUT_OF_GEOFENCE'
-        );
-      }
-    }
+    // Kiosk Face ID: Giảng viên đã đứng trước camera Kiosk tại sảnh/trường nghĩa là đã có mặt thực tế, không yêu cầu GPS
+    // (Vẫn lưu location vào AttendanceLog nếu client có gửi kèm để phục vụ thống kê/audit)
 
     // 3. Lấy danh sách users từ RAM Cache (P4 - Item 22)
     const usersWithFace = await getCachedUsersWithFace();
@@ -1194,65 +1059,45 @@ const scanQRCode = async (req, res, next) => {
     }
 
     const finalDeviceId = deviceId || 'MOBILE_APP';
-    const finalLocation = location || (latitude !== undefined && longitude !== undefined ? { lat: latitude, lng: longitude } : { lat: null, lng: null });
+    const finalLocation = location || (latitude !== undefined && longitude !== undefined ? { lat: latitude, lng: longitude } : null);
 
-    // 2. Nếu có gửi kèm GPS, kiểm tra hàng rào địa lý
-    if (finalLocation.lat !== null && finalLocation.lng !== null) {
-      const user = await User.findById(userId).populate('departmentId');
-      const deptLocation = user?.departmentId?.location;
-      const geofenceResult = validateGeofence(finalLocation, deptLocation);
-
-      if (!geofenceResult.isInside) {
-        return sendError(
-          res,
-          `Điểm danh QR thất bại: Bạn đang cách ${geofenceResult.target.name} ${geofenceResult.distanceMeters}m (cho phép tối đa ${geofenceResult.allowedRadius}m).`,
-          { geofence: geofenceResult },
-          400,
-          'ATTENDANCE_OUT_OF_GEOFENCE'
-        );
-      }
+    // 2. Bắt buộc phải có tọa độ GPS khi quét mã QR để chống gian lận (chụp ảnh mã QR gửi cho người ở xa quét)
+    if (!finalLocation || finalLocation.lat === null || finalLocation.lat === undefined || finalLocation.lng === null || finalLocation.lng === undefined) {
+      return sendError(
+        res,
+        'Điểm danh qua mã QR bắt buộc phải bật định vị GPS để xác nhận bạn đang có mặt tại trường (chống gian lận chụp ảnh mã QR gửi cho người ở nhà quét).',
+        null,
+        400,
+        'ATTENDANCE_GPS_REQUIRED'
+      );
     }
 
-    // 3. Tự động xác định ca và lịch dạy hôm nay để check-in
-    const nowVN = getVietnamTime();
-    const currentWeekday = nowVN.getDay();
-    const currentMinutes = nowVN.getHours() * 60 + nowVN.getMinutes();
-    const { startOfDay, endOfDay } = getVietnamDayRange();
+    const user = await User.findById(userId).populate('departmentId');
+    const deptLocation = user?.departmentId?.location;
+    const geofenceResult = validateGeofence(finalLocation, deptLocation);
 
-    const schedules = await Schedule.find({
-      userId,
-      weekday: currentWeekday,
-      startDate: { $lte: endOfDay },
-      endDate: { $gte: startOfDay },
-    }).populate('shiftId');
-
-    const matchingSchedules = schedules.filter((sch) => {
-      const window = getTodayScheduleWindow(sch.shiftId);
-      if (!window) return false;
-      return currentMinutes >= window.windowStartMinutes && currentMinutes <= window.windowEndMinutes;
-    });
-
-    if (matchingSchedules.length === 0) {
-      return sendError(res, 'Không tìm thấy ca làm việc hoặc lịch công tác hiệu lực tại thời điểm này.', null, 400, ERROR_CODES.ATTENDANCE_NO_MATCHING_SCHEDULE);
+    if (!geofenceResult.isInside) {
+      return sendError(
+        res,
+        `Điểm danh QR thất bại: Thiết bị của bạn đang cách ${geofenceResult.target.name} ${geofenceResult.distanceMeters}m (vượt quá bán kính cho phép ${geofenceResult.allowedRadius}m). Bạn phải có mặt trực tiếp tại trường để quét mã.`,
+        { geofence: geofenceResult },
+        400,
+        'ATTENDANCE_OUT_OF_GEOFENCE'
+      );
     }
 
-    const selectedSchedule = matchingSchedules[0];
-    const shift = selectedSchedule.shiftId;
-
-    // Kiểm tra xem đã check-in chưa
-    const existingLog = await AttendanceLog.findOne({
-      userId,
-      scheduleId: selectedSchedule._id,
-      checkInTime: { $gte: startOfDay, $lte: endOfDay },
-    });
-
-    if (existingLog) {
-      return sendError(res, 'Bạn đã thực hiện check-in cho ca này hôm nay rồi.', existingLog, 409, ERROR_CODES.ATTENDANCE_ALREADY_EXISTS);
+    // 3. Tự động xác định ca và lịch dạy hôm nay theo chuẩn nghiệp vụ (sớm bao nhiêu cũng được, muộn tối đa 15p)
+    const evalResult = await evaluateUserScheduleForCheckIn(userId);
+    if (!evalResult.canCheckIn) {
+      const statusCode = evalResult.status === 'ALREADY_CHECKED_IN' ? 409 : 400;
+      return sendError(res, evalResult.message, evalResult, statusCode, evalResult.status);
     }
 
+    const selectedSchedule = evalResult.selectedSchedule;
+    const shift = evalResult.shift;
+    const status = evalResult.status;
     const checkInTime = new Date();
-    const status = calculateAttendanceStatus(checkInTime, shift, nowVN);
-    const workDate = nowVN.toISOString().slice(0, 10);
+    const workDate = getVietnamTime().toISOString().slice(0, 10);
 
     const log = await AttendanceLog.create({
       userId,
@@ -1335,6 +1180,9 @@ const getCampusLocationConfig = async (req, res, next) => {
  */
 const updateCampusLocationConfig = async (req, res, next) => {
   try {
+    if (req.user?.role !== 'admin') {
+      return sendError(res, 'Chỉ có Quản trị viên (Admin) mới có quyền cấu hình tọa độ khuôn viên trường.', null, 403);
+    }
     const { name, lat, lng, radiusMeters } = req.body;
     const updated = updateCampusConfig({ name, lat, lng, radiusMeters });
     return sendSuccess(res, 'Cập nhật tọa độ vị trí trường học thành công.', updated, 200);

@@ -28,6 +28,7 @@ import {
 import { attendanceApi } from '../api';
 import { Schedule, ShiftConfig, AttendanceLog } from '../types';
 import { useAuth } from '../contexts/AuthContext';
+import GpsCampusMap from '../components/common/GpsCampusMap';
 
 // Tính khoảng cách Haversine thực tế (mét)
 function calculateDistanceMeters(lat1: number, lon1: number, lat2: number, lon2: number): number {
@@ -41,7 +42,7 @@ function calculateDistanceMeters(lat1: number, lon1: number, lat2: number, lon2:
   return Math.round(R * c);
 }
 
-type TabType = 'gps' | 'qr' | 'manual';
+type TabType = 'gps' | 'qr';
 
 export const AttendanceCheckInPage: React.FC = () => {
   const { user } = useAuth();
@@ -126,9 +127,9 @@ export const AttendanceCheckInPage: React.FC = () => {
     loadCampusConfig();
   }, [loadCampusConfig]);
 
-  // Lấy tọa độ GPS THỰC TẾ từ chip định vị thiết bị (Chính xác cao)
+  // Lấy tọa độ GPS THỰC TẾ từ chip định vị thiết bị (Chính xác cao, tức thì)
   const fetchCurrentLocation = useCallback(() => {
-    if (!navigator.geolocation) {
+    if (typeof window === 'undefined' || !navigator.geolocation) {
       setGpsError('Trình duyệt hoặc thiết bị không hỗ trợ định vị GPS.');
       return;
     }
@@ -151,12 +152,12 @@ export const AttendanceCheckInPage: React.FC = () => {
       (err) => {
         setIsFetchingGps(false);
         let msg = 'Không thể lấy dữ liệu GPS.';
-        if (err.code === 1) msg = 'Quyền truy cập vị trí đã bị từ chối. Vui lòng cho phép truy cập vị trí trên trình duyệt.';
-        else if (err.code === 2) msg = 'Không có tín hiệu vệ tinh GPS hoặc mạng.';
+        if (err.code === 1) msg = 'Quyền truy cập vị trí bị từ chối. Vui lòng bật định vị trên trình duyệt/điện thoại.';
+        else if (err.code === 2) msg = 'Không có tín hiệu vệ tinh GPS hoặc mạng yếu.';
         else if (err.code === 3) msg = 'Quá thời gian lấy vị trí GPS (Timeout).';
         setGpsError(msg);
       },
-      { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 }
+      { enableHighAccuracy: true, timeout: 12000, maximumAge: 3000 }
     );
   }, [campusConfig.lat, campusConfig.lng]);
 
@@ -168,10 +169,35 @@ export const AttendanceCheckInPage: React.FC = () => {
     }
   }, [campusConfig, userCoords]);
 
-  // Tự động kích hoạt GPS khi mở trang
+  // Tự động kích hoạt GPS tức thì và liên tục theo dõi vị trí (watchPosition)
   useEffect(() => {
     fetchCurrentLocation();
-  }, [fetchCurrentLocation]);
+
+    let watchId: number | null = null;
+    if (typeof window !== 'undefined' && 'geolocation' in navigator) {
+      try {
+        watchId = navigator.geolocation.watchPosition(
+          (pos) => {
+            const lat = pos.coords.latitude;
+            const lng = pos.coords.longitude;
+            setUserCoords({ lat, lng });
+            setGpsAccuracy(pos.coords.accuracy);
+            setGpsAltitude(pos.coords.altitude);
+            const dist = calculateDistanceMeters(lat, lng, campusConfig.lat, campusConfig.lng);
+            setGpsDistance(dist);
+          },
+          () => {},
+          { enableHighAccuracy: true, timeout: 15000, maximumAge: 5000 }
+        );
+      } catch {}
+    }
+
+    return () => {
+      if (watchId !== null && typeof window !== 'undefined' && 'geolocation' in navigator) {
+        navigator.geolocation.clearWatch(watchId);
+      }
+    };
+  }, [campusConfig.lat, campusConfig.lng, fetchCurrentLocation]);
 
   // Đồng bộ vị trí trường học theo vị trí GPS thực tế hiện tại
   const handleSetCampusToCurrentLocation = async () => {
@@ -241,7 +267,7 @@ export const AttendanceCheckInPage: React.FC = () => {
     loadTodayData();
   }, [loadTodayData]);
 
-  const GRACE_BEFORE_MINUTES = 30;
+  const GRACE_BEFORE_MINUTES = 240; // Cho phép check-in sớm bao nhiêu cũng được (lên tới 4 tiếng trước ca)
 
   const timeStringToMinutes = (timeStr?: string): number => {
     if (!timeStr) return 0;
@@ -251,14 +277,14 @@ export const AttendanceCheckInPage: React.FC = () => {
 
   const currentMinutes = currentTime.getHours() * 60 + currentTime.getMinutes();
 
-  // Xác định ca hiện tại hoặc ca kế tiếp
+  // Xác định ca hiện tại hoặc ca kế tiếp (sớm bao nhiêu cũng được, muộn tối đa 15p)
   const activeSchedule =
     todaySchedules.find((sch) => {
       const shift = sch.shiftId as ShiftConfig;
       if (!shift) return false;
       const startM = timeStringToMinutes(shift.startTime);
-      const endM = timeStringToMinutes(shift.endTime);
-      return currentMinutes >= startM - GRACE_BEFORE_MINUTES && currentMinutes <= endM;
+      const lateThreshold = shift.lateThresholdMinutes !== undefined ? shift.lateThresholdMinutes : 15;
+      return currentMinutes >= startM - GRACE_BEFORE_MINUTES && currentMinutes <= startM + lateThreshold;
     }) || todaySchedules[0];
 
   const activeShift = activeSchedule?.shiftId as ShiftConfig | undefined;
@@ -282,7 +308,7 @@ export const AttendanceCheckInPage: React.FC = () => {
       return;
     }
 
-    if (gpsDistance !== null && gpsDistance > campusConfig.radiusMeters) {
+    if (gpsDistance !== null && gpsDistance > effectiveRadius) {
       toast.error(
         `❌ Bị chặn: Bạn đang cách trường ${gpsDistance}m (Vượt quá bán kính cho phép ${campusConfig.radiusMeters}m). Không thể điểm danh!`
       );
@@ -296,6 +322,7 @@ export const AttendanceCheckInPage: React.FC = () => {
         shiftId: activeShift?._id,
         scheduleId: activeSchedule?._id,
         location: userCoords,
+        accuracy: gpsAccuracy || undefined,
       });
 
       const log = res.data;
@@ -379,11 +406,18 @@ export const AttendanceCheckInPage: React.FC = () => {
       return;
     }
 
+    if (!userCoords) {
+      toast.error('Điểm danh QR yêu cầu bật định vị GPS trong khuôn viên trường để xác thực bạn có mặt thực tế. Vui lòng bấm Lấy lại vị trí.');
+      setTimeout(() => setLastScannedToken(null), 3000);
+      return;
+    }
+
     try {
       setIsScanningQr(true);
       const res = await attendanceApi.scanQRCode({
         qrToken: token.trim(),
-        location: userCoords || undefined,
+        location: { ...userCoords, accuracy: gpsAccuracy || undefined },
+        accuracy: gpsAccuracy || undefined,
         deviceId: 'DEVICE_' + (user?.fullName?.replace(/\s+/g, '_') || 'USER'),
       });
 
@@ -402,42 +436,21 @@ export const AttendanceCheckInPage: React.FC = () => {
   };
 
   // ==========================================
-  // XỬ LÝ ĐIỂM DANH THỦ CÔNG (MANUAL)
+  // XỬ LÝ KẾT THÚC CA CHẤM CÔNG GPS (CHECK-OUT)
   // ==========================================
-  const handleCheckIn = async () => {
-    try {
-      setIsSubmitting(true);
-      const res = await attendanceApi.checkIn({
-        method: 'manual',
-        shiftId: activeShift?._id,
-        scheduleId: activeSchedule?._id,
-      });
-      const log = res.data;
-
-      if (log.status === 'ON_TIME') {
-        toast.success('🎉 Check-in thành công! Bạn đã có mặt ĐÚNG GIỜ.');
-      } else if (log.status === 'LATE') {
-        toast.error('⚠️ Check-in thành công nhưng bạn đã ĐI MUỘN so với khung ca.');
-      } else {
-        toast.success('Check-in thành công!');
-      }
-
-      loadTodayData();
-    } catch (err: unknown) {
-      const apiErr = err as { response?: { data?: { message?: string } } };
-      toast.error(apiErr.response?.data?.message || 'Check-in thất bại. Vui lòng kiểm tra lại khung giờ ca.');
-    } finally {
-      setIsSubmitting(false);
+  const handleGpsCheckOut = async () => {
+    if (!userCoords) {
+      toast.error('Chưa có tín hiệu GPS thực tế. Vui lòng bấm Lấy lại vị trí.');
+      return;
     }
-  };
 
-  const handleCheckOut = async () => {
     try {
       setIsSubmitting(true);
       await attendanceApi.checkOut({
-        method: 'manual',
+        method: 'gps',
         attendanceId: currentCaLog?._id,
         shiftId: activeShift?._id,
+        location: userCoords,
       });
       toast.success('👋 Check-out thành công! Đã kết thúc ca làm việc.');
       loadTodayData();
@@ -449,8 +462,10 @@ export const AttendanceCheckInPage: React.FC = () => {
     }
   };
 
-  // Kiểm tra tính hợp lệ của khoảng cách GPS thực
-  const isGpsValid = gpsDistance !== null && gpsDistance <= campusConfig.radiusMeters;
+  // Dung sai sai số GPS thông minh: Bổ sung sai số accuracy của thiết bị (tối đa +100m)
+  const accuracyTolerance = Math.min(Math.round(gpsAccuracy || 0), 100);
+  const effectiveRadius = campusConfig.radiusMeters + accuracyTolerance;
+  const isGpsValid = gpsDistance !== null && gpsDistance <= effectiveRadius;
 
   return (
     <div className="space-y-6 max-w-6xl mx-auto pb-12">
@@ -470,14 +485,16 @@ export const AttendanceCheckInPage: React.FC = () => {
         </div>
 
         <div className="flex items-center gap-2">
-          <button
-            onClick={() => setShowConfigModal(true)}
-            className="p-2.5 rounded-xl border border-slate-200 hover:bg-slate-50 text-slate-700 transition shadow-xs flex items-center gap-1.5 text-xs font-semibold"
-            title="Xem và chỉnh tọa độ trường"
-          >
-            <Sliders className="w-4 h-4 text-blue-600" />
-            <span className="hidden sm:inline">Tọa độ trường</span>
-          </button>
+          {user?.role === 'admin' && (
+            <button
+              onClick={() => setShowConfigModal(true)}
+              className="p-2.5 rounded-xl border border-slate-200 hover:bg-slate-50 text-slate-700 transition shadow-xs flex items-center gap-1.5 text-xs font-semibold"
+              title="Xem và chỉnh tọa độ trường (Dành cho Quản trị viên)"
+            >
+              <Sliders className="w-4 h-4 text-blue-600" />
+              <span className="hidden sm:inline">Tọa độ trường</span>
+            </button>
+          )}
           <button
             onClick={loadTodayData}
             className="p-2.5 rounded-xl border border-slate-200 hover:bg-slate-50 text-slate-600 transition shadow-xs flex items-center gap-1.5 text-xs font-semibold"
@@ -489,8 +506,8 @@ export const AttendanceCheckInPage: React.FC = () => {
         </div>
       </div>
 
-      {/* Modal Cấu hình tọa độ trường thực tế */}
-      {showConfigModal && (
+      {/* Modal Cấu hình tọa độ trường thực tế (Chỉ Admin) */}
+      {user?.role === 'admin' && showConfigModal && (
         <div className="fixed inset-0 bg-slate-950/70 backdrop-blur-sm z-50 flex items-center justify-center p-4 animate-in fade-in duration-200">
           <div className="bg-white rounded-3xl border border-slate-200 shadow-2xl max-w-md w-full p-6 space-y-4">
             <div className="flex items-center justify-between pb-3 border-b border-slate-100">
@@ -585,7 +602,7 @@ export const AttendanceCheckInPage: React.FC = () => {
         </div>
       )}
 
-      {/* Bộ chọn TAB 3 Phương thức */}
+      {/* Bộ chọn Phương thức Điểm danh */}
       <div className="flex flex-wrap gap-2 p-1.5 bg-slate-100/80 rounded-2xl border border-slate-200/80">
         <button
           onClick={() => setActiveTab('gps')}
@@ -611,25 +628,28 @@ export const AttendanceCheckInPage: React.FC = () => {
           <QrCode className="w-4 h-4" />
           <span>Quét Camera QR Động</span>
         </button>
-
-        <button
-          onClick={() => setActiveTab('manual')}
-          className={`flex-1 min-w-[150px] flex items-center justify-center gap-2 py-3 px-4 rounded-xl text-xs sm:text-sm font-bold transition-all ${
-            activeTab === 'manual'
-              ? 'bg-slate-800 text-white shadow-md'
-              : 'text-slate-600 hover:text-slate-900 hover:bg-white/60'
-          }`}
-        >
-          <Clock className="w-4 h-4" />
-          <span>Thủ Công (Dự Phòng)</span>
-        </button>
       </div>
 
       {/* ========================================================= */}
       {/* TAB 1: ĐỊNH VỊ GPS THỰC TẾ (100% REAL GEOFENCING) */}
       {/* ========================================================= */}
       {activeTab === 'gps' && (
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <div className="space-y-6">
+          {/* BẢN ĐỒ TRỰC QUAN KHUÔN VIÊN TRƯỜNG & VỊ TRÍ THỰC TẾ */}
+          <GpsCampusMap
+            campusConfig={campusConfig}
+            userCoords={userCoords}
+            gpsAccuracy={gpsAccuracy}
+            gpsDistance={gpsDistance}
+            isGpsValid={isGpsValid}
+            effectiveRadius={effectiveRadius}
+            isFetchingGps={isFetchingGps}
+            onRefreshGps={fetchCurrentLocation}
+            isAdmin={user?.role === 'admin'}
+            onOpenAdminConfig={() => setShowConfigModal(true)}
+          />
+
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           {/* Cột trái: Radar định vị & Nút bấm GPS */}
           <div className="lg:col-span-2 bg-gradient-to-br from-slate-900 via-blue-950 to-indigo-950 text-white p-6 sm:p-8 rounded-3xl shadow-xl relative overflow-hidden flex flex-col justify-between min-h-[400px]">
             {/* Hiệu ứng radar mờ phía sau */}
@@ -715,12 +735,12 @@ export const AttendanceCheckInPage: React.FC = () => {
               </div>
             </div>
 
-            {/* Nút bấm điểm danh GPS 1-Chạm */}
-            <div className="mt-8">
+            {/* Nút bấm điểm danh GPS 1-Chạm & Check-out GPS */}
+            <div className="mt-8 grid grid-cols-1 sm:grid-cols-2 gap-4">
               <button
                 onClick={handleGpsCheckIn}
                 disabled={isSubmitting || hasCheckedIn || !isGpsValid}
-                className={`w-full py-4 px-6 rounded-2xl font-bold text-base sm:text-lg flex items-center justify-center gap-3 transition-all active:scale-98 shadow-xl ${
+                className={`py-4 px-6 rounded-2xl font-bold text-sm sm:text-base flex items-center justify-center gap-3 transition-all active:scale-98 shadow-xl ${
                   hasCheckedIn
                     ? 'bg-slate-700/60 text-slate-400 cursor-not-allowed border border-white/10'
                     : isGpsValid
@@ -728,14 +748,27 @@ export const AttendanceCheckInPage: React.FC = () => {
                     : 'bg-slate-800 text-slate-400 border border-slate-700 cursor-not-allowed'
                 }`}
               >
-                <MapPin className="w-6 h-6" />
+                <MapPin className="w-5 h-5" />
                 <span>
                   {hasCheckedIn
-                    ? 'Đã Điểm Danh Ca Này'
+                    ? 'Đã Check-in Ca Này'
                     : isGpsValid
-                    ? 'Xác Nhận Điểm Danh Vị Trí GPS'
-                    : `Cách trường ${gpsDistance || 0}m - Ngoài phạm vi cho phép`}
+                    ? 'Xác Nhận Check-in GPS'
+                    : `Cách trường ${gpsDistance || 0}m - Ngoài phạm vi`}
                 </span>
+              </button>
+
+              <button
+                onClick={handleGpsCheckOut}
+                disabled={isSubmitting || !hasCheckedIn || hasCheckedOut}
+                className={`py-4 px-6 rounded-2xl font-bold text-sm sm:text-base flex items-center justify-center gap-3 transition-all active:scale-98 shadow-xl ${
+                  !hasCheckedIn || hasCheckedOut
+                    ? 'bg-slate-800/50 text-slate-500 border border-white/5 cursor-not-allowed'
+                    : 'bg-gradient-to-r from-rose-500 to-pink-600 hover:from-rose-600 hover:to-pink-700 text-white shadow-rose-500/30'
+                }`}
+              >
+                <LogOut className="w-5 h-5" />
+                <span>{hasCheckedOut ? 'Đã Check-out Ca Này' : 'Kết Thúc Ca (Check-out GPS)'}</span>
               </button>
             </div>
           </div>
@@ -782,16 +815,18 @@ export const AttendanceCheckInPage: React.FC = () => {
                 </div>
               )}
 
-              {/* Nút căn chỉnh nhanh vị trí thực tế */}
-              <button
-                type="button"
-                onClick={handleSetCampusToCurrentLocation}
-                disabled={isUpdatingCampus || !userCoords}
-                className="w-full mt-3 py-2.5 px-3 rounded-2xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs transition flex items-center justify-center gap-2 border border-slate-200"
-              >
-                <Crosshair className="w-3.5 h-3.5 text-blue-600" />
-                <span>Đặt vị trí hiện tại làm vị trí trường</span>
-              </button>
+              {/* Nút căn chỉnh nhanh vị trí thực tế (Chỉ Quản trị viên) */}
+              {user?.role === 'admin' && (
+                <button
+                  type="button"
+                  onClick={handleSetCampusToCurrentLocation}
+                  disabled={isUpdatingCampus || !userCoords}
+                  className="w-full mt-3 py-2.5 px-3 rounded-2xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs transition flex items-center justify-center gap-2 border border-slate-200"
+                >
+                  <Crosshair className="w-3.5 h-3.5 text-blue-600" />
+                  <span>Đặt vị trí hiện tại làm vị trí trường</span>
+                </button>
+              )}
             </div>
 
             {/* Thông tin ca hiện tại */}
@@ -816,6 +851,7 @@ export const AttendanceCheckInPage: React.FC = () => {
             </div>
           </div>
         </div>
+      </div>
       )}
 
       {/* ========================================================= */}
@@ -881,19 +917,38 @@ export const AttendanceCheckInPage: React.FC = () => {
             <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-xs space-y-3">
               <h3 className="font-bold text-slate-900 text-sm flex items-center gap-2">
                 <ShieldCheck className="w-4 h-4 text-indigo-600" />
-                <span>Cơ Chế Điểm Danh QR Động</span>
+                <span>Cơ Chế QR Chống Điểm Danh Hộ</span>
               </h3>
               <ul className="space-y-2 text-xs text-slate-600 list-disc list-inside">
                 <li>
-                  <strong>Mã tự hủy sau 20 giây:</strong> Không thể chụp ảnh màn hình gửi Zalo điểm danh hộ.
+                  <strong className="text-slate-800">Bắt buộc định vị GPS:</strong> Điện thoại quét mã QR phải nằm trong bán kính trường ({campusConfig.radiusMeters}m). Ngăn chặn tuyệt đối việc chụp màn hình gửi Zalo để người ở nhà quét hộ.
                 </li>
                 <li>
-                  <strong>Chữ ký số HMAC-SHA256:</strong> Đảm bảo mã sinh từ máy chủ chính chủ.
+                  <strong className="text-slate-800">Mã tự hủy sau 20 giây:</strong> Mã động làm mới liên tục tại Kiosk/màn hình lớp.
                 </li>
                 <li>
-                  <strong>Kèm tọa độ GPS thực:</strong> Tự động xác thực người quét đang có mặt trong trường.
+                  <strong className="text-slate-800">Chữ ký số HMAC-SHA256:</strong> Đảm bảo mã sinh từ máy chủ chính chủ, chống giả mạo token.
                 </li>
               </ul>
+            </div>
+
+            {/* Trạng thái GPS hiện tại của thiết bị khi quét QR */}
+            <div className={`p-4 rounded-3xl border text-xs ${
+              isGpsValid
+                ? 'bg-emerald-50/70 border-emerald-200 text-emerald-900'
+                : 'bg-amber-50/70 border-amber-200 text-amber-900'
+            }`}>
+              <div className="flex items-center gap-2 font-bold mb-1">
+                <Navigation className={`w-4 h-4 ${isGpsValid ? 'text-emerald-600' : 'text-amber-600'}`} />
+                <span>{isGpsValid ? 'GPS Sẵn Sàng Điểm Danh QR' : 'Chưa Xác Thực Được GPS Trường'}</span>
+              </div>
+              <p className="text-[11px] opacity-80">
+                {isGpsValid
+                  ? `Thiết bị đang trong khuôn viên trường (cách tâm trường ${gpsDistance || 0}m). Bạn có thể quét mã QR ngay.`
+                  : userCoords
+                  ? `Bạn đang cách trường ${gpsDistance || 0}m (vượt quá bán kính cho phép ${campusConfig.radiusMeters}m). Bạn cần có mặt tại trường để quét mã.`
+                  : 'Vui lòng cho phép quyền truy cập vị trí và bấm "Lấy lại vị trí" ở tab GPS trước khi quét mã.'}
+              </p>
             </div>
 
             <div className="bg-indigo-50/60 p-6 rounded-3xl border border-indigo-100 text-xs text-indigo-950">
@@ -906,154 +961,7 @@ export const AttendanceCheckInPage: React.FC = () => {
         </div>
       )}
 
-      {/* ========================================================= */}
-      {/* TAB 3: CHẤM CÔNG THỦ CÔNG (MANUAL) */}
-      {/* ========================================================= */}
-      {activeTab === 'manual' && (
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          <div className="lg:col-span-2 bg-gradient-to-br from-slate-900 via-slate-800 to-indigo-950 text-white p-8 rounded-3xl shadow-xl relative overflow-hidden flex flex-col justify-between min-h-[360px]">
-            <div>
-              <div className="flex items-center justify-between">
-                <span className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-white/10 text-blue-300 text-xs font-semibold backdrop-blur-md border border-white/10">
-                  <Clock className="w-3.5 h-3.5 text-blue-400" />
-                  <span>Thời Gian Thực Hệ Thống (UTC+7)</span>
-                </span>
 
-                <span className="text-xs text-slate-400 font-mono">
-                  {currentTime.toLocaleDateString('vi-VN', {
-                    weekday: 'long',
-                    day: '2-digit',
-                    month: '2-digit',
-                    year: 'numeric',
-                  })}
-                </span>
-              </div>
-
-              <div className="mt-4 text-5xl sm:text-7xl font-mono font-extrabold tracking-tight text-white flex items-baseline gap-2">
-                <span>
-                  {currentTime.toLocaleTimeString('vi-VN', {
-                    hour: '2-digit',
-                    minute: '2-digit',
-                    second: '2-digit',
-                  })}
-                </span>
-              </div>
-            </div>
-
-            <div className="my-6 p-4 rounded-2xl bg-white/5 border border-white/10 backdrop-blur-sm">
-              {activeSchedule ? (
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                  <div>
-                    <div className="flex items-center gap-2">
-                      <span className="px-2.5 py-0.5 rounded-md bg-blue-500/20 text-blue-300 text-xs font-bold border border-blue-400/30">
-                        {activeShift?.name || 'Ca làm việc'}
-                      </span>
-                      <span className="text-xs text-slate-300 font-mono">
-                        {activeShift?.startTime} ⟶ {activeShift?.endTime}
-                      </span>
-                    </div>
-                    <p className="text-sm font-bold text-white mt-1.5 flex items-center gap-2">
-                      <BookOpen className="w-4 h-4 text-blue-400" />
-                      <span>{activeSchedule.subjectName || 'Giảng dạy theo thời khóa biểu'}</span>
-                    </p>
-                    <p className="text-xs text-slate-400 flex items-center gap-1.5 mt-0.5">
-                      <MapPin className="w-3.5 h-3.5 text-rose-400" />
-                      <span>{activeSchedule.roomId || 'Phòng học chưa xác định'}</span>
-                      <span className="text-slate-500">•</span>
-                      <span>Cho phép trễ: {activeShift?.lateThresholdMinutes || 15} phút</span>
-                    </p>
-                  </div>
-
-                  {currentCaLog ? (
-                    <div className="text-right">
-                      <span
-                        className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold ${
-                          currentCaLog.status === 'ON_TIME'
-                            ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-400/30'
-                            : 'bg-amber-500/20 text-amber-300 border border-amber-400/30'
-                        }`}
-                      >
-                        <CheckCircle2 className="w-4 h-4" />
-                        <span>{currentCaLog.status === 'ON_TIME' ? 'ĐÚNG GIỜ' : 'ĐI MUỘN'}</span>
-                      </span>
-                    </div>
-                  ) : (
-                    <div className="text-right">
-                      <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-slate-500/20 text-slate-300 text-xs font-semibold border border-slate-400/30">
-                        Chưa Check-in
-                      </span>
-                    </div>
-                  )}
-                </div>
-              ) : (
-                <div className="flex items-center gap-3 text-slate-300 text-xs">
-                  <Info className="w-5 h-5 text-blue-400 shrink-0" />
-                  <span>Hôm nay bạn không có ca giảng dạy nào theo thời khóa biểu chính khóa.</span>
-                </div>
-              )}
-            </div>
-
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <button
-                onClick={handleCheckIn}
-                disabled={isSubmitting || hasCheckedIn}
-                className={`flex items-center justify-center gap-3 py-4 px-6 rounded-2xl font-bold text-sm sm:text-base transition-all active:scale-98 shadow-lg ${
-                  hasCheckedIn
-                    ? 'bg-slate-700/50 text-slate-400 border border-white/5 cursor-not-allowed'
-                    : 'bg-emerald-500 hover:bg-emerald-600 text-white shadow-emerald-500/25'
-                }`}
-              >
-                <LogIn className="w-5 h-5" />
-                <span>{hasCheckedIn ? 'Đã Check-in Ca Này' : 'Điểm Danh Check-in'}</span>
-              </button>
-
-              <button
-                onClick={handleCheckOut}
-                disabled={isSubmitting || !hasCheckedIn || hasCheckedOut}
-                className={`flex items-center justify-center gap-3 py-4 px-6 rounded-2xl font-bold text-sm sm:text-base transition-all active:scale-98 shadow-lg ${
-                  !hasCheckedIn || hasCheckedOut
-                    ? 'bg-slate-700/50 text-slate-400 border border-white/5 cursor-not-allowed'
-                    : 'bg-rose-500 hover:bg-rose-600 text-white shadow-rose-500/25'
-                }`}
-              >
-                <LogOut className="w-5 h-5" />
-                <span>{hasCheckedOut ? 'Đã Check-out Ca Này' : 'Kết Thúc Ca (Check-out)'}</span>
-              </button>
-            </div>
-          </div>
-
-          {/* Thẻ Cán Bộ */}
-          <div className="space-y-4">
-            <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-xs">
-              <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-4 flex items-center gap-2">
-                <ShieldCheck className="w-4 h-4 text-blue-600" />
-                <span>Thông Tin Cán Bộ / Giảng Viên</span>
-              </h3>
-
-              <div className="flex items-center gap-3 pb-4 border-b border-slate-100">
-                <div className="w-12 h-12 rounded-2xl bg-blue-100 text-blue-700 flex items-center justify-center font-bold text-lg">
-                  {user?.fullName?.charAt(0) || 'U'}
-                </div>
-                <div>
-                  <p className="font-bold text-slate-900 text-sm">{user?.fullName}</p>
-                  <p className="text-xs text-slate-500">{user?.email}</p>
-                </div>
-              </div>
-
-              <div className="pt-4 space-y-2.5 text-xs">
-                <div className="flex items-center justify-between">
-                  <span className="text-slate-500">Vai trò:</span>
-                  <span className="font-bold text-slate-800 uppercase font-mono">{user?.role}</span>
-                </div>
-                <div className="flex items-center justify-between">
-                  <span className="text-slate-500">Hạn mức phép năm:</span>
-                  <span className="font-bold text-slate-800">{user?.annualLeaveQuota || 12} ngày</span>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
 
       {/* 4. Lịch Trình Chi Tiết Các Ca Hôm Nay */}
       <div className="bg-white rounded-3xl border border-slate-200 overflow-hidden shadow-xs">

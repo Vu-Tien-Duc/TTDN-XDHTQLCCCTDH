@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import {
   Calendar,
   Clock,
@@ -22,6 +22,8 @@ import {
   ChevronLeft,
   ChevronRight,
   CalendarDays,
+  Maximize2,
+  Minimize2,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { useAuth } from '../../contexts/AuthContext';
@@ -97,6 +99,24 @@ export const SchedulesPage: React.FC = () => {
   // Chế độ hiển thị: 'grid' (Bảng tuần) hoặc 'table' (Danh sách)
   const [viewMode, setViewMode] = useState<'grid' | 'table'>('grid');
 
+  // Chế độ hiển thị bảng tuần: 'fit' (Vừa màn hình 7 ngày) hoặc 'scroll' (Cuộn ngang rộng rãi)
+  const [gridFitMode, setGridFitMode] = useState<'fit' | 'scroll'>('fit');
+  // Lọc hiển thị ngày cụ thể hoặc toàn bộ tuần ('all' | 1..7)
+  const [selectedDayFilter, setSelectedDayFilter] = useState<number | 'all'>('all');
+  const tableContainerRef = useRef<HTMLDivElement>(null);
+
+  const scrollTableLeft = () => {
+    if (tableContainerRef.current) {
+      tableContainerRef.current.scrollTo({ left: 0, behavior: 'smooth' });
+    }
+  };
+
+  const scrollTableRight = () => {
+    if (tableContainerRef.current) {
+      tableContainerRef.current.scrollTo({ left: 650, behavior: 'smooth' });
+    }
+  };
+
   // Học kỳ & Điều hướng tuần
   const [selectedSemester, setSelectedSemester] = useState<string>('hk1_2026');
   const [currentWeekStart, setCurrentWeekStart] = useState<Date>(() => getMonday(new Date()));
@@ -116,6 +136,12 @@ export const SchedulesPage: React.FC = () => {
       };
     });
   }, [currentWeekStart]);
+
+  // Các ngày hiển thị trên bảng (theo bộ lọc ngày hoặc đủ 7 ngày)
+  const displayedWeekDays = useMemo(() => {
+    if (selectedDayFilter === 'all') return weekDaysWithDates;
+    return weekDaysWithDates.filter((wd) => wd.value === selectedDayFilter);
+  }, [weekDaysWithDates, selectedDayFilter]);
 
   // Chuỗi hiển thị khoảng ngày của tuần
   const weekRangeText = useMemo(() => {
@@ -806,51 +832,152 @@ export const SchedulesPage: React.FC = () => {
       {viewMode === 'grid' ? (
         <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
           {/* Thanh Điều Hướng Tuần & Chọn Học Kỳ */}
-          <div className="bg-slate-50/80 border-b border-gray-200 px-4 py-3 flex flex-wrap items-center justify-between gap-3">
-            <div className="flex items-center gap-2">
-              <CalendarDays className="w-4 h-4 text-blue-600" />
-              <span className="text-xs font-bold text-gray-700">Học kỳ:</span>
-              <select
-                value={selectedSemester}
-                onChange={(e) => setSelectedSemester(e.target.value)}
-                className="px-2.5 py-1 text-xs bg-white border border-gray-300 rounded-lg font-semibold text-gray-800 focus:ring-2 focus:ring-blue-500 focus:outline-none"
-              >
-                {SEMESTERS.map((sem) => (
-                  <option key={sem.id} value={sem.id}>
-                    {sem.name}
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            <div className="flex items-center gap-2">
-              <button
-                onClick={() => setCurrentWeekStart((prev) => new Date(prev.getTime() - 7 * 24 * 60 * 60 * 1000))}
-                className="p-1.5 text-gray-600 hover:bg-white hover:shadow-xs rounded-lg border border-gray-200 transition"
-                title="Tuần trước"
-              >
-                <ChevronLeft className="w-4 h-4" />
-              </button>
-
-              <div className="text-xs font-bold text-gray-900 bg-white px-3 py-1 rounded-lg border border-gray-200 shadow-2xs">
-                <span>Tuần: {weekRangeText}</span>
+          <div className="bg-slate-50/90 border-b border-gray-200 px-4 py-2.5 flex flex-wrap items-center justify-between gap-3">
+            {/* Cụm Học kỳ & Tuần */}
+            <div className="flex flex-wrap items-center gap-2.5">
+              <div className="flex items-center gap-1.5">
+                <CalendarDays className="w-4 h-4 text-blue-600 shrink-0" />
+                <span className="text-xs font-bold text-gray-700">Học kỳ:</span>
+                <select
+                  value={selectedSemester}
+                  onChange={(e) => setSelectedSemester(e.target.value)}
+                  className="px-2 py-1 text-xs bg-white border border-gray-300 rounded-lg font-semibold text-gray-800 focus:ring-2 focus:ring-blue-500 focus:outline-none shadow-2xs"
+                >
+                  {SEMESTERS.map((sem) => (
+                    <option key={sem.id} value={sem.id}>
+                      {sem.name}
+                    </option>
+                  ))}
+                </select>
               </div>
 
-              <button
-                onClick={() => setCurrentWeekStart((prev) => new Date(prev.getTime() + 7 * 24 * 60 * 60 * 1000))}
-                className="p-1.5 text-gray-600 hover:bg-white hover:shadow-xs rounded-lg border border-gray-200 transition"
-                title="Tuần sau"
-              >
-                <ChevronRight className="w-4 h-4" />
-              </button>
+              <div className="h-4 w-px bg-gray-300 mx-1 hidden sm:block"></div>
 
-              <button
-                onClick={() => setCurrentWeekStart(getMonday(new Date()))}
-                className="text-xs font-bold text-blue-600 hover:bg-blue-50 px-2.5 py-1 rounded-lg transition"
-              >
-                Tuần Hiện Tại
-              </button>
+              <div className="flex items-center gap-1.5">
+                <button
+                  onClick={() => setCurrentWeekStart((prev) => new Date(prev.getTime() - 7 * 24 * 60 * 60 * 1000))}
+                  className="p-1 text-gray-600 hover:bg-white hover:shadow-xs rounded-lg border border-gray-200 transition"
+                  title="Tuần trước"
+                >
+                  <ChevronLeft className="w-4 h-4" />
+                </button>
+
+                <div className="text-xs font-bold text-gray-900 bg-white px-2.5 py-1 rounded-lg border border-gray-200 shadow-2xs">
+                  <span>Tuần: {weekRangeText}</span>
+                </div>
+
+                <button
+                  onClick={() => setCurrentWeekStart((prev) => new Date(prev.getTime() + 7 * 24 * 60 * 60 * 1000))}
+                  className="p-1 text-gray-600 hover:bg-white hover:shadow-xs rounded-lg border border-gray-200 transition"
+                  title="Tuần sau"
+                >
+                  <ChevronRight className="w-4 h-4" />
+                </button>
+
+                <button
+                  onClick={() => setCurrentWeekStart(getMonday(new Date()))}
+                  className="text-xs font-bold text-blue-600 hover:bg-blue-50 px-2 py-1 rounded-lg transition"
+                >
+                  Tuần này
+                </button>
+              </div>
             </div>
+
+            {/* Cụm Tùy chọn hiển thị: Vừa màn hình / Cuộn rộng */}
+            <div className="flex items-center gap-2">
+              <div className="bg-gray-200/70 p-0.5 rounded-lg flex items-center text-xs">
+                <button
+                  onClick={() => setGridFitMode('fit')}
+                  className={`flex items-center gap-1 px-2.5 py-1 rounded-md font-semibold transition ${
+                    gridFitMode === 'fit'
+                      ? 'bg-white text-blue-700 shadow-2xs'
+                      : 'text-gray-600 hover:text-gray-900'
+                  }`}
+                  title="Hiển thị thu gọn vừa khít màn hình, thấy đủ cả 7 ngày không cần cuộn"
+                >
+                  <Minimize2 className="w-3.5 h-3.5" />
+                  <span>Vừa màn hình (7 ngày)</span>
+                </button>
+                <button
+                  onClick={() => setGridFitMode('scroll')}
+                  className={`flex items-center gap-1 px-2.5 py-1 rounded-md font-semibold transition ${
+                    gridFitMode === 'scroll'
+                      ? 'bg-white text-blue-700 shadow-2xs'
+                      : 'text-gray-600 hover:text-gray-900'
+                  }`}
+                  title="Bảng rộng rãi cuộn ngang thoải mái"
+                >
+                  <Maximize2 className="w-3.5 h-3.5" />
+                  <span>Cuộn rộng</span>
+                </button>
+              </div>
+
+              {gridFitMode === 'scroll' && (
+                <div className="hidden sm:flex items-center gap-1 text-xs">
+                  <button
+                    onClick={scrollTableLeft}
+                    className="px-2 py-1 bg-white border border-gray-200 hover:bg-gray-50 text-gray-700 rounded-md font-medium text-[11px] shadow-2xs"
+                  >
+                    ◀ Đầu tuần
+                  </button>
+                  <button
+                    onClick={scrollTableRight}
+                    className="px-2 py-1 bg-white border border-gray-200 hover:bg-gray-50 text-gray-700 rounded-md font-medium text-[11px] shadow-2xs"
+                  >
+                    Cuối tuần ▶
+                  </button>
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Thanh Chọn xem nhanh Thứ trong tuần */}
+          <div className="bg-white border-b border-gray-100 px-4 py-2 flex flex-wrap items-center justify-between gap-2 text-xs">
+            <div className="flex items-center gap-1.5 flex-wrap">
+              <span className="text-gray-500 font-medium mr-1">Xem ngày:</span>
+              <button
+                onClick={() => setSelectedDayFilter('all')}
+                className={`px-2.5 py-1 rounded-md text-xs font-semibold transition ${
+                  selectedDayFilter === 'all'
+                    ? 'bg-blue-600 text-white shadow-2xs'
+                    : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                }`}
+              >
+                Tất cả (7 ngày)
+              </button>
+              {weekDaysWithDates.map((wd) => {
+                const isSelected = selectedDayFilter === wd.value;
+                return (
+                  <button
+                    key={wd.value}
+                    onClick={() => setSelectedDayFilter(isSelected ? 'all' : wd.value)}
+                    className={`px-2 py-1 rounded-md text-xs font-medium transition flex items-center gap-1 ${
+                      isSelected
+                        ? 'bg-blue-600 text-white font-bold shadow-2xs'
+                        : wd.isToday
+                          ? 'bg-blue-50 text-blue-700 border border-blue-200 hover:bg-blue-100'
+                          : 'bg-gray-50 text-gray-700 border border-gray-200 hover:bg-gray-100'
+                    }`}
+                  >
+                    <span>{wd.short}</span>
+                    <span className={`text-[10px] ${isSelected ? 'text-blue-100' : 'text-gray-400'}`}>
+                      ({wd.dateFormatted})
+                    </span>
+                    {wd.isToday && (
+                      <span className={`w-1.5 h-1.5 rounded-full ${isSelected ? 'bg-white' : 'bg-blue-600'}`}></span>
+                    )}
+                  </button>
+                );
+              })}
+            </div>
+            {selectedDayFilter !== 'all' && (
+              <button
+                onClick={() => setSelectedDayFilter('all')}
+                className="text-[11px] text-blue-600 hover:underline font-semibold"
+              >
+                Hiển thị lại toàn bộ 7 ngày
+              </button>
+            )}
           </div>
 
           {loading ? (
@@ -859,29 +986,39 @@ export const SchedulesPage: React.FC = () => {
               <p className="text-sm text-gray-500">Đang tải dữ liệu thời khóa biểu tuần...</p>
             </div>
           ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full min-w-[1000px] border-collapse">
+            <div ref={tableContainerRef} className="overflow-x-auto scrollbar-thin scrollbar-thumb-slate-300">
+              <table
+                className={`w-full border-collapse ${
+                  gridFitMode === 'fit' && displayedWeekDays.length > 1
+                    ? 'table-fixed'
+                    : 'min-w-[1100px]'
+                }`}
+              >
                 {/* Header Bảng: Các Thứ trong tuần kèm ngày cụ thể */}
                 <thead>
-                  <tr className="bg-gray-50/80 border-b border-gray-200 text-gray-700">
-                    <th className="w-36 py-3.5 px-3 text-left text-xs font-bold uppercase tracking-wider border-r border-gray-200 bg-gray-100/50">
+                  <tr className="bg-slate-50 border-b border-gray-200 text-gray-700">
+                    <th
+                      className={`${
+                        gridFitMode === 'fit' && displayedWeekDays.length > 1 ? 'w-24 sm:w-28' : 'w-32'
+                      } py-3 px-2 text-left text-xs font-bold uppercase tracking-wider border-r border-gray-200 bg-slate-100/95 sticky left-0 z-20 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.06)]`}
+                    >
                       Ca Giảng Dạy
                     </th>
-                    {weekDaysWithDates.map((wd) => {
+                    {displayedWeekDays.map((wd) => {
                       return (
                         <th
                           key={wd.value}
-                          className={`py-3 px-3 text-center border-r border-gray-200 last:border-r-0 transition-colors ${
-                            wd.isToday ? 'bg-blue-50/70 text-blue-700 font-bold ring-1 ring-inset ring-blue-200' : ''
+                          className={`py-2.5 px-2 text-center border-r border-gray-200 last:border-r-0 transition-colors ${
+                            wd.isToday
+                              ? 'bg-blue-50/80 text-blue-700 font-bold ring-1 ring-inset ring-blue-300'
+                              : 'bg-slate-50'
                           }`}
                         >
                           <div className="flex flex-col items-center">
-                            <span className="text-xs font-semibold uppercase">{wd.label}</span>
-                            <span className="text-[11px] font-mono font-medium text-gray-500 mt-0.5">
-                              {wd.dateFormatted}
-                            </span>
+                            <span className="text-xs font-bold uppercase">{wd.label}</span>
+                            <span className="text-[11px] font-mono text-gray-500 mt-0.5">{wd.dateFormatted}</span>
                             {wd.isToday && (
-                              <span className="mt-0.5 px-2 py-0.2 bg-blue-600 text-white text-[10px] font-bold rounded-full uppercase tracking-wider">
+                              <span className="mt-0.5 px-1.5 py-0.2 bg-blue-600 text-white text-[9px] font-bold rounded-full uppercase tracking-wider">
                                 Hôm nay
                               </span>
                             )}
@@ -899,24 +1036,24 @@ export const SchedulesPage: React.FC = () => {
 
                     return (
                       <tr key={shift._id} className="hover:bg-gray-50/30 transition-colors">
-                        {/* Cột Tên Ca */}
-                        <td className="py-4 px-3 align-top border-r border-gray-200 bg-gray-50/40">
-                          <div className="sticky left-0">
-                            <div className="font-bold text-xs text-gray-900">{shift.name}</div>
-                            <div className="flex items-center gap-1 text-[11px] text-gray-500 mt-1">
-                              <Clock className="w-3 h-3 text-gray-400" />
-                              <span>
+                        {/* Cột Tên Ca - Sticky Left */}
+                        <td className="py-3 px-2 align-top border-r border-gray-200 bg-slate-50/95 sticky left-0 z-10 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.06)]">
+                          <div>
+                            <div className="font-bold text-xs text-gray-900 leading-tight">{shift.name}</div>
+                            <div className="flex items-center gap-1 text-[10px] text-gray-500 mt-1">
+                              <Clock className="w-3 h-3 text-gray-400 shrink-0" />
+                              <span className="whitespace-nowrap font-medium">
                                 {shift.startTime} - {shift.endTime}
                               </span>
                             </div>
-                            <span className={`inline-block mt-2 px-2 py-0.5 text-[10px] font-semibold rounded-md ${theme.badge}`}>
-                              Cho phép trễ: {shift.lateThresholdMinutes}p
+                            <span className={`inline-block mt-1.5 px-1.5 py-0.5 text-[9px] font-semibold rounded ${theme.badge}`}>
+                              Trễ {shift.lateThresholdMinutes}p
                             </span>
                           </div>
                         </td>
 
-                        {/* 7 Cột từ Thứ 2 đến Chủ Nhật */}
-                        {WEEKDAYS.map((wd) => {
+                        {/* Các Cột Ngày */}
+                        {displayedWeekDays.map((wd) => {
                           const isToday = wd.value === currentWeekday;
 
                           // Lấy các lịch trùng Ca và Thứ này
@@ -929,11 +1066,11 @@ export const SchedulesPage: React.FC = () => {
                           return (
                             <td
                               key={wd.value}
-                              className={`p-2 align-top border-r border-gray-200 last:border-r-0 min-h-[120px] transition-colors relative group ${
+                              className={`p-1.5 align-top border-r border-gray-200 last:border-r-0 min-h-[110px] transition-colors relative group overflow-hidden ${
                                 isToday ? 'bg-blue-50/20' : ''
                               }`}
                             >
-                              <div className="space-y-2 min-h-[100px]">
+                              <div className="space-y-1.5 min-h-[90px] overflow-hidden">
                                 {cellSchedules.length > 0 ? (
                                   cellSchedules.map((sch) => {
                                     const schUserId = typeof sch.userId === 'object' && sch.userId !== null ? (sch.userId as User)._id : (sch.userId as string);
@@ -944,57 +1081,57 @@ export const SchedulesPage: React.FC = () => {
                                       <div
                                         key={sch._id}
                                         onClick={() => setDetailSchedule(sch)}
-                                        className={`p-2.5 rounded-lg border text-left shadow-xs transition-all hover:shadow-md cursor-pointer ${theme.bg} ${theme.border} group/card relative`}
+                                        className={`p-2 rounded-lg border text-left shadow-2xs transition-all hover:shadow-md cursor-pointer ${theme.bg} ${theme.border} group/card relative overflow-hidden`}
                                       >
                                         {/* Phòng học & Badge */}
-                                        <div className="flex items-start justify-between gap-1 mb-1.5">
-                                          <div className="flex items-center gap-1 text-xs font-bold text-gray-900 bg-white/90 px-2 py-0.5 rounded border border-gray-200/80 shadow-2xs">
-                                            <MapPin className="w-3 h-3 text-red-500 shrink-0" />
-                                            <span className="truncate max-w-[130px]">{sch.roomId || sch.room || 'Chưa xếp phòng'}</span>
+                                        <div className="flex items-start justify-between gap-1 mb-1">
+                                          <div className="flex items-center gap-1 text-[11px] font-bold text-gray-900 bg-white/90 px-1.5 py-0.5 rounded border border-gray-200/80 shadow-2xs min-w-0 max-w-[85%]">
+                                            <MapPin className="w-2.5 h-2.5 text-red-500 shrink-0" />
+                                            <span className="truncate">{sch.roomId || sch.room || 'Chưa xếp phòng'}</span>
                                           </div>
 
                                           {/* Thao tác Sửa / Xóa */}
                                           {canManage && (
-                                            <div className="flex items-center gap-0.5 opacity-0 group-hover/card:opacity-100 transition-opacity bg-white/90 rounded border border-gray-200 px-1 py-0.5 shadow-2xs">
+                                            <div className="flex items-center gap-0.5 opacity-0 group-hover/card:opacity-100 transition-opacity bg-white/95 rounded border border-gray-200 px-1 py-0.5 shadow-2xs shrink-0">
                                               <button
                                                 onClick={(event) => {
                                                   event.stopPropagation();
                                                   setDetailSchedule(sch);
                                                 }}
-                                                className="p-1 text-gray-500 hover:text-emerald-600 rounded transition-colors"
+                                                className="p-0.5 text-gray-500 hover:text-emerald-600 rounded transition-colors"
                                                 title="Xem chi tiết lịch"
                                               >
-                                                <Eye className="w-3 h-3" />
+                                                <Eye className="w-2.5 h-2.5" />
                                               </button>
                                               <button
                                                 onClick={(event) => {
                                                   event.stopPropagation();
                                                   handleOpenEditModal(sch);
                                                 }}
-                                                className="p-1 text-gray-500 hover:text-blue-600 rounded transition-colors"
+                                                className="p-0.5 text-gray-500 hover:text-blue-600 rounded transition-colors"
                                                 title="Chỉnh sửa lịch"
                                               >
-                                                <Edit2 className="w-3 h-3" />
+                                                <Edit2 className="w-2.5 h-2.5" />
                                               </button>
                                               <button
                                                 onClick={() => setDeleteTarget(sch)}
-                                                className="p-1 text-gray-500 hover:text-red-600 rounded transition-colors"
+                                                className="p-0.5 text-gray-500 hover:text-red-600 rounded transition-colors"
                                                 title="Xóa lịch"
                                               >
-                                                <Trash2 className="w-3 h-3" />
+                                                <Trash2 className="w-2.5 h-2.5" />
                                               </button>
                                             </div>
                                           )}
                                         </div>
 
                                         {/* Giảng viên */}
-                                        <div className="text-xs font-semibold text-gray-900 truncate">
+                                        <div className="text-[11px] font-bold text-gray-900 truncate leading-tight">
                                           {schUser ? schUser.fullName : 'Cán bộ / Giảng viên'}
                                         </div>
 
                                         {/* Khoa / Bộ môn */}
                                         {departmentInfo.unitName && (
-                                          <div className="text-[11px] text-gray-500 truncate flex items-center gap-1 mt-0.5">
+                                          <div className="text-[10px] text-gray-500 truncate flex items-center gap-1 mt-0.5">
                                             <Building2 className="w-2.5 h-2.5 text-gray-400 shrink-0" />
                                             <span className="truncate">
                                               {departmentInfo.facultyName && departmentInfo.facultyName !== departmentInfo.unitName
@@ -1006,19 +1143,19 @@ export const SchedulesPage: React.FC = () => {
                                         )}
 
                                         {sch.subjectName && (
-                                          <div className="text-[11px] text-blue-700 font-medium truncate mt-1">
+                                          <div className="text-[10px] text-blue-700 font-semibold truncate mt-0.5">
                                             {sch.subjectCode ? `${sch.subjectCode} - ` : ''}{sch.subjectName}
                                           </div>
                                         )}
 
                                         {/* Khung giờ thực tế */}
-                                        <div className="flex items-center justify-between text-[10px] text-gray-600 mt-1.5 pt-1 border-t border-gray-200/60 font-medium">
-                                          <span>
+                                        <div className="flex items-center justify-between text-[9px] text-gray-500 mt-1 pt-1 border-t border-gray-200/60 font-medium">
+                                          <span className="truncate">
                                             {sch.startTime || shift.startTime} - {sch.endTime || shift.endTime}
                                           </span>
                                           {sch.isRecurring && (
-                                            <span className="text-blue-600 font-semibold text-[9px] bg-blue-100/80 px-1.5 py-0.2 rounded">
-                                              Hàng tuần
+                                            <span className="text-blue-600 font-bold text-[8px] bg-blue-100/80 px-1 py-0.2 rounded shrink-0 ml-1">
+                                              Tuần
                                             </span>
                                           )}
                                         </div>
@@ -1026,8 +1163,8 @@ export const SchedulesPage: React.FC = () => {
                                     );
                                   })
                                 ) : (
-                                  <div className="h-full flex flex-col items-center justify-center py-6 text-gray-300">
-                                    <span className="text-[11px] font-medium text-gray-400/80">Trống</span>
+                                  <div className="h-full flex flex-col items-center justify-center py-5 text-gray-300">
+                                    <span className="text-[10px] font-medium text-gray-400/80">Trống</span>
                                   </div>
                                 )}
 
@@ -1035,10 +1172,10 @@ export const SchedulesPage: React.FC = () => {
                                 {canManage && (
                                   <button
                                     onClick={() => handleOpenCreateModal(wd.value, shift._id)}
-                                    className="w-full py-1 text-[11px] font-medium text-gray-500 hover:text-blue-600 hover:bg-blue-50/80 rounded border border-dashed border-gray-200 hover:border-blue-300 transition-all opacity-0 group-hover:opacity-100 flex items-center justify-center gap-1"
+                                    className="w-full py-0.5 text-[10px] font-medium text-gray-500 hover:text-blue-600 hover:bg-blue-50/80 rounded border border-dashed border-gray-200 hover:border-blue-300 transition-all opacity-0 group-hover:opacity-100 flex items-center justify-center gap-1"
                                   >
-                                    <Plus className="w-3 h-3" />
-                                    <span>Thêm lịch</span>
+                                    <Plus className="w-2.5 h-2.5" />
+                                    <span>Thêm</span>
                                   </button>
                                 )}
                               </div>

@@ -377,6 +377,36 @@ const runDailyAbsentCheck = async (targetDate = new Date()) => {
 };
 
 /**
+ * Quét định kỳ trong ngày (mỗi 5 phút):
+ * Tự động tìm các ca làm việc mà giảng viên chưa check-in và đã quá ngưỡng đi muộn (startMinutes + lateThresholdMinutes)
+ * để tự động hủy lịch và ghi nhận vắng mặt (ABSENT) ngay trong ngày!
+ */
+const scanAndMarkExpiredShiftsAbsent = async (targetDate = new Date()) => {
+  try {
+    const vnTime = getVietnamTime(targetDate);
+    const currentMinutes = vnTime.getHours() * 60 + vnTime.getMinutes();
+    const dayRange = getVietnamDayRange(targetDate);
+    const activeSchedules = await getTodayActiveSchedules(targetDate);
+
+    for (const schedule of activeSchedules) {
+      const shift = schedule.shiftId;
+      if (!shift || !shift.startTime) continue;
+
+      const shiftStartStr = schedule.startTime || shift.startTime;
+      const startMinutes = timeStringToMinutes(shiftStartStr);
+      const lateThreshold = shift.lateThresholdMinutes !== undefined ? shift.lateThresholdMinutes : 15;
+
+      // Nếu thời điểm hiện tại đã vượt quá giờ bắt đầu ca + ngưỡng cho phép đi muộn
+      if (currentMinutes > startMinutes + lateThreshold) {
+        await processScheduleAttendanceCheck(schedule, dayRange);
+      }
+    }
+  } catch (error) {
+    console.error('[Cron Service] Lỗi trong scanAndMarkExpiredShiftsAbsent:', error.message);
+  }
+};
+
+/**
  * Khởi tạo toàn bộ các cron job chạy nền của hệ thống
  * Thiết lập chạy tự động cùng server Express
  */
@@ -386,10 +416,22 @@ const initCronJobs = () => {
     return;
   }
 
-  // Lập lịch chạy lúc 23:59:00 mỗi ngày theo giờ Việt Nam
-  // Cú pháp cron: Phút (59) Giờ (23) Ngày trong tháng (*) Tháng (*) Ngày trong tuần (*)
-  const dailyAbsentCronExpression = '59 23 * * *';
+  // 1. Quét vắng mặt tự động mỗi 5 phút trong ngày theo giờ Việt Nam
+  // Tự động đánh vắng / hủy lịch ngay khi giảng viên đi muộn vượt quá ngưỡng của ca đó
+  const periodicAbsentCronExpression = '*/5 * * * *';
+  cron.schedule(
+    periodicAbsentCronExpression,
+    async () => {
+      await scanAndMarkExpiredShiftsAbsent();
+    },
+    {
+      scheduled: true,
+      timezone: 'Asia/Ho_Chi_Minh',
+    }
+  );
 
+  // 2. Lập lịch chạy lúc 23:59:00 mỗi ngày theo giờ Việt Nam để chốt danh sách & gửi mail tổng hợp
+  const dailyAbsentCronExpression = '59 23 * * *';
   cron.schedule(
     dailyAbsentCronExpression,
     async () => {
@@ -402,11 +444,15 @@ const initCronJobs = () => {
     }
   );
 
-  console.log('[Cron Service] Đã kích hoạt tiến trình nền kiểm tra vắng mặt tự động (23:59 hàng ngày, Asia/Ho_Chi_Minh).');
+  console.log('[Cron Service] Đã kích hoạt tiến trình nền kiểm tra vắng mặt tự động (quét mỗi 5 phút & chốt 23:59 hàng ngày, Asia/Ho_Chi_Minh).');
 };
 
 module.exports = {
   getTodayActiveSchedules,
   runDailyAbsentCheck,
+  scanAndMarkExpiredShiftsAbsent,
+  processScheduleAttendanceCheck,
+  isDeliverableEmail,
   initCronJobs,
 };
+

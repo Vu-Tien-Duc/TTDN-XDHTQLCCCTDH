@@ -318,7 +318,7 @@ export const ShiftsPage: React.FC = () => {
                 <tr>
                   <th className="py-4 px-6">Tên Ca Làm Việc</th>
                   <th className="py-4 px-6">Khung Giờ Bắt Đầu - Kết Thúc</th>
-                  <th className="py-4 px-6">Ngưỡng Trễ Cho Phép</th>
+                  <th className="py-4 px-6">Cho Phép Đi Muộn (Quá là Vắng)</th>
                   <th className="py-4 px-6">Trạng Thái</th>
                   {isAdmin && <th className="py-4 px-6 text-right">Thao Tác</th>}
                 </tr>
@@ -353,7 +353,7 @@ export const ShiftsPage: React.FC = () => {
                         <span className="font-bold text-slate-900 text-sm">
                           {shift.lateThresholdMinutes ?? 15}
                         </span>
-                        <span className="text-slate-500 text-[11px]">phút (Grace Period)</span>
+                        <span className="text-slate-500 text-[11px]">phút (quá giờ tự đánh vắng)</span>
                       </div>
                     </td>
 
@@ -473,7 +473,7 @@ export const ShiftsPage: React.FC = () => {
               <div>
                 <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5 flex items-center justify-between">
                   <span>Số Phút Cho Phép Đi Muộn *</span>
-                  <span className="text-[11px] font-normal text-slate-400">Grace Period</span>
+                  <span className="text-[11px] font-normal text-amber-600 font-semibold">Quá giờ tự đánh vắng</span>
                 </label>
                 <div className="relative rounded-xl shadow-xs">
                   <input
@@ -492,10 +492,12 @@ export const ShiftsPage: React.FC = () => {
                     {errors.lateThresholdMinutes.message}
                   </p>
                 )}
-                <p className="text-[11px] text-slate-400 mt-1 flex items-center gap-1">
-                  <Info className="w-3 h-3 text-blue-500" />
-                  <span>Sau ngưỡng này, hệ thống sẽ tự động chuyển trạng thái sang ĐI MUỘN (LATE).</span>
-                </p>
+                <div className="bg-amber-50/80 border border-amber-200/70 rounded-xl p-2.5 mt-2 flex items-start gap-2">
+                  <Info className="w-3.5 h-3.5 text-amber-600 shrink-0 mt-0.5" />
+                  <p className="text-[11px] text-amber-800 leading-relaxed">
+                    <strong>Quy tắc điểm danh:</strong> Sau giờ bắt đầu ca tính là <strong>Đi muộn (LATE)</strong>. Nếu giảng viên đến muộn vượt quá số phút này, hệ thống sẽ <strong>tự động hủy lịch và ghi nhận Vắng mặt (ABSENT)</strong>.
+                  </p>
+                </div>
               </div>
 
               {/* Trạng thái áp dụng */}
