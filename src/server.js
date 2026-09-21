@@ -19,6 +19,17 @@ const startServer = async () => {
   try {
     await connectDB();
 
+    // Dọn dẹp dữ liệu: đảm bảo các bản ghi VẮNG MẶT (ABSENT/EXCUSED_ABSENCE) không bị gán giờ check-in giả
+    try {
+      const AttendanceLog = require('./models/attendanceLog.model');
+      await AttendanceLog.updateMany(
+        { status: { $in: ['ABSENT', 'EXCUSED_ABSENCE'] }, checkInTime: { $ne: null } },
+        { $set: { checkInTime: null } }
+      );
+    } catch (e) {
+      console.warn('[Data Hygiene] Lưu ý kiểm tra dữ liệu chấm công:', e.message);
+    }
+
     // Khởi tạo các tiến trình chạy nền (node-cron)
     initCronJobs();
 

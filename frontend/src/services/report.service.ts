@@ -50,6 +50,12 @@ export interface MonthlyReportResponse {
   totalUsers: number;
   report: MonthlyStaffReportItem[];
   weeklyTrend?: WeeklyTrendPoint[];
+  pagination?: {
+    page: number;
+    limit: number;
+    totalPages: number;
+    totalUsers: number;
+  };
 }
 
 export interface AttendanceReportFilter {
@@ -63,6 +69,8 @@ export interface MonthlyReportFilter {
   month?: number;
   year?: number;
   departmentId?: string;
+  page?: number;
+  limit?: number;
 }
 
 export const reportService = {

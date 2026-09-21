@@ -34,25 +34,16 @@ export const GpsCampusMap: React.FC<GpsCampusMapProps> = ({
   isAdmin = false,
   onOpenAdminConfig,
 }) => {
-  const [mapCenterMode, setMapCenterMode] = useState<'user' | 'campus'>('campus');
+  const [mapCenterMode, setMapCenterMode] = useState<'campus' | 'user'>('campus');
 
-  // Tính bbox cho OpenStreetMap hiển thị bao trùm cả khuôn viên và người dùng
-  const centerLat = mapCenterMode === 'user' && userCoords ? userCoords.lat : campusConfig.lat;
-  const centerLng = mapCenterMode === 'user' && userCoords ? userCoords.lng : campusConfig.lng;
+  // Lấy tọa độ hiển thị theo chế độ: Vị trí của bạn hoặc Trường học
+  const markerLat = mapCenterMode === 'user' && userCoords ? userCoords.lat : campusConfig.lat;
+  const markerLng = mapCenterMode === 'user' && userCoords ? userCoords.lng : campusConfig.lng;
 
-  // Zoom offset xấp xỉ ~500m - 1km xung quanh
-  const delta = 0.0075;
-  const minLng = (centerLng - delta).toFixed(6);
-  const minLat = (centerLat - delta).toFixed(6);
-  const maxLng = (centerLng + delta).toFixed(6);
-  const maxLat = (centerLat + delta).toFixed(6);
+  // Dùng Google Maps Embed thay cho OpenStreetMap (không bị lỗi refused to connect / X-Frame-Options)
+  const mapEmbedUrl = `https://maps.google.com/maps?q=${markerLat},${markerLng}&hl=vi&z=15&output=embed`;
 
-  const markerLat = userCoords ? userCoords.lat : campusConfig.lat;
-  const markerLng = userCoords ? userCoords.lng : campusConfig.lng;
-
-  const osmEmbedUrl = `https://www.openstreetmap.org/export/embed.html?bbox=${minLng}%2C${minLat}%2C${maxLng}%2C${maxLat}&layer=mapnik&marker=${markerLat}%2C${markerLng}`;
-
-  const googleMapsUrl = userCoords
+  const googleMapsExternalUrl = userCoords
     ? `https://www.google.com/maps/dir/?api=1&origin=${userCoords.lat},${userCoords.lng}&destination=${campusConfig.lat},${campusConfig.lng}`
     : `https://www.google.com/maps/search/?api=1&query=${campusConfig.lat},${campusConfig.lng}`;
 
@@ -95,6 +86,7 @@ export const GpsCampusMap: React.FC<GpsCampusMapProps> = ({
         <div className="flex items-center gap-2">
           {isAdmin && onOpenAdminConfig && (
             <button
+              type="button"
               onClick={onOpenAdminConfig}
               className="px-3 py-1.5 rounded-xl bg-indigo-50 hover:bg-indigo-100 text-indigo-700 text-xs font-semibold border border-indigo-200 transition flex items-center gap-1"
               title="Chỉ Admin có quyền thiết lập tọa độ trường"
@@ -106,6 +98,7 @@ export const GpsCampusMap: React.FC<GpsCampusMapProps> = ({
 
           <div className="flex bg-slate-200/80 p-0.5 rounded-xl text-xs font-semibold">
             <button
+              type="button"
               onClick={() => setMapCenterMode('campus')}
               className={`px-2.5 py-1 rounded-lg transition ${
                 mapCenterMode === 'campus'
@@ -116,6 +109,7 @@ export const GpsCampusMap: React.FC<GpsCampusMapProps> = ({
               Trường Học
             </button>
             <button
+              type="button"
               onClick={() => {
                 if (userCoords) setMapCenterMode('user');
                 else onRefreshGps();
@@ -132,7 +126,7 @@ export const GpsCampusMap: React.FC<GpsCampusMapProps> = ({
           </div>
 
           <a
-            href={googleMapsUrl}
+            href={googleMapsExternalUrl}
             target="_blank"
             rel="noreferrer"
             className="p-2 rounded-xl text-slate-500 hover:text-slate-900 hover:bg-slate-100 transition border border-slate-200"
@@ -143,17 +137,18 @@ export const GpsCampusMap: React.FC<GpsCampusMapProps> = ({
         </div>
       </div>
 
-      {/* Khung nhúng Bản đồ OpenStreetMap */}
+      {/* Khung nhúng Bản đồ Google Maps */}
       <div className="relative w-full h-72 sm:h-80 bg-slate-100 overflow-hidden">
         <iframe
           title="Campus Map"
-          src={osmEmbedUrl}
+          src={mapEmbedUrl}
           className="w-full h-full border-0"
           loading="lazy"
+          referrerPolicy="no-referrer-when-downgrade"
         />
 
         {/* HUD Trực quan nổi trên góc bản đồ */}
-        <div className="absolute top-3 left-3 z-10 bg-slate-950/85 backdrop-blur-md px-3.5 py-2.5 rounded-2xl border border-white/20 text-white shadow-xl max-w-xs space-y-1">
+        <div className="absolute top-3 left-3 z-10 bg-slate-950/85 backdrop-blur-md px-3.5 py-2.5 rounded-2xl border border-white/20 text-white shadow-xl max-w-xs space-y-1 pointer-events-none">
           <div className="flex items-center gap-2 text-xs font-bold">
             <div className={`w-2.5 h-2.5 rounded-full ${isGpsValid ? 'bg-emerald-400 animate-pulse' : 'bg-amber-400'}`} />
             <span>{isGpsValid ? 'Tín hiệu GPS hợp lệ để điểm danh' : 'Cách tâm trường: ' + (gpsDistance || 0) + 'm'}</span>
@@ -165,6 +160,7 @@ export const GpsCampusMap: React.FC<GpsCampusMapProps> = ({
 
         {/* Nút Refresh GPS nổi góc dưới */}
         <button
+          type="button"
           onClick={onRefreshGps}
           disabled={isFetchingGps}
           className="absolute bottom-3 right-3 z-10 bg-white/95 hover:bg-white text-slate-800 px-3 py-2 rounded-xl shadow-lg border border-slate-200 text-xs font-bold flex items-center gap-1.5 transition active:scale-95 disabled:opacity-50"

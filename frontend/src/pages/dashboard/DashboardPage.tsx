@@ -396,9 +396,11 @@ export const DashboardPage: React.FC = () => {
     return map;
   }, [todaySchedules, todayLogs]);
 
-  // Ca làm việc đang mở (chưa check-out)
+  // Ca làm việc đang mở (đã check-in thực tế nhưng chưa check-out, loại trừ ABSENT và EXCUSED_ABSENCE)
   const activeOpenLog = useMemo(() => {
-    return todayLogs.find((log) => !log.checkOutTime);
+    return todayLogs.find(
+      (log) => log.checkInTime && !log.checkOutTime && log.status !== 'ABSENT' && log.status !== 'EXCUSED_ABSENCE'
+    );
   }, [todayLogs]);
 
   // Ca tiếp theo chưa được điểm danh
@@ -406,12 +408,12 @@ export const DashboardPage: React.FC = () => {
     return todaySchedules.find((s) => !scheduleAttendanceMap.has(s._id));
   }, [todaySchedules, scheduleAttendanceMap]);
 
-  // Kiểm tra xem tất cả các ca hôm nay đã check-out hoàn tất chưa
+  // Kiểm tra xem tất cả các ca hôm nay đã check-out hoặc đã hoàn tất (bao gồm nghỉ phép/vắng mặt) chưa
   const allSchedulesCompleted = useMemo(() => {
     if (todaySchedules.length === 0) return false;
     return todaySchedules.every((s) => {
       const log = scheduleAttendanceMap.get(s._id);
-      return log && log.checkOutTime;
+      return log && (log.checkOutTime || log.status === 'ABSENT' || log.status === 'EXCUSED_ABSENCE');
     });
   }, [todaySchedules, scheduleAttendanceMap]);
 
@@ -921,6 +923,22 @@ export const DashboardPage: React.FC = () => {
                                 </Button>
                               );
                             }
+                            if (log.status === 'ABSENT') {
+                              return (
+                                <span className="inline-flex items-center gap-1 text-xs font-semibold text-rose-700 bg-rose-50 px-2.5 py-1 rounded-xl border border-rose-200">
+                                  <AlertTriangle className="w-3.5 h-3.5 text-rose-600" />
+                                  <span>Vắng mặt</span>
+                                </span>
+                              );
+                            }
+                            if (log.status === 'EXCUSED_ABSENCE') {
+                              return (
+                                <span className="inline-flex items-center gap-1 text-xs font-semibold text-blue-700 bg-blue-50 px-2.5 py-1 rounded-xl border border-blue-200">
+                                  <Clock className="w-3.5 h-3.5 text-blue-600" />
+                                  <span>Nghỉ có phép</span>
+                                </span>
+                              );
+                            }
                             if (!log.checkOutTime) {
                               return (
                                 <div className="flex items-center gap-2">
@@ -1025,7 +1043,7 @@ export const DashboardPage: React.FC = () => {
                       return (
                         <tr key={log._id} className="hover:bg-slate-50/60 transition">
                           <td className="py-3 pr-4 font-medium text-slate-900">
-                            {formatDate(log.checkInTime || log.date)}
+                            {formatDate(log.checkInTime || log.workDate || log.date || log.createdAt)}
                           </td>
                           {isAdminOrDean && (
                             <td className="py-3 px-4 font-medium text-slate-800 truncate max-w-[150px]">
@@ -1033,7 +1051,9 @@ export const DashboardPage: React.FC = () => {
                             </td>
                           )}
                           <td className="py-3 px-4 font-mono text-slate-700">
-                            {formatTime(log.checkInTime)}
+                            {log.status === 'ABSENT' || log.status === 'EXCUSED_ABSENCE' || !log.checkInTime
+                              ? '—'
+                              : formatTime(log.checkInTime)}
                           </td>
                           <td className="py-3 px-4 font-mono text-slate-500">
                             {log.checkOutTime ? formatTime(log.checkOutTime) : '—'}
