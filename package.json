@@ -11,6 +11,7 @@
     "seed": "node src/utils/seeder.js",
     "test": "node src/tests/aiAssistant.test.js",
     "test:ai": "node src/tests/aiAssistant.test.js"
+    "test": "node test_demo_all_weeks.js"
   },
   "repository": {
     "type": "git",
@@ -40,6 +41,7 @@
     "swagger-ui-express": "^5.0.1"
   },
   "devDependencies": {
+    "docx": "^9.7.1",
     "nodemon": "^3.1.14"
   }
 }

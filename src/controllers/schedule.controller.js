@@ -15,18 +15,7 @@ const timeStringToMinutes = (timeStr) => {
   return (h || 0) * 60 + (m || 0);
 };
 
-const getDeanDepartmentIds = async (actor) => {
-  if (actor.role !== 'truongkhoa' || !actor.departmentId) return [];
-  const childIds = await Department.find({ parentId: actor.departmentId }).distinct('_id');
-  return [actor.departmentId, ...childIds];
-};
-
-const isUserInDeanScope = async (actor, targetUserId) => {
-  if (actor.role !== 'truongkhoa') return true;
-  const departmentIds = await getDeanDepartmentIds(actor);
-  const targetUser = await User.findById(targetUserId).select('departmentId');
-  return Boolean(targetUser && departmentIds.some((id) => id.toString() === targetUser.departmentId?.toString()));
-};
+const { getDeanDepartmentIds, isUserInDeanScope } = require('../utils/deanScope');
 
 /**
  * Lấy danh sách lịch phân công giảng dạy/công tác
@@ -372,8 +361,26 @@ const updateSchedule = async (req, res, next) => {
       );
     }
 
-    if (!(await isUserInDeanScope(req.user, targetUserId))) {
-      return sendError(res, 'Bạn chỉ có quyền cập nhật lịch thuộc khoa của mình.', null, 403, ERROR_CODES.AUTH_FORBIDDEN);
+    // Kiểm tra Trưởng khoa có quyền cập nhật lịch của người hiện tại không (ngăn chặn sửa chéo lịch ngoài khoa)
+    if (!(await isUserInDeanScope(req.user, existingSchedule.userId))) {
+      return sendError(
+        res,
+        'Bạn chỉ có quyền cập nhật lịch thuộc khoa của mình.',
+        null,
+        403,
+        ERROR_CODES.AUTH_FORBIDDEN
+      );
+    }
+
+    // Nếu gán sang người khác, người mới cũng phải thuộc khoa
+    if (userId && !(await isUserInDeanScope(req.user, userId))) {
+      return sendError(
+        res,
+        'Bạn chỉ có quyền phân lịch cho nhân sự thuộc khoa của mình.',
+        null,
+        403,
+        ERROR_CODES.AUTH_FORBIDDEN
+      );
     }
 
     const canTeach = assignedUser.role === 'giangvien' || assignedUser.role === 'truongkhoa';
