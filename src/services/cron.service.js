@@ -119,16 +119,13 @@ const processScheduleAttendanceCheck = async (schedule, dayRange) => {
   // 3. Cơ chế Idempotent (Chống trùng lặp tuyệt đối):
   // Tạo bản ghi trong attendance_logs với status: 'ABSENT' (hoặc 'EXCUSED_ABSENCE' nếu có phép),
   // method: 'manual', checkInTime: null, checkOutTime: null
-  const shiftStartTime = schedule.shiftId?.startTime || schedule.startTime || '07:30';
-  const shiftCheckInTime = new Date(`${dayRange.dateStr}T${shiftStartTime}:00.000+07:00`);
-
   const newLog = await AttendanceLog.create({
     userId,
     shiftId,
     scheduleId: schedule._id,
     status: finalStatus,
     method: 'manual',
-    checkInTime: shiftCheckInTime,
+    checkInTime: null, // Vắng mặt hoặc nghỉ phép thì không có giờ check-in
     checkOutTime: null,
     leaveRequestId,
     isManualOverride: false,

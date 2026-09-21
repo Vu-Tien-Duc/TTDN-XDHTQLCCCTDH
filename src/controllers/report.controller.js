@@ -88,9 +88,8 @@ const getAttendanceReport = async (req, res, next) => {
       type: 'nghi_phep',
     };
     if (fromDate || toDate) {
-      leaveQuery.startDate = {};
-      if (fromDate) leaveQuery.startDate.$gte = fromDate;
-      if (toDate) leaveQuery.startDate.$lte = toDate;
+      if (toDate) leaveQuery.startDate = { $lte: toDate };
+      if (fromDate) leaveQuery.endDate = { $gte: fromDate };
     }
     const approvedLeaves = await LeaveRequest.find(leaveQuery);
 

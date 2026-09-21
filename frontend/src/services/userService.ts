@@ -34,12 +34,16 @@ export interface UpdateUserPayload {
   annualLeaveQuota?: number;
 }
 
+export type GetUsersResponse = User[] | UserPaginationResult;
+
 export interface UserService {
   getAllUsers(params: UserQueryParams & { page: number; limit: number }): Promise<UserPaginationResult>;
-  getAllUsers(params?: UserQueryParams): Promise<User[]>;
+  getAllUsers(params?: UserQueryParams): Promise<GetUsersResponse>;
 
   getUsers(params: UserQueryParams & { page: number; limit: number }): Promise<UserPaginationResult>;
-  getUsers(params?: UserQueryParams): Promise<User[]>;
+  getUsers(params?: UserQueryParams): Promise<GetUsersResponse>;
+
+  getUsersPaginated(params: UserQueryParams & { page: number; limit: number }): Promise<UserPaginationResult>;
 
   getUserById(id: string): Promise<User>;
   createUser(payload: CreateUserPayload): Promise<User>;
@@ -63,7 +67,17 @@ export const userService: UserService = {
    * Alias cho getAllUsers
    */
   async getUsers(params?: UserQueryParams): Promise<any> {
-    return this.getAllUsers(params as any);
+    return this.getAllUsers(params);
+  },
+
+  /**
+   * Lấy danh sách người dùng có phân trang bảo đảm (Server-side Pagination)
+   */
+  async getUsersPaginated(params: UserQueryParams & { page: number; limit: number }): Promise<UserPaginationResult> {
+    const res = await axiosClient.get<unknown, { success: boolean; data: UserPaginationResult }>('/users', {
+      params,
+    });
+    return res.data;
   },
 
   /**

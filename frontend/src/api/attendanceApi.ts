@@ -11,6 +11,7 @@ export interface CheckInPayload {
     lat: number;
     lng: number;
   };
+  accuracy?: number;
   latitude?: number;
   longitude?: number;
   note?: string;
@@ -26,6 +27,7 @@ export interface CheckOutPayload {
     lat: number;
     lng: number;
   };
+  accuracy?: number;
   latitude?: number;
   longitude?: number;
   note?: string;
@@ -201,7 +203,8 @@ export const attendanceApi = {
    */
   scanQRCode: async (data: {
     qrToken: string;
-    location?: { lat: number; lng: number };
+    location?: { lat: number; lng: number; accuracy?: number };
+    accuracy?: number;
     deviceId?: string;
   }): Promise<ApiResponse<any>> => {
     return axiosClient.post('/attendance/qr/scan', data);

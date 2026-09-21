@@ -212,7 +212,7 @@ const evaluateUserScheduleForCheckIn = async (userId, specificShiftId = null) =>
           reason: `Quá hạn check-in (muộn quá ${lateThreshold} phút). Tự động hủy lịch và đánh vắng.`,
         },
         timestamp: new Date(),
-      }).catch(() => {});
+      }).catch(() => { });
 
       // Tiếp tục vòng lặp để kiểm tra xem có ca tiếp theo trong ngày không
       continue;
@@ -355,8 +355,20 @@ const calculateCheckOutStatus = (checkOutTime, shiftConfig, initialStatus = 'ON_
 const buildAttendanceDateFilter = (startDate, endDate) => {
   if (!startDate && !endDate) return {};
   const cond = {};
-  if (startDate) cond.$gte = new Date(startDate);
-  if (endDate) cond.$lte = new Date(endDate);
+  if (startDate) {
+    if (typeof startDate === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(startDate)) {
+      cond.$gte = new Date(`${startDate}T00:00:00.000+07:00`);
+    } else {
+      cond.$gte = new Date(startDate);
+    }
+  }
+  if (endDate) {
+    if (typeof endDate === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(endDate)) {
+      cond.$lte = new Date(`${endDate}T23:59:59.999+07:00`);
+    } else {
+      cond.$lte = new Date(endDate);
+    }
+  }
   return {
     $or: [
       { checkInTime: cond },
@@ -494,8 +506,8 @@ const crypto = require('crypto');
 
 const CAMPUS_CONFIG = {
   name: process.env.CAMPUS_NAME || 'Khuôn viên Cơ sở chính - Trường Đại học',
-  lat: parseFloat(process.env.CAMPUS_LAT || '21.028511'),
-  lng: parseFloat(process.env.CAMPUS_LNG || '105.854167'),
+  lat: parseFloat(process.env.CAMPUS_LAT || '20.965483'),
+  lng: parseFloat(process.env.CAMPUS_LNG || '105.729905'),
   radiusMeters: parseInt(process.env.CAMPUS_RADIUS_METERS || '500', 10), // Mặc định mở rộng 500m bao quát toàn bộ trường
 };
 
