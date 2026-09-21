@@ -89,13 +89,18 @@ export const tokenStorage = {
       tokenStorage.clear();
       return null;
     }
+    // Xóa triệt để token cũ trong localStorage nếu còn sót lại
+    if (localStorage.getItem(ACCESS_TOKEN_KEY)) localStorage.removeItem(ACCESS_TOKEN_KEY);
     return sessionStorage.getItem(ACCESS_TOKEN_KEY);
   },
   setAccessToken: (token: string): void => {
     sessionStorage.setItem(ACCESS_TOKEN_KEY, token);
     tokenStorage.updateActivity();
   },
-  getRefreshToken: (): string | null => sessionStorage.getItem(REFRESH_TOKEN_KEY),
+  getRefreshToken: (): string | null => {
+    if (localStorage.getItem(REFRESH_TOKEN_KEY)) localStorage.removeItem(REFRESH_TOKEN_KEY);
+    return sessionStorage.getItem(REFRESH_TOKEN_KEY);
+  },
   setRefreshToken: (token: string): void => {
     sessionStorage.setItem(REFRESH_TOKEN_KEY, token);
   },
@@ -104,18 +109,6 @@ export const tokenStorage = {
       tokenStorage.clear();
       return null;
     }
-  getAccessToken: () => {
-    // Xóa triệt để token cũ trong localStorage nếu còn sót lại
-    if (localStorage.getItem(ACCESS_TOKEN_KEY)) localStorage.removeItem(ACCESS_TOKEN_KEY);
-    return sessionStorage.getItem(ACCESS_TOKEN_KEY);
-  },
-  setAccessToken: (token: string) => sessionStorage.setItem(ACCESS_TOKEN_KEY, token),
-  getRefreshToken: () => {
-    if (localStorage.getItem(REFRESH_TOKEN_KEY)) localStorage.removeItem(REFRESH_TOKEN_KEY);
-    return sessionStorage.getItem(REFRESH_TOKEN_KEY);
-  },
-  setRefreshToken: (token: string) => sessionStorage.setItem(REFRESH_TOKEN_KEY, token),
-  getUser: () => {
     if (localStorage.getItem(USER_KEY)) localStorage.removeItem(USER_KEY);
     const raw = sessionStorage.getItem(USER_KEY);
     try {
@@ -159,14 +152,6 @@ export const tokenStorage = {
     } catch {
       // Bỏ qua lỗi truy cập storage
     }
-  setUser: (user: unknown) => sessionStorage.setItem(USER_KEY, JSON.stringify(user)),
-  clear: () => {
-    sessionStorage.removeItem(ACCESS_TOKEN_KEY);
-    sessionStorage.removeItem(REFRESH_TOKEN_KEY);
-    sessionStorage.removeItem(USER_KEY);
-    localStorage.removeItem(ACCESS_TOKEN_KEY);
-    localStorage.removeItem(REFRESH_TOKEN_KEY);
-    localStorage.removeItem(USER_KEY);
   },
 };
 
