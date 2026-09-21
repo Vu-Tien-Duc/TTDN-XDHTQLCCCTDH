@@ -196,3 +196,20 @@ export const LEAVE_STATUS_MAP: Record<LeaveStatus, { label: string; color: strin
 };
 
 export * from './errorHandler';
+
+/**
+ * Chuẩn hóa URL hình ảnh / tài liệu đính kèm:
+ * - Thay thế triệt để http://chamcongdh.io.vn bằng https://chamcongdh.io.vn
+ * - Nâng cấp http:// thành https:// khi web đang chạy trên HTTPS
+ * - Tránh hoàn toàn lỗi Mixed Content trong trình duyệt
+ */
+export function getSafeMediaUrl(url?: string | null): string {
+  if (!url) return '';
+  if (url.startsWith('http://chamcongdh.io.vn')) {
+    return url.replace('http://chamcongdh.io.vn', 'https://chamcongdh.io.vn');
+  }
+  if (typeof window !== 'undefined' && window.location.protocol === 'https:' && url.startsWith('http://')) {
+    return url.replace(/^http:\/\//i, 'https://');
+  }
+  return url;
+}

@@ -570,9 +570,12 @@ const updateAvatar = async (req, res, next) => {
       updateData.faceDescriptor = faceDescriptor;
     }
 
-    // Luôn lưu URL tuyệt đối vào CSDL để hoạt động đúng trên mọi môi trường (VPS/Nginx)
+    // Luôn lưu URL tuyệt đối và bảo đảm giao thức HTTPS an toàn trên production
     const baseUrl = getBaseUrl(req);
-    const fullAvatarUrl = avatar.startsWith('http') ? avatar : `${baseUrl}${avatar}`;
+    let fullAvatarUrl = avatar.startsWith('http') ? avatar : `${baseUrl}${avatar}`;
+    if (fullAvatarUrl.startsWith('http://chamcongdh.io.vn')) {
+      fullAvatarUrl = fullAvatarUrl.replace('http://chamcongdh.io.vn', 'https://chamcongdh.io.vn');
+    }
     updateData.avatar = fullAvatarUrl;
 
     const user = await User.findByIdAndUpdate(

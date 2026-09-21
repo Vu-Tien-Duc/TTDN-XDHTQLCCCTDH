@@ -29,7 +29,7 @@ import {
 import { useAuth } from '../contexts/AuthContext';
 import { axiosClient } from '../api/axiosClient';
 import { Role } from '../types';
-import { ROLE_LABELS, cn } from '../utils';
+import { ROLE_LABELS, cn, getSafeMediaUrl } from '../utils';
 import { toast } from 'react-hot-toast';
 import AiChatWidget from '../components/ai/AiChatWidget';
 
@@ -327,7 +327,7 @@ export const MainLayout: React.FC = () => {
         <div className="p-4 mx-3 my-3 rounded-2xl bg-slate-800/60 border border-slate-700/50 flex items-center gap-3">
           {user?.avatar && !avatarError ? (
             <img
-              src={user.avatar}
+              src={getSafeMediaUrl(user.avatar)}
               alt={user?.fullName || 'Avatar'}
               className="w-10 h-10 rounded-xl object-cover border border-blue-400/30 shadow-xs shrink-0"
               onError={() => setAvatarError(true)}
@@ -562,7 +562,7 @@ export const MainLayout: React.FC = () => {
               >
                 {user?.avatar && !avatarError ? (
                   <img
-                    src={user.avatar}
+                    src={getSafeMediaUrl(user.avatar)}
                     alt={user?.fullName || 'Avatar'}
                     className="w-8 h-8 rounded-lg object-cover shadow-sm border border-slate-200 shrink-0"
                     onError={() => setAvatarError(true)}

@@ -107,6 +107,9 @@ const userSchema = new mongoose.Schema(
         delete ret.otpCode;
         delete ret.otpExpiresAt;
         delete ret.otpType;
+        if (typeof ret.avatar === 'string' && ret.avatar.startsWith('http://chamcongdh.io.vn')) {
+          ret.avatar = ret.avatar.replace('http://chamcongdh.io.vn', 'https://chamcongdh.io.vn');
+        }
         return ret;
       },
     },
@@ -116,6 +119,9 @@ const userSchema = new mongoose.Schema(
         delete ret.otpCode;
         delete ret.otpExpiresAt;
         delete ret.otpType;
+        if (typeof ret.avatar === 'string' && ret.avatar.startsWith('http://chamcongdh.io.vn')) {
+          ret.avatar = ret.avatar.replace('http://chamcongdh.io.vn', 'https://chamcongdh.io.vn');
+        }
         return ret;
       },
     },

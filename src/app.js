@@ -32,6 +32,9 @@ const { downloadFile } = require('./controllers/upload.controller');
 
 const app = express();
 
+// Tin tưởng reverse proxy (Nginx) để nhận diện đúng giao thức HTTPS (X-Forwarded-Proto)
+app.set('trust proxy', 1);
+
 // 1. Security Middlewares (Helmet & CORS Whitelist)
 app.use(
   helmet({

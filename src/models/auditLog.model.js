@@ -58,10 +58,9 @@ const blockMutation = function (next) {
   const err = new Error('Nhật ký kiểm toán (Audit Log) là dữ liệu bất biến, không được phép sửa hoặc xóa.');
   err.status = 403;
   if (typeof next === 'function') {
-    next(err);
-  } else {
-    throw err;
+    return next(err);
   }
+  throw err;
 };
 
 // Chặn toàn bộ thao tác sửa đổi trên Query
@@ -79,9 +78,14 @@ auditLogSchema.pre('findOneAndDelete', blockMutation);
 // Chặn sửa đổi thông qua document.save() sau khi đã được lưu
 auditLogSchema.pre('save', function (next) {
   if (!this.isNew) {
-    return blockMutation(next);
+    const err = new Error('Nhật ký kiểm toán (Audit Log) là dữ liệu bất biến, không được phép sửa hoặc xóa.');
+    err.status = 403;
+    if (typeof next === 'function') return next(err);
+    throw err;
   }
-  next();
+  if (typeof next === 'function') {
+    return next();
+  }
 });
 
 module.exports = mongoose.model('AuditLog', auditLogSchema, 'audit_logs');

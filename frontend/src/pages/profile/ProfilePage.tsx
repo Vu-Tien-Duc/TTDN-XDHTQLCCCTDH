@@ -20,7 +20,7 @@ import {
   UploadCloud,
 } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
-import { ROLE_LABELS, showErrorToast, tokenStorage } from '../../utils';
+import { ROLE_LABELS, showErrorToast, tokenStorage, getSafeMediaUrl } from '../../utils';
 import { authService, leaveService, LeaveBalanceData } from '../../services';
 import { Button, Badge } from '../../components';
 
@@ -92,14 +92,15 @@ export const ProfilePage: React.FC = () => {
       if (!uploadRes.success || (!uploadRes.data?.fullUrl && !uploadRes.data?.fileUrl)) {
         throw new Error(uploadRes.message || 'Tải ảnh lên máy chủ thất bại.');
       }
-      // Ưu tiên dùng fullUrl (URL tuyệt đối) để hoạt động đúng trên VPS
-      const newAvatarUrl = uploadRes.data?.fullUrl || uploadRes.data?.fileUrl || '';
+      // Đảm bảo URL avatar luôn an toàn HTTPS, tránh Mixed Content
+      const rawAvatarUrl = uploadRes.data?.fullUrl || uploadRes.data?.fileUrl || '';
+      const newAvatarUrl = getSafeMediaUrl(rawAvatarUrl);
 
       // 2. Cập nhật đường dẫn avatar vào CSDL User
       const updateRes = await authService.updateAvatar(newAvatarUrl);
       if (updateRes.success) {
-        // Ưu tiên avatarUrl tuyệt đối từ server response
-        const savedAvatarUrl = updateRes.data?.avatar || newAvatarUrl;
+        // Ưu tiên avatarUrl tuyệt đối chuẩn HTTPS từ server response
+        const savedAvatarUrl = getSafeMediaUrl(updateRes.data?.avatar || newAvatarUrl);
         if (user) {
           const updatedUser = { ...user, avatar: savedAvatarUrl };
           setUser(updatedUser);
@@ -182,7 +183,7 @@ export const ProfilePage: React.FC = () => {
             {user?.avatar && !avatarError ? (
               <div className="relative group cursor-pointer" onClick={() => fileInputRef.current?.click()}>
                 <img
-                  src={user.avatar}
+                  src={getSafeMediaUrl(user.avatar)}
                   alt={user.fullName || 'Avatar'}
                   className="w-16 h-16 sm:w-20 sm:h-20 rounded-2xl object-cover shadow-lg border-2 border-white/30 shrink-0"
                   onError={() => setAvatarError(true)}
@@ -360,7 +361,7 @@ export const ProfilePage: React.FC = () => {
               {user?.avatar && !avatarError ? (
                 <div className="relative aspect-4/3 w-full rounded-xl overflow-hidden flex items-center justify-center bg-slate-900">
                   <img
-                    src={user.avatar}
+                    src={getSafeMediaUrl(user.avatar)}
                     alt={user.fullName || 'Ảnh mẫu Face ID'}
                     className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
                     onError={() => setAvatarError(true)}

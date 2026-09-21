@@ -69,6 +69,22 @@ const leaveRequestSchema = new mongoose.Schema(
   {
     timestamps: true,
     collection: 'leave_requests',
+    toJSON: {
+      transform: (doc, ret) => {
+        if (typeof ret.attachmentUrl === 'string' && ret.attachmentUrl.startsWith('http://chamcongdh.io.vn')) {
+          ret.attachmentUrl = ret.attachmentUrl.replace('http://chamcongdh.io.vn', 'https://chamcongdh.io.vn');
+        }
+        return ret;
+      },
+    },
+    toObject: {
+      transform: (doc, ret) => {
+        if (typeof ret.attachmentUrl === 'string' && ret.attachmentUrl.startsWith('http://chamcongdh.io.vn')) {
+          ret.attachmentUrl = ret.attachmentUrl.replace('http://chamcongdh.io.vn', 'https://chamcongdh.io.vn');
+        }
+        return ret;
+      },
+    },
   }
 );
 
