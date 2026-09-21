@@ -20,7 +20,7 @@ import {
   UploadCloud,
 } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
-import { ROLE_LABELS, showErrorToast, tokenStorage } from '../../utils';
+import { ROLE_LABELS, showErrorToast, tokenStorage, formatAvatarUrl } from '../../utils';
 import { authService, leaveService, LeaveBalanceData } from '../../services';
 import { Button, Badge } from '../../components';
 
@@ -97,6 +97,7 @@ export const ProfilePage: React.FC = () => {
       // 2. Cập nhật đường dẫn avatar vào CSDL User
       const updateRes = await authService.updateAvatar(newAvatarUrl);
       if (updateRes.success) {
+        setAvatarError(false);
         if (user) {
           const updatedUser = { ...user, avatar: newAvatarUrl };
           setUser(updatedUser);
@@ -177,7 +178,7 @@ export const ProfilePage: React.FC = () => {
             {user?.avatar && !avatarError ? (
               <div className="relative group cursor-pointer" onClick={() => fileInputRef.current?.click()}>
                 <img
-                  src={user.avatar}
+                  src={formatAvatarUrl(user.avatar)}
                   alt={user.fullName || 'Avatar'}
                   className="w-16 h-16 sm:w-20 sm:h-20 rounded-2xl object-cover shadow-lg border-2 border-white/30 shrink-0"
                   onError={() => setAvatarError(true)}
@@ -355,7 +356,7 @@ export const ProfilePage: React.FC = () => {
               {user?.avatar && !avatarError ? (
                 <div className="relative aspect-4/3 w-full rounded-xl overflow-hidden flex items-center justify-center bg-slate-900">
                   <img
-                    src={user.avatar}
+                    src={formatAvatarUrl(user.avatar)}
                     alt={user.fullName || 'Ảnh mẫu Face ID'}
                     className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
                     onError={() => setAvatarError(true)}

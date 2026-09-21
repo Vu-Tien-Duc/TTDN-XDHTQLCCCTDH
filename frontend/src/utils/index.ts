@@ -195,4 +195,26 @@ export const LEAVE_STATUS_MAP: Record<LeaveStatus, { label: string; color: strin
   CANCELLED: { label: 'Đã hủy', color: 'text-slate-600', bg: 'bg-slate-100 border-slate-200' },
 };
 
+/**
+ * Chuẩn hóa URL ảnh (avatar, Face ID, file đính kèm)
+ * Tự động chuyển đổi các đường dẫn /uploads/... sang /api/uploads/... để đi qua Nginx reverse proxy mà không bị chặn
+ */
+export function formatAvatarUrl(url?: string | null): string {
+  if (!url) return '';
+  const trimmed = url.trim();
+  if (trimmed.startsWith('data:') || trimmed.startsWith('blob:') || trimmed.startsWith('http://') || trimmed.startsWith('https://')) {
+    return trimmed;
+  }
+  if (trimmed.startsWith('/uploads/')) {
+    return `/api${trimmed}`;
+  }
+  if (trimmed.startsWith('uploads/')) {
+    return `/api/${trimmed}`;
+  }
+  if (!trimmed.startsWith('/')) {
+    return `/api/uploads/${trimmed}`;
+  }
+  return trimmed;
+}
+
 export * from './errorHandler';

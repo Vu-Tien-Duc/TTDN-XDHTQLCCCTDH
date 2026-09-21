@@ -33,6 +33,7 @@ import { useNavigate } from 'react-router-dom';
 import { attendanceApi } from '../api';
 import { toast } from 'react-hot-toast';
 import { generateQrSvg } from '../utils/qrCode';
+import { formatAvatarUrl } from '../utils';
 
 type KioskMode = 'auto' | 'check_in' | 'check_out';
 type KioskState = 'IDLE' | 'DETECTING' | 'VERIFYING' | 'SUCCESS' | 'ERROR';
@@ -1335,7 +1336,7 @@ export const FaceCheckInKiosk: React.FC = () => {
                 >
                   <div className="w-9 h-9 rounded-xl bg-indigo-600/20 border border-indigo-500/30 flex items-center justify-center text-xs font-bold text-indigo-300 shrink-0 overflow-hidden">
                     {item.user?.avatar ? (
-                      <img src={item.user.avatar} alt="" className="w-full h-full object-cover" />
+                      <img src={formatAvatarUrl(item.user.avatar)} alt="" className="w-full h-full object-cover" />
                     ) : (
                       item.user?.fullName?.charAt(0) || 'U'
                     )}
