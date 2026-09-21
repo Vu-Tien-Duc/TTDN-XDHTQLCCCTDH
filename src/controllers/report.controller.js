@@ -40,11 +40,40 @@ const getAttendanceReport = async (req, res, next) => {
       }
     }
 
+    let fromDate = null;
+    let toDate = null;
+
+    if (from) {
+      fromDate = typeof from === 'string' && from.length === 10
+        ? new Date(`${from}T00:00:00.000+07:00`)
+        : new Date(from);
+      if (isNaN(fromDate.getTime())) {
+        return sendError(res, 'Ngày bắt đầu (from) không đúng định dạng ngày hợp lệ (YYYY-MM-DD).', null, 400);
+      }
+    }
+    if (to) {
+      toDate = typeof to === 'string' && to.length === 10
+        ? new Date(`${to}T23:59:59.999+07:00`)
+        : new Date(to);
+      if (isNaN(toDate.getTime())) {
+        return sendError(res, 'Ngày kết thúc (to) không đúng định dạng ngày hợp lệ (YYYY-MM-DD).', null, 400);
+      }
+    }
+
+    if (fromDate && toDate && fromDate > toDate) {
+      return sendError(
+        res,
+        'Khoảng thời gian không hợp lệ: Ngày bắt đầu (from) phải nhỏ hơn hoặc bằng ngày kết thúc (to).',
+        null,
+        400
+      );
+    }
+
     const attendanceQuery = { userId: { $in: targetUserIds } };
-    if (from || to) {
+    if (fromDate || toDate) {
       attendanceQuery.checkInTime = {};
-      if (from) attendanceQuery.checkInTime.$gte = new Date(from);
-      if (to) attendanceQuery.checkInTime.$lte = new Date(to);
+      if (fromDate) attendanceQuery.checkInTime.$gte = fromDate;
+      if (toDate) attendanceQuery.checkInTime.$lte = toDate;
     }
 
     const attendances = await AttendanceLog.find(attendanceQuery);
@@ -55,12 +84,53 @@ const getAttendanceReport = async (req, res, next) => {
       status: 'APPROVED',
       type: 'nghi_phep',
     };
-    if (from || to) {
+    if (fromDate || toDate) {
       leaveQuery.startDate = {};
-      if (from) leaveQuery.startDate.$gte = new Date(from);
-      if (to) leaveQuery.startDate.$lte = new Date(to);
+      if (fromDate) leaveQuery.startDate.$gte = fromDate;
+      if (toDate) leaveQuery.startDate.$lte = toDate;
     }
     const approvedLeaves = await LeaveRequest.find(leaveQuery);
+
+    // Tính toán xu hướng theo tuần thực tế (Weekly Trend)
+    const year = fromDate ? fromDate.getFullYear() : new Date().getFullYear();
+    const month = fromDate ? fromDate.getMonth() : new Date().getMonth();
+    const lastDayOfMonth = new Date(year, month + 1, 0).getDate();
+
+    const weekRanges = [
+      { label: 'Tuần 1', startDay: 1, endDay: 7 },
+      { label: 'Tuần 2', startDay: 8, endDay: 14 },
+      { label: 'Tuần 3', startDay: 15, endDay: 21 },
+      { label: 'Tuần 4', startDay: 22, endDay: lastDayOfMonth },
+    ];
+
+    const weeklyTrend = weekRanges.map((w) => {
+      const wStart = new Date(year, month, w.startDay, 0, 0, 0, 0);
+      const wEnd = new Date(year, month, w.endDay, 23, 59, 59, 999);
+
+      const logsInWeek = attendances.filter((a) => {
+        const d = a.checkInTime ? new Date(a.checkInTime) : null;
+        return d && d >= wStart && d <= wEnd;
+      });
+
+      const totalInWeek = logsInWeek.length;
+      const onTimeInWeek = logsInWeek.filter((a) => a.status === 'ON_TIME').length;
+      const lateInWeek = logsInWeek.filter((a) => a.status === 'LATE').length;
+      const excusedInWeek = logsInWeek.filter((a) => a.status === 'EXCUSED_ABSENCE').length;
+
+      const validInWeek = onTimeInWeek + excusedInWeek;
+      const rate = totalInWeek > 0 ? Math.round((validInWeek / totalInWeek) * 100) : 0;
+      const lateRate = totalInWeek > 0 ? Math.round((lateInWeek / totalInWeek) * 100) : 0;
+
+      return {
+        label: w.label,
+        subLabel: `${String(w.startDay).padStart(2, '0')}/${String(month + 1).padStart(2, '0')} - ${String(w.endDay).padStart(2, '0')}/${String(month + 1).padStart(2, '0')}`,
+        rate,
+        lateRate,
+        total: totalInWeek,
+        onTime: onTimeInWeek,
+        late: lateInWeek,
+      };
+    });
 
     // Tổng hợp thống kê
     const summary = {
@@ -73,6 +143,7 @@ const getAttendanceReport = async (req, res, next) => {
       approvedLeaveDays: approvedLeaves.reduce((sum, item) => {
         return sum + calculateLeaveDays(item.startDate, item.endDate);
       }, 0),
+      weeklyTrend,
     };
 
     return sendSuccess(res, 'Lấy báo cáo thống kê chấm công thành công.', summary);
@@ -87,8 +158,32 @@ const getAttendanceReport = async (req, res, next) => {
  */
 const getMonthlyReport = async (req, res, next) => {
   try {
-    const month = parseInt(req.query.month, 10) || new Date().getMonth() + 1;
-    const year = parseInt(req.query.year, 10) || new Date().getFullYear();
+    let month;
+    if (req.query.month !== undefined && req.query.month !== '') {
+      const parsedMonth = parseInt(req.query.month, 10);
+      if (isNaN(parsedMonth) || parsedMonth < 1 || parsedMonth > 12) {
+        return sendError(res, 'Tháng (month) không hợp lệ. Vui lòng cung cấp số nguyên từ 1 đến 12.', null, 400);
+      }
+      month = parsedMonth;
+    } else {
+      // Mặc định tháng hiện tại theo múi giờ Việt Nam (UTC+7)
+      const nowVn = new Date(Date.now() + 7 * 60 * 60 * 1000);
+      month = nowVn.getUTCMonth() + 1;
+    }
+
+    let year;
+    if (req.query.year !== undefined && req.query.year !== '') {
+      const parsedYear = parseInt(req.query.year, 10);
+      if (isNaN(parsedYear) || parsedYear < 2000 || parsedYear > 2100) {
+        return sendError(res, 'Năm (year) không hợp lệ. Vui lòng cung cấp năm từ 2000 đến 2100.', null, 400);
+      }
+      year = parsedYear;
+    } else {
+      // Mặc định năm hiện tại theo múi giờ Việt Nam (UTC+7)
+      const nowVn = new Date(Date.now() + 7 * 60 * 60 * 1000);
+      year = nowVn.getUTCFullYear();
+    }
+
     let departmentFilter = req.query.departmentId || null;
 
     if (req.user.role === 'truongkhoa') {
@@ -102,14 +197,22 @@ const getMonthlyReport = async (req, res, next) => {
       }
     }
 
+    // Hỗ trợ phân trang nếu client gửi page/limit
+    const options = {};
+    if (req.query.page !== undefined || req.query.limit !== undefined) {
+      options.page = Math.max(1, parseInt(req.query.page, 10) || 1);
+      options.limit = Math.min(200, Math.max(1, parseInt(req.query.limit, 10) || 20));
+    }
+
     const { generateMonthlyReport } = require('../services/report.service');
-    const data = await generateMonthlyReport(month, year, departmentFilter);
+    const result = await generateMonthlyReport(month, year, departmentFilter, options);
 
     return sendSuccess(res, `Lấy báo cáo tổng hợp tháng ${month}/${year} thành công.`, {
       month,
       year,
-      totalUsers: data.length,
-      report: data,
+      totalUsers: result.totalUsers,
+      report: result.report,
+      pagination: result.pagination,
     });
   } catch (error) {
     next(error);

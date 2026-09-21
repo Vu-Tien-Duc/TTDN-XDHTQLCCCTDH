@@ -5,7 +5,12 @@ const auditLogSchema = new mongoose.Schema(
     actor: {
       type: mongoose.Schema.Types.ObjectId,
       ref: 'User',
-      required: [true, 'Người thực hiện thao tác (actor) là bắt buộc'],
+      default: null,
+    },
+    actorType: {
+      type: String,
+      enum: ['USER', 'SYSTEM'],
+      default: 'USER',
     },
     action: {
       type: String,
@@ -41,7 +46,42 @@ const auditLogSchema = new mongoose.Schema(
   }
 );
 
+// Indexes phục vụ lọc & sắp xếp tối ưu
 auditLogSchema.index({ actor: 1, timestamp: -1 });
 auditLogSchema.index({ targetType: 1, targetId: 1 });
+auditLogSchema.index({ action: 1, timestamp: -1 });
+auditLogSchema.index({ targetType: 1, timestamp: -1 });
+auditLogSchema.index({ timestamp: -1 });
+
+// Đảm bảo tính bất biến (Immutability / Append-Only) cho Audit Logs
+const blockMutation = function (next) {
+  const err = new Error('Nhật ký kiểm toán (Audit Log) là dữ liệu bất biến, không được phép sửa hoặc xóa.');
+  err.status = 403;
+  if (typeof next === 'function') {
+    next(err);
+  } else {
+    throw err;
+  }
+};
+
+// Chặn toàn bộ thao tác sửa đổi trên Query
+auditLogSchema.pre('updateOne', blockMutation);
+auditLogSchema.pre('updateMany', blockMutation);
+auditLogSchema.pre('findOneAndUpdate', blockMutation);
+auditLogSchema.pre('replaceOne', blockMutation);
+auditLogSchema.pre('findOneAndReplace', blockMutation);
+
+// Chặn toàn bộ thao tác xóa trên Query
+auditLogSchema.pre('deleteOne', blockMutation);
+auditLogSchema.pre('deleteMany', blockMutation);
+auditLogSchema.pre('findOneAndDelete', blockMutation);
+
+// Chặn sửa đổi thông qua document.save() sau khi đã được lưu
+auditLogSchema.pre('save', function (next) {
+  if (!this.isNew) {
+    return blockMutation(next);
+  }
+  next();
+});
 
 module.exports = mongoose.model('AuditLog', auditLogSchema, 'audit_logs');

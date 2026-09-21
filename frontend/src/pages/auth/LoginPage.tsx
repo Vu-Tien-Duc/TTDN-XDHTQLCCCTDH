@@ -19,58 +19,6 @@ import {
 import { useAuth } from '../../contexts/AuthContext';
 import { authService } from '../../services/authService';
 
-interface QuickAccount {
-  label: string;
-  roleTitle: string;
-  role: 'admin' | 'truongkhoa' | 'giangvien' | 'nhanvien';
-  email: string;
-  badgeStyle: string;
-  desc: string;
-}
-
-const QUICK_ACCOUNTS: QuickAccount[] = [
-  {
-    label: 'Admin IT (Server)',
-    roleTitle: 'Quản trị viên IT',
-    role: 'admin',
-    email: 'daihocdtd@gmail.com',
-    badgeStyle: 'bg-purple-50 text-purple-700 border-purple-200 hover:bg-purple-100 hover:border-purple-300',
-    desc: 'Quản trị server, cấu hình ca, cấp tài khoản toàn trường',
-  },
-  {
-    label: 'Admin HR (Nhân sự)',
-    roleTitle: 'Trưởng phòng HC-TH',
-    role: 'admin',
-    email: 'admin.hr@university.edu.vn',
-    badgeStyle: 'bg-indigo-50 text-indigo-700 border-indigo-200 hover:bg-indigo-100 hover:border-indigo-300',
-    desc: 'Quản lý nhân sự, quỹ ngày phép & báo cáo chấm công',
-  },
-  {
-    label: 'Trưởng Khoa CNTT & CĐS',
-    roleTitle: 'Trưởng Khoa',
-    role: 'truongkhoa',
-    email: 'truongkhoa.cntt@university.edu.vn',
-    badgeStyle: 'bg-blue-50 text-blue-700 border-blue-200 hover:bg-blue-100 hover:border-blue-300',
-    desc: 'Duyệt đơn nghỉ/dạy bù, theo dõi chấm công giảng viên khoa',
-  },
-  {
-    label: 'Giảng Viên KTPM',
-    roleTitle: 'Giảng viên',
-    role: 'giangvien',
-    email: 'giangvien.bich@university.edu.vn',
-    badgeStyle: 'bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-100 hover:border-emerald-300',
-    desc: 'Điểm danh theo lịch giảng dạy (schedules), gửi đơn phép',
-  },
-  {
-    label: 'Chuyên Viên Đào Tạo',
-    roleTitle: 'Nhân viên hành chính',
-    role: 'nhanvien',
-    email: 'nhanvien.ha@university.edu.vn',
-    badgeStyle: 'bg-amber-50 text-amber-700 border-amber-200 hover:bg-amber-100 hover:border-amber-300',
-    desc: 'Đi làm ca hành chính 8h-17h, quản lý thời khóa biểu',
-  },
-];
-
 export const LoginPage: React.FC = () => {
   const navigate = useNavigate();
   const location = useLocation();
@@ -95,15 +43,6 @@ export const LoginPage: React.FC = () => {
       navigate('/dashboard', { replace: true });
     }
   }, [isAuthenticated, navigate]);
-
-  const handleQuickSelect = (accEmail: string) => {
-    setEmail(accEmail);
-    setPassword('password123');
-    toast('Đã nạp thông tin tài khoản mẫu!', {
-      icon: '✨',
-      duration: 2000,
-    });
-  };
 
   const resetForgotPasswordState = () => {
     setForgotMode(false);
@@ -553,7 +492,7 @@ export const LoginPage: React.FC = () => {
                     onChange={(e) => setRememberMe(e.target.checked)}
                     className="w-3.5 h-3.5 text-blue-600 rounded border-slate-300 focus:ring-blue-500"
                   />
-                  <span className="text-xs text-slate-600 font-medium">Ghi nhớ phiên đăng nhập</span>
+                  <span className="text-xs text-slate-600 font-medium">Ghi nhớ email đăng nhập</span>
                 </label>
               </div>
 
@@ -561,7 +500,7 @@ export const LoginPage: React.FC = () => {
               <button
                 type="submit"
                 disabled={isLoading}
-                className="w-full flex items-center justify-center gap-2 py-3 px-4 rounded-xl text-white font-bold text-xs bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 active:scale-[0.99] transition shadow-lg shadow-blue-500/20 disabled:opacity-60 disabled:cursor-not-allowed"
+                className="w-full flex items-center justify-center gap-2 py-3.5 px-4 rounded-xl text-white font-bold text-sm bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 active:scale-[0.99] transition shadow-lg shadow-blue-500/20 disabled:opacity-60 disabled:cursor-not-allowed cursor-pointer"
               >
                 {isLoading ? (
                   <>
@@ -578,37 +517,15 @@ export const LoginPage: React.FC = () => {
             </form>
           )}
 
-          {/* Hộp Tài Khoản Mẫu Nhanh (1-Click Fill) */}
-          <div className="mt-6 pt-4 border-t border-slate-100">
-            <div className="flex items-center justify-between text-xs font-bold text-slate-700 mb-2.5">
-              <div className="flex items-center gap-1.5">
-                <Users className="w-3.5 h-3.5 text-blue-600" />
-                <span>Tài khoản mẫu theo vai trò (1-Click điền):</span>
-              </div>
-              <span className="text-[10px] text-slate-400 font-normal">Pass: password123</span>
-            </div>
-
-            <div className="space-y-1.5 max-h-48 overflow-y-auto pr-0.5 custom-scrollbar">
-              {QUICK_ACCOUNTS.map((acc) => (
-                <button
-                  key={acc.email}
-                  type="button"
-                  onClick={() => handleQuickSelect(acc.email)}
-                  className={`w-full flex items-center justify-between p-2 rounded-xl border text-left transition ${acc.badgeStyle}`}
-                >
-                  <div className="min-w-0 pr-2">
-                    <div className="flex items-center gap-1.5">
-                      <span className="text-[11px] font-bold truncate text-slate-800">{acc.label}</span>
-                      <span className="text-[9px] font-semibold px-1.5 py-0.2 rounded-md bg-white/80 border border-slate-200/60 uppercase">
-                        {acc.roleTitle}
-                      </span>
-                    </div>
-                    <p className="text-[10px] text-slate-500 truncate font-mono mt-0.5">{acc.email}</p>
-                  </div>
-                  <span className="text-[10px] font-bold text-blue-600 shrink-0">Chọn</span>
-                </button>
-              ))}
-            </div>
+          {/* Hotline / Security Notice */}
+          <div className="mt-8 pt-5 border-t border-slate-100 text-center">
+            <p className="text-[11px] text-slate-500">
+              Quên mật khẩu hoặc gặp sự cố tài khoản? Liên hệ Phòng Công nghệ Thông tin qua email{' '}
+              <a href="mailto:support@university.edu.vn" className="text-blue-600 font-semibold hover:underline">
+                support@university.edu.vn
+              </a>{' '}
+              hoặc Hotline nội bộ.
+            </p>
           </div>
         </div>
       </div>

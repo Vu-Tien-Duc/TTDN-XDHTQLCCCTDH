@@ -262,7 +262,19 @@ const seedData = async () => {
     // =========================================================================
     // 3. NHÓM GIẢNG VIÊN (Giảng viên cơ hữu & thỉnh giảng - chấm công theo Lịch dạy)
     // =========================================================================
-    // GV 1: Giảng viên Bộ môn Kỹ thuật phần mềm (Khoa CNTT)
+    // GV 1: Giảng viên Vũ Tiến Đức (Khoa CNTT)
+    const lecturerDuc = await User.create({
+      fullName: 'Vũ Tiến Đức (GV: CNTT)',
+      email: 'vutienduc05@gmail.com',
+      passwordHash,
+      role: 'giangvien',
+      departmentId: seDept._id,
+      annualLeaveQuota: 12,
+      isActive: true,
+      isVerified: true,
+    });
+
+    // GV 2: Giảng viên Bộ môn Kỹ thuật phần mềm (Khoa CNTT)
     const lecturerBich = await User.create({
       fullName: 'TS. Trần Thị Bích (Giảng viên KTPM)',
       email: 'giangvien.bich@university.edu.vn',
@@ -274,7 +286,7 @@ const seedData = async () => {
       isVerified: true,
     });
 
-    // GV 2: Giảng viên Bộ môn Hệ thống thông tin (Khoa CNTT)
+    // GV 3: Giảng viên Bộ môn Hệ thống thông tin (Khoa CNTT)
     const lecturerCuong = await User.create({
       fullName: 'ThS. Phạm Văn Cường (Giảng viên HTTT)',
       email: 'giangvien.cuong@university.edu.vn',

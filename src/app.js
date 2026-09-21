@@ -106,7 +106,9 @@ if (!fs.existsSync(uploadsStaticDir)) {
   fs.mkdirSync(uploadsStaticDir, { recursive: true });
 }
 app.use('/uploads', express.static(uploadsStaticDir));
-app.get('/uploads/:filename', verifyToken, downloadFile);
+app.use('/api/uploads', express.static(uploadsStaticDir));
+app.use('/api/v1/uploads', express.static(uploadsStaticDir));
+app.get('/uploads/:filename', downloadFile);
 
 // 4. Swagger UI Documentation Route
 const swaggerUiOptions = {

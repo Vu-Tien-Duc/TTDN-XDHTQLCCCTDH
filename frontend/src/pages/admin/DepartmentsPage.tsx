@@ -436,7 +436,7 @@ export const DepartmentsPage: React.FC = () => {
                   {getTypeBadge(selectedDept.type)}
                 </div>
 
-                <div className="grid grid-cols-2 gap-3 text-xs">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
                   <div className="bg-slate-50 border border-slate-200 rounded-2xl p-3">
                     <div className="text-slate-500 uppercase tracking-wider font-bold">Loại</div>
                     <div className="mt-2 font-bold text-slate-900">{selectedDept.type || 'Không xác định'}</div>
@@ -692,7 +692,7 @@ export const DepartmentsPage: React.FC = () => {
               </div>
 
               {/* Tọa độ GPS */}
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
                   <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5 flex items-center gap-1">
                     <MapPin className="w-3.5 h-3.5 text-slate-400" />
