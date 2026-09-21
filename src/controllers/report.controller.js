@@ -1,6 +1,7 @@
 const AttendanceLog = require('../models/attendanceLog.model');
 const LeaveRequest = require('../models/leaveRequest.model');
 const User = require('../models/user.model');
+const Department = require('../models/department.model');
 const { sendSuccess, sendError } = require('../utils/responseHandler');
 const { calculateLeaveDays } = require('./leaveRequest.controller');
 const { buildAttendanceDateFilter } = require('../services/attendance.service');
@@ -33,7 +34,9 @@ const getAttendanceReport = async (req, res, next) => {
       if (userId) {
         targetUserIds = [userId];
       } else if (departmentId) {
-        const deptUsers = await User.find({ departmentId }).select('_id');
+        const childDepts = await Department.find({ parentId: departmentId }).select('_id');
+        const allDeptIds = [departmentId, ...childDepts.map((d) => d._id)];
+        const deptUsers = await User.find({ departmentId: { $in: allDeptIds } }).select('_id');
         targetUserIds = deptUsers.map((u) => u._id);
       } else {
         const allUsers = await User.find({ isActive: true }).select('_id');
@@ -41,25 +44,33 @@ const getAttendanceReport = async (req, res, next) => {
       }
     }
 
+    // Chuẩn hóa mốc thời gian from - to chuẩn xác cả ngày
+    let fromDate = from ? new Date(from) : null;
+    let toDate = null;
+    if (to) {
+      toDate = new Date(to);
+      if (typeof to === 'string' && to.length <= 10) {
+        toDate.setHours(23, 59, 59, 999);
+      }
+    }
+
     const attendanceQuery = { userId: { $in: targetUserIds } };
-    if (from || to) {
-      const dateFilter = buildAttendanceDateFilter(from, to);
+    if (fromDate || toDate) {
+      const dateFilter = buildAttendanceDateFilter(fromDate, toDate);
       Object.assign(attendanceQuery, dateFilter);
     }
 
     const attendances = await AttendanceLog.find(attendanceQuery);
 
-    // Tính số đơn nghỉ phép được duyệt trong khoảng thời gian này
+    // Tính số đơn nghỉ phép được duyệt trong khoảng thời gian này (Giao thoa khoảng ngày chuẩn xác)
     const leaveQuery = {
       userId: { $in: targetUserIds },
       status: 'APPROVED',
       type: 'nghi_phep',
     };
-    if (from || to) {
-      leaveQuery.startDate = {};
-      if (from) leaveQuery.startDate.$gte = new Date(from);
-      if (to) leaveQuery.startDate.$lte = new Date(to);
-    }
+    if (fromDate) leaveQuery.endDate = { $gte: fromDate };
+    if (toDate) leaveQuery.startDate = { $lte: toDate };
+
     const approvedLeaves = await LeaveRequest.find(leaveQuery);
 
     // Tổng hợp thống kê
@@ -71,7 +82,9 @@ const getAttendanceReport = async (req, res, next) => {
       absentCount: attendances.filter((a) => a.status === 'ABSENT').length,
       excusedAbsenceCount: attendances.filter((a) => a.status === 'EXCUSED_ABSENCE').length,
       approvedLeaveDays: approvedLeaves.reduce((sum, item) => {
-        return sum + calculateLeaveDays(item.startDate, item.endDate);
+        const effectiveStart = fromDate ? new Date(Math.max(item.startDate.getTime(), fromDate.getTime())) : item.startDate;
+        const effectiveEnd = toDate ? new Date(Math.min(item.endDate.getTime(), toDate.getTime())) : item.endDate;
+        return sum + calculateLeaveDays(effectiveStart, effectiveEnd);
       }, 0),
     };
 
@@ -103,13 +116,16 @@ const getMonthlyReport = async (req, res, next) => {
     }
 
     const { generateMonthlyReport } = require('../services/report.service');
-    const data = await generateMonthlyReport(month, year, departmentFilter);
+    const result = await generateMonthlyReport(month, year, departmentFilter);
+    const reportList = result.report || result;
+    const weeklyTrend = result.weeklyTrend || [];
 
     return sendSuccess(res, `Lấy báo cáo tổng hợp tháng ${month}/${year} thành công.`, {
       month,
       year,
-      totalUsers: data.length,
-      report: data,
+      totalUsers: reportList.length,
+      report: reportList,
+      weeklyTrend,
     });
   } catch (error) {
     next(error);

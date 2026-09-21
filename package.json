@@ -5,12 +5,15 @@
   "main": "src/server.js",
   "scripts": {
     "start": "node src/server.js",
-    "dev": "nodemon src/server.js",
+    "server": "nodemon src/server.js",
+    "client": "npm run dev --prefix frontend",
+    "dev:server": "nodemon src/server.js",
+    "dev:client": "npm run dev --prefix frontend",
+    "dev": "concurrently -n \"BACKEND,FRONTEND\" -c \"cyan.bold,magenta.bold\" \"npm run server\" \"npm run client\"",
     "build:frontend": "npm run build --prefix frontend",
     "build": "npm run build --prefix frontend",
     "seed": "node src/utils/seeder.js",
-    "test": "node src/tests/aiAssistant.test.js",
-    "test:ai": "node src/tests/aiAssistant.test.js"
+    "test:ai": "node src/tests/aiAssistant.test.js",
     "test": "node test_demo_all_weeks.js"
   },
   "repository": {
@@ -41,6 +44,7 @@
     "swagger-ui-express": "^5.0.1"
   },
   "devDependencies": {
+    "concurrently": "^10.0.5",
     "docx": "^9.7.1",
     "nodemon": "^3.1.14"
   }

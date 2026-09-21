@@ -1074,7 +1074,8 @@ const faceCheckIn = async (req, res, next) => {
     });
 
     if (result.status !== 'OK') {
-      const statusCode = result.status === 'ALREADY_CHECKED_IN' || result.status === 'ALREADY_COMPLETED' ? 409 : 400;
+      const isConflict = ['ALREADY_CHECKED_IN', 'ALREADY_COMPLETED', 'RECENTLY_CHECKED_IN', 'MID_SHIFT_SCAN'].includes(result.status);
+      const statusCode = isConflict ? 409 : 400;
       return sendError(res, result.message, result, statusCode);
     }
 

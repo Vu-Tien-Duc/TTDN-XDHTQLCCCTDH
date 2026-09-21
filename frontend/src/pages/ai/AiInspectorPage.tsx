@@ -18,6 +18,7 @@ import {
 import aiService, { AiChatResponseData, AiChatAmbiguousMatch } from '../../services/ai.service';
 import { useAuth } from '../../contexts/AuthContext';
 import { formatTime } from '../../utils';
+import { GeminiStar } from '../../components/ai/AiChatWidget';
 
 interface Message {
   id: string;
@@ -29,6 +30,69 @@ interface Message {
   isAmbiguous?: boolean;
   matches?: AiChatAmbiguousMatch[];
 }
+
+// Hàm format hiển thị thông minh cho AI, triệt tiêu các ký hiệu ** và ### thô
+const renderFormattedAiText = (content: string, isUser: boolean) => {
+  if (isUser) {
+    return <div className="whitespace-pre-wrap font-sans">{content}</div>;
+  }
+
+  const lines = content.split('\n');
+
+  return (
+    <div className="space-y-1.5 font-sans leading-relaxed text-xs sm:text-sm">
+      {lines.map((rawLine, idx) => {
+        const line = rawLine.trim();
+        if (!line) {
+          return <div key={idx} className="h-1" />;
+        }
+
+        // Dòng tiêu đề: ### hoặc ## hoặc #
+        if (line.startsWith('###') || line.startsWith('##') || line.startsWith('#')) {
+          const cleanHeading = line.replace(/^#+\s*/, '').replace(/\*\*/g, '');
+          return (
+            <div
+              key={idx}
+              className="font-bold text-slate-900 text-sm sm:text-base mt-2 mb-1 pb-1 border-b border-slate-200/60"
+            >
+              {cleanHeading}
+            </div>
+          );
+        }
+
+        // Dòng gạch đầu dòng: * hoặc - hoặc •
+        const isBullet = /^[-*•]\s+/.test(line);
+        const textToProcess = isBullet ? line.replace(/^[-*•]\s+/, '') : line;
+
+        // Xử lý các đoạn in đậm **text**
+        const parts = textToProcess.split(/(\*\*[^*]+?\*\*)/g);
+        const inlineElements = parts.map((part, pIdx) => {
+          if (part.startsWith('**') && part.endsWith('**') && part.length >= 4) {
+            const boldText = part.slice(2, -2);
+            return (
+              <strong key={pIdx} className="font-bold text-slate-900">
+                {boldText}
+              </strong>
+            );
+          }
+          const cleanPart = part.replace(/\*\*/g, '');
+          return <span key={pIdx}>{cleanPart}</span>;
+        });
+
+        if (isBullet) {
+          return (
+            <div key={idx} className="flex items-start gap-2 ml-1">
+              <span className="w-1.5 h-1.5 rounded-full bg-blue-600 shrink-0 mt-2"></span>
+              <span className="flex-1">{inlineElements}</span>
+            </div>
+          );
+        }
+
+        return <p key={idx}>{inlineElements}</p>;
+      })}
+    </div>
+  );
+};
 
 export const AiInspectorPage: React.FC = () => {
   const { user } = useAuth();
@@ -383,8 +447,8 @@ Tôi là **Trợ lý AI Thanh tra & Quản lý Hệ thống**. Bạn có toàn q
                 className={`flex gap-3 ${msg.sender === 'user' ? 'justify-end' : 'justify-start'}`}
               >
                 {msg.sender === 'ai' && (
-                  <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-blue-600 to-indigo-600 text-white flex items-center justify-center shrink-0 mt-1 shadow-sm">
-                    <Bot className="w-4 h-4" />
+                  <div className="w-8 h-8 rounded-xl bg-gradient-to-tr from-slate-900 to-indigo-950 text-white flex items-center justify-center shrink-0 mt-1 shadow-sm p-1.5">
+                    <GeminiStar className="w-5 h-5" />
                   </div>
                 )}
 
@@ -395,7 +459,7 @@ Tôi là **Trợ lý AI Thanh tra & Quản lý Hệ thống**. Bạn có toàn q
                       : 'bg-white text-slate-800 border border-slate-200/80 rounded-bl-none shadow-sm'
                   }`}
                 >
-                  <div className="whitespace-pre-wrap font-sans space-y-2">{msg.text}</div>
+                  {renderFormattedAiText(msg.text, msg.sender === 'user')}
 
                   {/* Hiển thị danh sách người dùng khi bị trùng tên để chọn trực tiếp */}
                   {msg.isAmbiguous && msg.matches && msg.matches.length > 0 && (
@@ -455,7 +519,6 @@ Tôi là **Trợ lý AI Thanh tra & Quản lý Hệ thống**. Bạn có toàn q
                       )}
                     </div>
                   )}
-
                   <div
                     className={`mt-2 text-[10px] text-right font-mono ${
                       msg.sender === 'user' ? 'text-blue-100' : 'text-slate-400'
@@ -475,14 +538,14 @@ Tôi là **Trợ lý AI Thanh tra & Quản lý Hệ thống**. Bạn có toàn q
 
             {isLoading && (
               <div className="flex gap-3 justify-start">
-                <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-blue-600 to-indigo-600 text-white flex items-center justify-center shrink-0 mt-1 shadow-sm">
-                  <RefreshCw className="w-4 h-4 animate-spin" />
+                <div className="w-8 h-8 rounded-xl bg-gradient-to-tr from-slate-900 to-indigo-950 text-white flex items-center justify-center shrink-0 mt-1 shadow-sm p-1.5">
+                  <GeminiStar className="w-5 h-5 animate-spin" style={{ animationDuration: '3s' }} />
                 </div>
                 <div className="bg-white border border-slate-200/80 rounded-2xl rounded-bl-none p-4 text-xs text-slate-600 shadow-sm flex items-center gap-3">
-                  <span className="w-2 h-2 rounded-full bg-blue-600 animate-bounce"></span>
-                  <span className="w-2 h-2 rounded-full bg-blue-600 animate-bounce delay-150"></span>
-                  <span className="w-2 h-2 rounded-full bg-blue-600 animate-bounce delay-300"></span>
-                  <span className="font-medium">Trợ lý AI đang truy vấn CSDL MongoDB và tổng hợp số liệu...</span>
+                  <span className="w-2 h-2 rounded-full bg-[#1BA1E3] animate-bounce"></span>
+                  <span className="w-2 h-2 rounded-full bg-[#9164E8] animate-bounce [animation-delay:150ms]"></span>
+                  <span className="w-2 h-2 rounded-full bg-[#DE628B] animate-bounce [animation-delay:300ms]"></span>
+                  <span className="font-medium text-slate-700">Gemini đang truy vấn CSDL MongoDB và phân tích số liệu...</span>
                 </div>
               </div>
             )}

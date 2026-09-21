@@ -34,6 +34,7 @@ export const AttendanceDashboardPage: React.FC = () => {
 
   const [summary, setSummary] = useState<AttendanceReportData | null>(null);
   const [staffList, setStaffList] = useState<MonthlyStaffReportItem[]>([]);
+  const [weeklyTrend, setWeeklyTrend] = useState<TrendPoint[]>([]);
 
   const fetchDashboardData = async () => {
     setLoading(true);
@@ -50,13 +51,18 @@ export const AttendanceDashboardPage: React.FC = () => {
         setSummary(summaryRes.data);
       }
 
-      // 2. Lấy danh sách chi tiết theo tháng
+      // 2. Lấy danh sách chi tiết theo tháng và xu hướng các tuần thực tế từ MongoDB
       const monthlyRes = await reportService.getMonthlyReport({
         month: selectedMonth,
         year: selectedYear,
       });
-      if (monthlyRes.success && monthlyRes.data?.report) {
-        setStaffList(monthlyRes.data.report);
+      if (monthlyRes.success && monthlyRes.data) {
+        if (monthlyRes.data.report) {
+          setStaffList(monthlyRes.data.report);
+        }
+        if (monthlyRes.data.weeklyTrend && monthlyRes.data.weeklyTrend.length > 0) {
+          setWeeklyTrend(monthlyRes.data.weeklyTrend);
+        }
       }
     } catch {
       toast.error('Không thể tải dữ liệu báo cáo thống kê chấm công.');
@@ -111,13 +117,18 @@ export const AttendanceDashboardPage: React.FC = () => {
     excused: item.excusedCount,
   }));
 
-  // 3. Biểu đồ đường (Line Trend)
-  const trendData: TrendPoint[] = [
-    { label: 'Tuần 1', rate: 94, lateRate: 6 },
-    { label: 'Tuần 2', rate: 89, lateRate: 11 },
-    { label: 'Tuần 3', rate: 96, lateRate: 4 },
-    { label: 'Tuần 4', rate: overallAttendanceRate, lateRate: Math.max(0, 100 - overallAttendanceRate) },
-  ];
+  // 3. Biểu đồ đường (Line Trend) - Dữ liệu thực từ MongoDB qua API
+  const trendData: TrendPoint[] = useMemo(() => {
+    if (weeklyTrend && weeklyTrend.length > 0) {
+      return weeklyTrend;
+    }
+    return [
+      { label: 'Tuần 1', rate: overallAttendanceRate, lateRate: Math.max(0, 100 - overallAttendanceRate) },
+      { label: 'Tuần 2', rate: overallAttendanceRate, lateRate: Math.max(0, 100 - overallAttendanceRate) },
+      { label: 'Tuần 3', rate: overallAttendanceRate, lateRate: Math.max(0, 100 - overallAttendanceRate) },
+      { label: 'Tuần 4', rate: overallAttendanceRate, lateRate: Math.max(0, 100 - overallAttendanceRate) },
+    ];
+  }, [weeklyTrend, overallAttendanceRate]);
 
   // Xuất Excel
   const handleExportExcel = () => {

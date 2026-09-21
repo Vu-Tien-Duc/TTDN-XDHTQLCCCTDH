@@ -30,7 +30,8 @@ export const AppRoutes: React.FC = () => {
   return (
     <BrowserRouter>
       <Routes>
-        {/* 1. Tuyến đường công khai */}
+        {/* 1. Tuyến đường công khai: Mặc định vào thẳng trang đăng nhập khi mở ứng dụng */}
+        <Route path="/" element={<Navigate to="/login" replace />} />
         <Route path="/login" element={<LoginPage />} />
         <Route path="/unauthorized" element={<UnauthorizedPage />} />
         <Route path="/kiosk" element={<FaceCheckInKiosk />} />
@@ -38,8 +39,6 @@ export const AppRoutes: React.FC = () => {
         {/* 2. Tuyến đường bảo vệ bắt buộc đăng nhập */}
         <Route element={<ProtectedRoute />}>
           <Route element={<MainLayout />}>
-            <Route path="/" element={<Navigate to="/dashboard" replace />} />
-
             {/* Dashboard & Tổng quan */}
             <Route path="/dashboard" element={<DashboardPage />} />
             <Route path="/dashboard/reports" element={<AttendanceDashboardPage />} />
@@ -148,8 +147,8 @@ export const AppRoutes: React.FC = () => {
           </Route>
         </Route>
 
-        {/* 3. Catch-all: Chuyển về Dashboard */}
-        <Route path="*" element={<Navigate to="/dashboard" replace />} />
+        {/* 3. Catch-all: Chuyển về trang đăng nhập */}
+        <Route path="*" element={<Navigate to="/login" replace />} />
       </Routes>
     </BrowserRouter>
   );
