@@ -18,6 +18,8 @@ interface LeaveDetailModalProps {
   isOpen: boolean;
   onClose: () => void;
   leaveRequest: LeaveRequest | null;
+  onApprove?: (req: LeaveRequest) => void;
+  onReject?: (req: LeaveRequest) => void;
 }
 
 const LEAVE_TYPE_LABELS: Record<string, string> = {
@@ -26,7 +28,13 @@ const LEAVE_TYPE_LABELS: Record<string, string> = {
   doi_ca: 'Xin đổi ca làm việc',
 };
 
-export const LeaveDetailModal: React.FC<LeaveDetailModalProps> = ({ isOpen, onClose, leaveRequest }) => {
+export const LeaveDetailModal: React.FC<LeaveDetailModalProps> = ({
+  isOpen,
+  onClose,
+  leaveRequest,
+  onApprove,
+  onReject,
+}) => {
   if (!isOpen || !leaveRequest) return null;
 
   const applicant =
@@ -34,19 +42,19 @@ export const LeaveDetailModal: React.FC<LeaveDetailModalProps> = ({ isOpen, onCl
       ? (leaveRequest.userId as User)
       : null;
 
+  const approverObj = leaveRequest.approvedBy || leaveRequest.reviewedBy;
   const approver =
-    typeof leaveRequest.reviewedBy === 'object' && leaveRequest.reviewedBy !== null
-      ? (leaveRequest.reviewedBy as User)
+    typeof approverObj === 'object' && approverObj !== null
+      ? (approverObj as User)
       : null;
 
   // Type & Status
-  const typeKey = (leaveRequest as unknown as { type?: string }).type || leaveRequest.leaveType || 'nghi_phep';
+  const typeKey = leaveRequest.type || leaveRequest.leaveType || 'nghi_phep';
   const typeLabel = LEAVE_TYPE_LABELS[typeKey] || typeKey;
   const statusInfo = LEAVE_STATUS_MAP[leaveRequest.status] || LEAVE_STATUS_MAP.PENDING;
 
   // File url
-  const rawAttachment =
-    (leaveRequest as unknown as { attachmentUrl?: string }).attachmentUrl || leaveRequest.evidenceFile;
+  const rawAttachment = leaveRequest.attachmentUrl || leaveRequest.evidenceFile;
   const attachment = getSafeMediaUrl(rawAttachment);
 
   // Calculate days chuẩn theo lịch
@@ -152,7 +160,7 @@ export const LeaveDetailModal: React.FC<LeaveDetailModalProps> = ({ isOpen, onCl
               Lý do xin nghỉ / giải trình:
             </label>
             <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200 text-slate-800 text-xs sm:text-sm leading-relaxed whitespace-pre-wrap">
-              {leaveRequest.reason}
+              {leaveRequest.reason || 'Không ghi rõ lý do'}
             </div>
           </div>
 
@@ -190,7 +198,6 @@ export const LeaveDetailModal: React.FC<LeaveDetailModalProps> = ({ isOpen, onCl
                     alt="Minh chứng đính kèm"
                     className="max-h-72 object-contain rounded-xl shadow-xs transition-transform group-hover:scale-[1.01]"
                     onError={(e) => {
-                      // Nếu lỗi load ảnh
                       const target = e.currentTarget;
                       target.style.display = 'none';
                       const fallback = target.parentElement?.querySelector('.img-fallback');
@@ -249,13 +256,46 @@ export const LeaveDetailModal: React.FC<LeaveDetailModalProps> = ({ isOpen, onCl
         </div>
 
         {/* Footer */}
-        <div className="px-6 py-3.5 bg-slate-50 border-t border-slate-200 flex justify-end">
-          <button
-            onClick={onClose}
-            className="px-4 py-2 bg-slate-200 hover:bg-slate-300 text-slate-700 text-xs font-semibold rounded-lg transition-colors"
-          >
-            Đóng
-          </button>
+        <div className="px-6 py-3.5 bg-slate-50 border-t border-slate-200 flex items-center justify-between">
+          <div>
+            {leaveRequest.status === 'PENDING' ? (
+              <span className="text-xs font-semibold text-amber-600 bg-amber-50 border border-amber-200 px-2.5 py-1 rounded-lg">
+                ⏳ Đơn đang chờ xét duyệt
+              </span>
+            ) : null}
+          </div>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={onClose}
+              className="px-4 py-2 bg-slate-200 hover:bg-slate-300 text-slate-700 text-xs font-semibold rounded-xl transition-colors"
+            >
+              Đóng
+            </button>
+            {leaveRequest.status === 'PENDING' && onReject && (
+              <button
+                onClick={() => {
+                  onClose();
+                  onReject(leaveRequest);
+                }}
+                className="px-4 py-2 bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold rounded-xl shadow-sm transition-all flex items-center gap-1.5"
+              >
+                <XCircle className="w-3.5 h-3.5" />
+                Từ chối
+              </button>
+            )}
+            {leaveRequest.status === 'PENDING' && onApprove && (
+              <button
+                onClick={() => {
+                  onClose();
+                  onApprove(leaveRequest);
+                }}
+                className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-xl shadow-sm transition-all flex items-center gap-1.5"
+              >
+                <CheckCircle2 className="w-3.5 h-3.5" />
+                Phê duyệt
+              </button>
+            )}
+          </div>
         </div>
       </div>
     </div>

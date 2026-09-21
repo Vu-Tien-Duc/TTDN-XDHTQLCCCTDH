@@ -178,17 +178,21 @@ export type LeaveStatus = 'PENDING' | 'APPROVED' | 'REJECTED' | 'CANCELLED';
 export interface LeaveRequest {
   _id: string;
   userId: string | User;
-  leaveType: LeaveType;
+  type?: LeaveType;
+  leaveType?: LeaveType;
   startDate: string;
   endDate: string;
   reason: string;
-  evidenceFile?: string; // Đường dẫn file đính kèm (/uploads/...)
+  attachmentUrl?: string;
+  evidenceFile?: string;
   status: LeaveStatus;
   approvalNote?: string;
   rejectionReason?: string;
+  approvedBy?: string | User;
   reviewedBy?: string | User;
   reviewedAt?: string;
   createdAt?: string;
+  updatedAt?: string;
 }
 
 export interface LeaveBalanceResponse {

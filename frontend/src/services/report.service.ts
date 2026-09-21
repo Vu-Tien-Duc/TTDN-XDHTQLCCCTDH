@@ -38,11 +38,18 @@ export interface MonthlyStaffReportItem {
   excusedCount: number;
 }
 
+export interface WeeklyTrendPoint {
+  label: string;
+  rate: number;
+  lateRate: number;
+}
+
 export interface MonthlyReportResponse {
   month: number;
   year: number;
   totalUsers: number;
   report: MonthlyStaffReportItem[];
+  weeklyTrend?: WeeklyTrendPoint[];
 }
 
 export interface AttendanceReportFilter {

@@ -1,11 +1,10 @@
-/**
- * TEST_DEMO_ALL_WEEKS.JS
- * Kịch bản kiểm thử tự động toàn diện cho Hệ thống Quản lý Chấm công & Face ID Kiosk
- * Bao gồm các tính năng trọng tâm của Thành viên B (Tuần 1, Tuần 2, Tuần 3)
- */
+require('dotenv').config();
+const mongoose = require('mongoose');
+const app = require('./src/app');
+const connectDB = require('./src/config/db');
 
 const BASE_URL = process.env.API_BASE_URL || 'http://localhost:5000/api';
-const KIOSK_SECRET = process.env.KIOSK_KEY || 'kiosk_secret_2026_university';
+const KIOSK_SECRET = process.env.KIOSK_KEY || 'kiosk_secret_key_university_2026';
 
 let adminToken = '';
 let lecturerToken = '';
@@ -57,6 +56,19 @@ async function runTests() {
   console.log('🚀 BẮT ĐẦU CHẠY KIỂM THỬ TỰ ĐỘNG TOÀN DIỆN (WEEKS 1-3 & FACE ID KIOSK)');
   console.log(`Target Server: ${BASE_URL}`);
   console.log('========================================================================\n');
+
+  let server = null;
+  try {
+    const testPing = await fetch(`${BASE_URL}/health`).catch(() => null);
+    if (!testPing || testPing.status !== 200) {
+      console.log('🔄 Đang tự động kết nối CSDL và khởi động máy chủ API Express (Port 5000)...');
+      await connectDB();
+      server = app.listen(5000);
+      await new Promise((r) => setTimeout(r, 1200));
+    }
+  } catch (e) {
+    // Ignore ping error
+  }
 
   try {
     // -------------------------------------------------------------------------
@@ -205,14 +217,34 @@ async function runTests() {
     // -------------------------------------------------------------------------
     // TC10: Kiosk điểm danh với Vector trùng khớp khuôn mặt đăng ký (< 0.55)
     // -------------------------------------------------------------------------
-    // Xóa log cũ nếu có trong ca hôm nay để bài test chạy độc lập, lặp lại được
-    const mongoose = require('mongoose');
-    require('dotenv').config();
-    if (mongoose.connection.readyState === 0) {
-      await mongoose.connect(process.env.MONGODB_URI || 'mongodb://localhost:27017/university_attendance_db');
-    }
+    // Xóa log cũ nếu có trong ca hôm nay và đảm bảo có ca/lịch dạy hiệu lực tại thời điểm test
     const AttendanceLog = require('./src/models/attendanceLog.model');
+    const ShiftConfig = require('./src/models/shiftConfig.model');
+    const Schedule = require('./src/models/schedule.model');
     await AttendanceLog.deleteMany({ userId: lecturerId });
+
+    const todayWeekday = new Date().getDay();
+    let allDayShift = await ShiftConfig.findOne({ name: 'Ca Test Toàn Ngày' });
+    if (!allDayShift) {
+      allDayShift = await ShiftConfig.create({
+        name: 'Ca Test Toàn Ngày',
+        startTime: '00:00',
+        endTime: '23:59',
+        lateThresholdMinutes: 15,
+        isActive: true,
+      });
+    }
+    await Schedule.deleteMany({ userId: lecturerId, weekday: todayWeekday });
+    await Schedule.create({
+      userId: lecturerId,
+      shiftId: allDayShift._id,
+      weekday: todayWeekday,
+      startTime: '00:00',
+      endTime: '23:59',
+      isRecurring: true,
+      startDate: new Date(2025, 0, 1),
+      endDate: new Date(2027, 11, 31),
+    });
 
     // Tạo vector quét thực tế có độ rung nhẹ (nhiễu góc nhìn)
     const liveCaptureDescriptor = addNoiseToDescriptor(sampleDescriptor, 0.02);
@@ -283,18 +315,131 @@ async function runTests() {
     assert(deleteFaceData.data?.faceRegistered === false, 'TC14: Cờ faceRegistered chuyển về false, CSDL hoàn toàn sạch');
 
     // -------------------------------------------------------------------------
+    // NHÓM 6: KIỂM THỬ TRỢ LÝ AI ASSISTANT (PHẦN C - GIAI ĐOẠN 2)
+    // -------------------------------------------------------------------------
+    console.log('\n[NHÓM 6: TRỢ LÝ AI ASSISTANT END-TO-END & PHÂN QUYỀN RBAC]');
+
+    // TC15: Admin hỏi "Hôm nay có bao nhiêu đơn xin nghỉ?" và "Tuần này có bao nhiêu đơn xin nghỉ?"
+    const aiAdminLeaveTodayRes = await fetch(`${BASE_URL}/ai/chat`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${adminToken}`,
+      },
+      body: JSON.stringify({ message: 'Hôm nay có bao nhiêu đơn xin nghỉ?' }),
+    });
+    const aiAdminLeaveTodayData = await aiAdminLeaveTodayRes.json();
+    assert(aiAdminLeaveTodayRes.status === 200, 'TC15: Admin hỏi đơn nghỉ hôm nay -> 200 OK');
+    assert(aiAdminLeaveTodayData.success === true, 'TC15: Phản hồi AI thành công');
+    assert(Boolean(aiAdminLeaveTodayData.data?.answer), 'TC15: AI trả lời câu hỏi hôm nay có nội dung hợp lệ');
+
+    const aiAdminLeaveWeekRes = await fetch(`${BASE_URL}/ai/chat`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${adminToken}`,
+      },
+      body: JSON.stringify({ message: 'Tuần này có bao nhiêu đơn xin nghỉ?' }),
+    });
+    const aiAdminLeaveWeekData = await aiAdminLeaveWeekRes.json();
+    assert(aiAdminLeaveWeekRes.status === 200, 'TC16: Admin hỏi đơn nghỉ tuần này -> 200 OK');
+    assert(aiAdminLeaveWeekData.data?.intent === 'LEAVE_REQUEST_COUNT', 'TC16: Nhận diện chính xác Intent LEAVE_REQUEST_COUNT');
+
+    // TC17: Admin tra cứu chấm công nhân sự theo tên "tháng này đi trễ bao nhiêu ngày?" và "tháng này đúng giờ bao nhiêu ngày?"
+    const aiLateRes = await fetch(`${BASE_URL}/ai/chat`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${adminToken}`,
+      },
+      body: JSON.stringify({ message: 'TS. Trần Thị Bích (Giảng viên KTPM) tháng này đi trễ bao nhiêu ngày?' }),
+    });
+    const aiLateData = await aiLateRes.json();
+    assert(aiLateRes.status === 200, 'TC17: Admin tra cứu số ngày đi trễ của nhân sự -> 200 OK');
+    assert(aiLateData.data?.intent === 'ATTENDANCE_USER_LATE', 'TC17: Nhận diện chính xác Intent ATTENDANCE_USER_LATE');
+
+    const aiOnTimeRes = await fetch(`${BASE_URL}/ai/chat`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${adminToken}`,
+      },
+      body: JSON.stringify({ message: 'TS. Trần Thị Bích (Giảng viên KTPM) tháng này đúng giờ bao nhiêu ngày?' }),
+    });
+    const aiOnTimeData = await aiOnTimeRes.json();
+    assert(aiOnTimeRes.status === 200, 'TC18: Admin tra cứu số ngày đúng giờ của nhân sự -> 200 OK');
+    assert(aiOnTimeData.data?.intent === 'ATTENDANCE_USER_ON_TIME', 'TC18: Nhận diện chính xác Intent ATTENDANCE_USER_ON_TIME');
+
+    // TC19: Tra cứu người dùng không tồn tại trong hệ thống
+    const aiNotFoundRes = await fetch(`${BASE_URL}/ai/chat`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${adminToken}`,
+      },
+      body: JSON.stringify({ message: 'Người Không Hề Tồn Tại tháng này đi trễ bao nhiêu ngày?' }),
+    });
+    const aiNotFoundData = await aiNotFoundRes.json();
+    assert(aiNotFoundRes.status === 200, 'TC19: Tra cứu người dùng không tồn tại -> 200 OK phản hồi an toàn');
+    assert(Boolean(aiNotFoundData.data?.answer), 'TC19: AI phản hồi thông báo không tìm thấy người dùng một cách chuẩn mực');
+
+    // TC20: Giảng viên hỏi lịch dạy cá nhân "Hôm nay tôi có lịch giảng dạy không?" và "Tuần này tôi có bao nhiêu buổi dạy?"
+    const aiLecturerTodayRes = await fetch(`${BASE_URL}/ai/chat`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${lecturerToken}`,
+      },
+      body: JSON.stringify({ message: 'Hôm nay tôi có lịch giảng dạy không?' }),
+    });
+    const aiLecturerTodayData = await aiLecturerTodayRes.json();
+    assert(aiLecturerTodayRes.status === 200, 'TC20: Giảng viên hỏi lịch dạy hôm nay của bản thân -> 200 OK');
+    assert(aiLecturerTodayData.data?.intent === 'SCHEDULE_USER_CHECK', 'TC20: Nhận diện chính xác Intent SCHEDULE_USER_CHECK');
+
+    const aiLecturerWeekRes = await fetch(`${BASE_URL}/ai/chat`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${lecturerToken}`,
+      },
+      body: JSON.stringify({ message: 'Tuần này tôi có bao nhiêu buổi dạy?' }),
+    });
+    const aiLecturerWeekData = await aiLecturerWeekRes.json();
+    assert(aiLecturerWeekRes.status === 200, 'TC21: Giảng viên hỏi số buổi dạy trong tuần -> 200 OK');
+    assert(aiLecturerWeekData.data?.intent === 'SCHEDULE_USER_COUNT', 'TC21: Nhận diện chính xác Intent SCHEDULE_USER_COUNT');
+
+    // TC22: Giảng viên tra cứu số liệu người khác -> RBAC từ chối (unauthorized: true)
+    const aiUnauthorizedRes = await fetch(`${BASE_URL}/ai/chat`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${lecturerToken}`,
+      },
+      body: JSON.stringify({ message: 'ThS. Phạm Văn Cường (Giảng viên HTTT) tháng này đi trễ bao nhiêu ngày?' }),
+    });
+    const aiUnauthorizedData = await aiUnauthorizedRes.json();
+    assert(aiUnauthorizedRes.status === 200, 'TC22: Giảng viên tra cứu người khác -> AI xử lý trả về 200 OK');
+    assert(aiUnauthorizedData.data?.unauthorized === true, 'TC22: Hệ thống RBAC chặn thành công (unauthorized = true), không làm lộ dữ liệu cá nhân');
+
+    // -------------------------------------------------------------------------
     // KẾT LUẬN
     // -------------------------------------------------------------------------
-    if (mongoose.connection.readyState !== 0) {
+    if (server) {
+      await new Promise((r) => server.close(r)).catch(() => {});
+    }
+    if (mongoose.connection && mongoose.connection.readyState !== 0) {
       await mongoose.disconnect();
     }
     console.log('\n========================================================================');
     console.log(`🎉 TẤT CẢ CÁC BÀI KIỂM THỬ ĐÃ ĐẠT 100% PASS! (${passedCount}/${totalCount} TEST CASES)`);
     console.log('========================================================================\n');
+    process.exit(0);
   } catch (err) {
     console.error('\n💥 DỪNG KIỂM THỬ DO GẶP LỖI:', err.message);
-    const mongoose = require('mongoose');
-    if (mongoose.connection.readyState !== 0) {
+    if (server) {
+      await new Promise((r) => server.close(r)).catch(() => {});
+    }
+    if (mongoose.connection && mongoose.connection.readyState !== 0) {
       await mongoose.disconnect();
     }
     process.exit(1);

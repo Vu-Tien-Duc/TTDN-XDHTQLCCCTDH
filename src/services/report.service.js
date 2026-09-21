@@ -1,5 +1,6 @@
 const AttendanceLog = require('../models/attendanceLog.model');
 const User = require('../models/user.model');
+const Department = require('../models/department.model');
 const { buildAttendanceDateFilter } = require('./attendance.service');
 
 /**
@@ -21,7 +22,13 @@ const generateMonthlyReport = async (month, year, departmentId = null, options =
 
   let userFilter = { isActive: true };
   if (departmentId) {
-    userFilter.departmentId = Array.isArray(departmentId) ? { $in: departmentId } : departmentId;
+    if (Array.isArray(departmentId)) {
+      userFilter.departmentId = { $in: departmentId };
+    } else {
+      const childDepts = await Department.find({ parentId: departmentId }).select('_id');
+      const allDeptIds = [departmentId, ...childDepts.map((d) => d._id)];
+      userFilter.departmentId = { $in: allDeptIds };
+    }
   }
 
   const totalUsers = await User.countDocuments(userFilter);

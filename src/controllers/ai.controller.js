@@ -1,4 +1,5 @@
 const Department = require('../models/department.model');
+const Schedule = require('../models/schedule.model');
 const { parseIntent, INTENTS } = require('../services/aiIntentParser');
 const {
   getAttendanceSummary,
@@ -29,6 +30,7 @@ const handleAiChat = async (req, res, next) => {
     // 1. Phân tích ý định câu hỏi & bóc tách tham số (Intent, DateRange, User, Department)
     const parsed = await parseIntent(question, currentUser);
     const { intent, dateRange, targetUser, department, leaveType, status, isAmbiguousUser, matches } = parsed;
+
 
     // 2. Xử lý trường hợp trùng tên nhiều người (Disambiguation)
     if (isAmbiguousUser) {
