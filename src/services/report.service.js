@@ -18,9 +18,6 @@ const generateMonthlyReport = async (month, year, departmentId = null, options =
   // Mốc thời gian bắt đầu và kết thúc tháng đúng theo múi giờ Việt Nam (Asia/Ho_Chi_Minh: UTC+07:00)
   const startDate = new Date(`${year}-${mStr}-01T00:00:00.000+07:00`);
   const endDate = new Date(`${year}-${mStr}-${lastDayStr}T23:59:59.999+07:00`);
-const generateMonthlyReport = async (month, year, departmentId = null) => {
-  const startDate = new Date(year, month - 1, 1);
-  const endDate = new Date(year, month, 0, 23, 59, 59, 999);
 
   let userFilter = { isActive: true };
   if (departmentId) {
@@ -44,17 +41,13 @@ const generateMonthlyReport = async (month, year, departmentId = null) => {
   const userIds = users.map((u) => u._id);
 
   // Chỉ lấy các trường cần thiết phục vụ thống kê
-  const attendances = await AttendanceLog.find({
-    userId: { $in: userIds },
-    checkInTime: { $gte: startDate, $lte: endDate },
-  })
-    .select('userId status checkInTime')
-    .lean();
   const dateFilter = buildAttendanceDateFilter(startDate, endDate);
   const attendances = await AttendanceLog.find({
     userId: { $in: userIds },
     ...dateFilter,
-  });
+  })
+    .select('userId status checkInTime createdAt')
+    .lean();
 
   const reportData = users.map((user) => {
     const userAttendances = attendances.filter((a) => a.userId.toString() === user._id.toString());

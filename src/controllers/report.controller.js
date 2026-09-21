@@ -72,11 +72,7 @@ const getAttendanceReport = async (req, res, next) => {
 
     const attendanceQuery = { userId: { $in: targetUserIds } };
     if (fromDate || toDate) {
-      attendanceQuery.checkInTime = {};
-      if (fromDate) attendanceQuery.checkInTime.$gte = fromDate;
-      if (toDate) attendanceQuery.checkInTime.$lte = toDate;
-    if (from || to) {
-      const dateFilter = buildAttendanceDateFilter(from, to);
+      const dateFilter = buildAttendanceDateFilter(fromDate, toDate);
       Object.assign(attendanceQuery, dateFilter);
     }
 
