@@ -1,7 +1,8 @@
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, useMemo } from 'react';
 import { Bot, Send, X, Sparkles, User, RefreshCw } from 'lucide-react';
 import aiService from '../../services/ai.service';
 import { formatTime } from '../../utils';
+import { useAuth } from '../../contexts/AuthContext';
 
 interface Message {
   id: string;
@@ -11,17 +12,89 @@ interface Message {
 }
 
 export const AiChatWidget: React.FC = () => {
+  const { user } = useAuth();
   const [isOpen, setIsOpen] = useState(false);
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
-  const [messages, setMessages] = useState<Message[]>([
-    {
-      id: '1',
-      sender: 'ai',
-      text: 'Xin chào! Tôi là **Trợ lý AI Thanh tra Đào tạo & Quản lý Chấm công**. Bạn có thể hỏi tôi về tình hình đi muộn, vắng mặt, đơn xin nghỉ hoặc tóm tắt báo cáo chấm công của trường.',
-      time: formatTime(new Date()),
-    },
-  ]);
+
+  // Cấu hình linh hoạt theo từng chức vụ (Role)
+  const roleConfig = useMemo(() => {
+    const role = user?.role;
+    const name = user?.fullName ? ` ${user.fullName}` : '';
+
+    if (role === 'giangvien') {
+      return {
+        headerTitle: 'Trợ Lý Giảng Viên AI',
+        headerSubtitle: 'Lịch dạy & Chấm công cá nhân',
+        welcomeText: `Xin chào Thầy/Cô${name}! Tôi là **Trợ lý AI Giảng viên**. Thầy/Cô có thể hỏi nhanh về lịch giảng dạy hôm nay/ngày mai, số lần đi trễ, hoặc trạng thái các đơn xin nghỉ phép/dạy bù.`,
+        placeholder: 'Hỏi về lịch dạy, chấm công cá nhân, đơn nghỉ...',
+        prompts: [
+          'Lịch giảng dạy của tôi hôm nay?',
+          'Ngày mai tôi có tiết dạy nào không?',
+          'Tuần này tôi đi trễ bao nhiêu lần?',
+          'Đơn xin nghỉ của tôi đang trạng thái gì?',
+        ],
+      };
+    }
+
+    if (role === 'truongkhoa') {
+      return {
+        headerTitle: 'Trợ Lý Quản Lý Khoa AI',
+        headerSubtitle: 'Giám sát giảng dạy & Chấm công khoa',
+        welcomeText: `Kính chào Thầy/Cô Trưởng khoa${name}! Tôi là **Trợ lý AI Quản lý Khoa**. Thầy/Cô có thể hỏi về danh sách giảng viên trong khoa có lịch dạy hôm nay, tình hình đi muộn và các đơn xin nghỉ đang chờ duyệt.`,
+        placeholder: 'Hỏi về giảng viên khoa, tình hình đi muộn, đơn nghỉ...',
+        prompts: [
+          'Hôm nay khoa có bao nhiêu giảng viên dạy?',
+          'Trong tháng này khoa có bao nhiêu lượt đi trễ?',
+          'Có bao nhiêu đơn nghỉ đang chờ duyệt?',
+          'Tuần này ai trong khoa đi trễ nhiều nhất?',
+        ],
+      };
+    }
+
+    if (role === 'nhanvien') {
+      return {
+        headerTitle: 'Trợ Lý Nhân Viên AI',
+        headerSubtitle: 'Chấm công & Ca làm việc cá nhân',
+        welcomeText: `Xin chào${name}! Tôi là **Trợ lý AI Chấm công & Ca làm việc**. Bạn có thể hỏi tôi về kết quả chấm công hôm nay, số lần đi trễ trong tuần/tháng hoặc kiểm tra trạng thái đơn xin nghỉ.`,
+        placeholder: 'Hỏi về ca làm, chấm công, đơn nghỉ của bạn...',
+        prompts: [
+          'Tôi hôm nay chấm công thế nào?',
+          'Tuần này tôi đi trễ bao nhiêu lần?',
+          'Tháng này tôi đúng giờ bao nhiêu ngày?',
+          'Đơn xin nghỉ của tôi đang trạng thái gì?',
+        ],
+      };
+    }
+
+    // Mặc định: admin / thanh tra
+    return {
+      headerTitle: 'Trợ Lý Thanh Tra AI',
+      headerSubtitle: 'Dữ liệu thời gian thực toàn trường',
+      welcomeText: `Xin chào Quản trị viên${name}! Tôi là **Trợ lý AI Thanh tra Đào tạo & Quản lý Chấm công**. Bạn có thể hỏi tôi về tình hình đi muộn, vắng mặt toàn trường, đơn xin nghỉ hoặc tóm tắt báo cáo chấm công.`,
+      placeholder: 'Nhập câu hỏi tra cứu thanh tra toàn trường...',
+      prompts: [
+        'Hôm nay có bao nhiêu người đi làm?',
+        'Hôm nay có ai đi muộn hoặc vắng không?',
+        'Có bao nhiêu đơn xin nghỉ đang chờ duyệt?',
+        'Tóm tắt báo cáo chấm công tháng này',
+      ],
+    };
+  }, [user]);
+
+  const [messages, setMessages] = useState<Message[]>([]);
+
+  // Khởi tạo tin nhắn chào hỏi theo chức vụ khi mở widget hoặc khi user thay đổi
+  useEffect(() => {
+    setMessages([
+      {
+        id: 'welcome',
+        sender: 'ai',
+        text: roleConfig.welcomeText,
+        time: formatTime(new Date()),
+      },
+    ]);
+  }, [roleConfig.welcomeText]);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
@@ -69,12 +142,6 @@ export const AiChatWidget: React.FC = () => {
     }
   };
 
-  const quickPrompts = [
-    'Hôm nay có đơn xin nghỉ nào không?',
-    'Hôm nay có ai đi muộn hoặc vắng không?',
-    'Tóm tắt báo cáo chấm công tháng này',
-  ];
-
   return (
     <>
       {/* Floating Button - Gọn nhẹ, thanh lịch */}
@@ -82,7 +149,7 @@ export const AiChatWidget: React.FC = () => {
         <button
           onClick={() => setIsOpen(true)}
           className="fixed bottom-5 right-5 z-40 px-3 py-2 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white rounded-full shadow-md shadow-blue-500/25 flex items-center gap-2 transition-all hover:scale-105 active:scale-95 group border border-white/20 text-xs font-semibold"
-          title="Mở Trợ lý AI Thanh tra"
+          title={roleConfig.headerTitle}
         >
           <div className="w-6 h-6 rounded-full bg-white/20 flex items-center justify-center">
             <Sparkles className="w-3.5 h-3.5 text-blue-100 animate-pulse" />
@@ -103,12 +170,12 @@ export const AiChatWidget: React.FC = () => {
               </div>
               <div>
                 <h4 className="text-xs font-bold flex items-center gap-1.5">
-                  Trợ Lý Thanh Tra AI
+                  {roleConfig.headerTitle}
                   <span className="px-1.5 py-0.2 bg-blue-500/30 border border-blue-400/30 rounded text-[9px] font-normal text-blue-200">
                     Gemini
                   </span>
                 </h4>
-                <p className="text-[10px] text-slate-300">Dữ liệu thời gian thực</p>
+                <p className="text-[10px] text-slate-300">{roleConfig.headerSubtitle}</p>
               </div>
             </div>
             <button
@@ -122,11 +189,11 @@ export const AiChatWidget: React.FC = () => {
           {/* Quick Prompts */}
           <div className="px-3 py-2 bg-slate-50 border-b border-slate-200/80 flex items-center gap-1.5 overflow-x-auto text-[11px] no-scrollbar shrink-0">
             <span className="text-slate-400 text-[10px] uppercase font-bold shrink-0 ml-1">Gợi ý:</span>
-            {quickPrompts.map((prompt, i) => (
+            {roleConfig.prompts.map((prompt, i) => (
               <button
                 key={i}
                 onClick={() => handleSend(prompt)}
-                className="px-2.5 py-1 bg-white hover:bg-blue-50 hover:text-blue-700 hover:border-blue-200 text-slate-700 rounded-full border border-slate-200 shrink-0 transition-colors"
+                className="px-2.5 py-1 bg-white hover:bg-blue-50 hover:text-blue-700 hover:border-blue-200 text-slate-700 rounded-full border border-slate-200 shrink-0 transition-colors whitespace-nowrap"
               >
                 {prompt}
               </button>
@@ -200,7 +267,7 @@ export const AiChatWidget: React.FC = () => {
                 type="text"
                 value={input}
                 onChange={(e) => setInput(e.target.value)}
-                placeholder="Nhập câu hỏi cho thanh tra..."
+                placeholder={roleConfig.placeholder}
                 className="flex-1 px-3.5 py-2.5 bg-slate-100 focus:bg-white text-slate-800 placeholder-slate-400 border border-slate-200 rounded-xl text-xs focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all"
               />
               <button

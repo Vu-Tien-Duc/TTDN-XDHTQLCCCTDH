@@ -68,20 +68,31 @@ const REFRESH_TOKEN_KEY = 'edu_refresh_token';
 const USER_KEY = 'edu_user';
 
 export const tokenStorage = {
-  getAccessToken: () => localStorage.getItem(ACCESS_TOKEN_KEY),
-  setAccessToken: (token: string) => localStorage.setItem(ACCESS_TOKEN_KEY, token),
-  getRefreshToken: () => localStorage.getItem(REFRESH_TOKEN_KEY),
-  setRefreshToken: (token: string) => localStorage.setItem(REFRESH_TOKEN_KEY, token),
+  getAccessToken: () => {
+    // Xóa triệt để token cũ trong localStorage nếu còn sót lại
+    if (localStorage.getItem(ACCESS_TOKEN_KEY)) localStorage.removeItem(ACCESS_TOKEN_KEY);
+    return sessionStorage.getItem(ACCESS_TOKEN_KEY);
+  },
+  setAccessToken: (token: string) => sessionStorage.setItem(ACCESS_TOKEN_KEY, token),
+  getRefreshToken: () => {
+    if (localStorage.getItem(REFRESH_TOKEN_KEY)) localStorage.removeItem(REFRESH_TOKEN_KEY);
+    return sessionStorage.getItem(REFRESH_TOKEN_KEY);
+  },
+  setRefreshToken: (token: string) => sessionStorage.setItem(REFRESH_TOKEN_KEY, token),
   getUser: () => {
-    const raw = localStorage.getItem(USER_KEY);
+    if (localStorage.getItem(USER_KEY)) localStorage.removeItem(USER_KEY);
+    const raw = sessionStorage.getItem(USER_KEY);
     try {
       return raw ? JSON.parse(raw) : null;
     } catch {
       return null;
     }
   },
-  setUser: (user: unknown) => localStorage.setItem(USER_KEY, JSON.stringify(user)),
+  setUser: (user: unknown) => sessionStorage.setItem(USER_KEY, JSON.stringify(user)),
   clear: () => {
+    sessionStorage.removeItem(ACCESS_TOKEN_KEY);
+    sessionStorage.removeItem(REFRESH_TOKEN_KEY);
+    sessionStorage.removeItem(USER_KEY);
     localStorage.removeItem(ACCESS_TOKEN_KEY);
     localStorage.removeItem(REFRESH_TOKEN_KEY);
     localStorage.removeItem(USER_KEY);

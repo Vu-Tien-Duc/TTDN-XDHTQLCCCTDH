@@ -381,27 +381,37 @@ const approveLeaveRequest = async (req, res, next) => {
 
         for (const occurrenceDate of occurrenceDates) {
           const occurrenceEndOfDay = new Date(occurrenceDate.getTime() + 24 * 60 * 60 * 1000 - 1);
-          await AttendanceLog.findOneAndUpdate(
-            {
+
+          // Tìm bản ghi điểm danh hiện có của ngày này (kể cả bản ghi ABSENT do Cron tạo có checkInTime = null)
+          const existingLog = await AttendanceLog.findOne({
+            userId: request.userId,
+            scheduleId: sch._id,
+            $or: [
+              { checkInTime: { $gte: occurrenceDate, $lte: occurrenceEndOfDay } },
+              { createdAt: { $gte: occurrenceDate, $lte: occurrenceEndOfDay } },
+              { leaveRequestId: request._id },
+            ],
+          });
+
+          if (existingLog) {
+            existingLog.status = 'EXCUSED_ABSENCE';
+            existingLog.leaveRequestId = request._id;
+            if (!existingLog.checkInTime) {
+              existingLog.checkInTime = occurrenceDate;
+            }
+            await existingLog.save();
+          } else {
+            await AttendanceLog.create({
               userId: request.userId,
+              shiftId: sch.shiftId,
               scheduleId: sch._id,
+              status: 'EXCUSED_ABSENCE',
               leaveRequestId: request._id,
-              checkInTime: { $gte: occurrenceDate, $lte: occurrenceEndOfDay },
-            },
-            {
-              $set: {
-                userId: request.userId,
-                shiftId: sch.shiftId,
-                scheduleId: sch._id,
-                status: 'EXCUSED_ABSENCE',
-                leaveRequestId: request._id,
-                checkInTime: occurrenceDate,
-                isManualOverride: false,
-                method: 'manual',
-              },
-            },
-            { upsert: true, new: true }
-          );
+              checkInTime: occurrenceDate,
+              isManualOverride: false,
+              method: 'manual',
+            });
+          }
         }
       }
     }
