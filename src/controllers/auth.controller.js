@@ -569,6 +569,12 @@ const updateAvatar = async (req, res, next) => {
       updateData.faceDescriptor = faceDescriptor;
     }
 
+    // Luôn lưu URL tuyệt đối vào CSDL để hoạt động đúng trên mọi môi trường (VPS/Nginx)
+    const protocol = req.headers['x-forwarded-proto'] || req.protocol || 'http';
+    const host = req.get('host');
+    const fullAvatarUrl = avatar.startsWith('http') ? avatar : `${protocol}://${host}${avatar}`;
+    updateData.avatar = fullAvatarUrl;
+
     const user = await User.findByIdAndUpdate(
       req.user.id,
       { $set: updateData },
@@ -590,14 +596,9 @@ const updateAvatar = async (req, res, next) => {
       details: { hasFaceDescriptor: Array.isArray(faceDescriptor) && faceDescriptor.length === 128 },
     }).catch((err) => console.error('[AuditLog Error] Update avatar:', err.message));
 
-    // Trả về cả fileUrl tương đối và fullUrl tuyệt đối cho Mobile App
-    const protocol = req.headers['x-forwarded-proto'] || req.protocol || 'http';
-    const host = req.get('host');
-    const fullAvatarUrl = avatar.startsWith('http') ? avatar : `${protocol}://${host}${avatar}`;
-
     return sendSuccess(res, 'Cập nhật ảnh khuôn mặt / đại diện thành công.', {
       ...user.toObject(),
-      avatar,
+      avatar: fullAvatarUrl,
       avatarUrl: fullAvatarUrl,
     });
   } catch (error) {
