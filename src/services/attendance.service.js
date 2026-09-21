@@ -116,18 +116,39 @@ const calculateCheckOutStatus = (checkOutTime, shiftConfig, initialStatus = 'ON_
 };
 
 /**
+ * Tạo điều kiện truy vấn thời gian chấm công:
+ * Bao gồm cả checkInTime và createdAt (cho các bản ghi ABSENT/EXCUSED_ABSENCE do Cron tạo khi checkInTime = null)
+ * @param {Date|string} startDate
+ * @param {Date|string} endDate
+ * @returns {Object}
+ */
+const buildAttendanceDateFilter = (startDate, endDate) => {
+  if (!startDate && !endDate) return {};
+  const cond = {};
+  if (startDate) cond.$gte = new Date(startDate);
+  if (endDate) cond.$lte = new Date(endDate);
+  return {
+    $or: [
+      { checkInTime: cond },
+      { checkInTime: null, createdAt: cond },
+    ],
+  };
+};
+
+/**
  * Lấy tổng hợp thống kê chấm công theo người dùng
  */
 const getAttendanceSummaryByUser = async (userId, startDate, endDate) => {
   const query = { userId };
-  if (startDate && endDate) {
-    query.checkInTime = { $gte: new Date(startDate), $lte: new Date(endDate) };
+  if (startDate || endDate) {
+    const dateQuery = buildAttendanceDateFilter(startDate, endDate);
+    Object.assign(query, dateQuery);
   }
 
   const records = await AttendanceLog.find(query)
     .populate('shiftId', 'name startTime endTime')
     .populate('scheduleId', 'roomId weekday')
-    .sort({ checkInTime: -1 });
+    .sort({ checkInTime: -1, createdAt: -1 });
 
   const summary = {
     totalRecords: records.length,
@@ -416,6 +437,7 @@ module.exports = {
   calculateAttendanceStatus,
   calculateCheckOutStatus,
   getAttendanceSummaryByUser,
+  buildAttendanceDateFilter,
   euclideanDistance,
   FACE_MATCH_THRESHOLD,
   getCachedUsersWithFace,

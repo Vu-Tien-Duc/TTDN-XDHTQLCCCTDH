@@ -382,6 +382,8 @@ export const SchedulesPage: React.FC = () => {
   // Mở Modal Sửa lịch
   const handleOpenEditModal = (sch: Schedule) => {
     setEditingSchedule(sch);
+    const schUserId: string = typeof sch.userId === 'object' && sch.userId !== null ? (sch.userId as User)._id : (sch.userId as string) || '';
+    const schShiftId: string = typeof sch.shiftId === 'object' && sch.shiftId !== null ? (sch.shiftId as ShiftConfig)._id : (sch.shiftId as string) || '';
     setConflictError(null);
 
     const schUserId: string =

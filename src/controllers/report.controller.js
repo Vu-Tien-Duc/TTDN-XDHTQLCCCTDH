@@ -3,6 +3,7 @@ const LeaveRequest = require('../models/leaveRequest.model');
 const User = require('../models/user.model');
 const { sendSuccess, sendError } = require('../utils/responseHandler');
 const { calculateLeaveDays } = require('./leaveRequest.controller');
+const { buildAttendanceDateFilter } = require('../services/attendance.service');
 const { getDeanDepartmentIds, getDeanScopedUserIds } = require('../utils/deanScope');
 
 /**
@@ -74,6 +75,9 @@ const getAttendanceReport = async (req, res, next) => {
       attendanceQuery.checkInTime = {};
       if (fromDate) attendanceQuery.checkInTime.$gte = fromDate;
       if (toDate) attendanceQuery.checkInTime.$lte = toDate;
+    if (from || to) {
+      const dateFilter = buildAttendanceDateFilter(from, to);
+      Object.assign(attendanceQuery, dateFilter);
     }
 
     const attendances = await AttendanceLog.find(attendanceQuery);
