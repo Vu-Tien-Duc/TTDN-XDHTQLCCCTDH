@@ -20,7 +20,6 @@ import {
   QrCode,
   Compass,
   MapPin,
-  ShieldAlert,
   Radio,
   RefreshCw,
   Smartphone,
@@ -106,11 +105,7 @@ export const FaceCheckInKiosk: React.FC = () => {
   // Tab hiển thị: Camera Face ID hoặc Màn hình QR Code Động
   const [displayTab, setDisplayTab] = useState<'face' | 'qr'>('face');
 
-  // Bảo mật 2 lớp (2FA): Face ID + Tọa độ GPS Geofencing thực tế của thiết bị
-  const [is2FaGpsEnabled, setIs2FaGpsEnabled] = useState(true);
-  const [kioskCoords, setKioskCoords] = useState<{ lat: number; lng: number } | null>(null);
-  const [kioskGpsAccuracy, setKioskGpsAccuracy] = useState<number | null>(null);
-  const [twoFaSecurityAlert, setTwoFaSecurityAlert] = useState<string | null>(null);
+  // Kiosk cố định tại sảnh: Giảng viên đã có mặt thực tế để điểm danh nên không cần GPS
 
   // Màn hình mã QR Động TOTP (20 giây)
   const [dynamicQrSvg, setDynamicQrSvg] = useState<string>('');
@@ -167,19 +162,7 @@ export const FaceCheckInKiosk: React.FC = () => {
     return () => clearInterval(timer);
   }, []);
 
-  // Lấy tọa độ GPS thực tế của thiết bị Kiosk từ chip vệ tinh
-  useEffect(() => {
-    if (navigator.geolocation) {
-      navigator.geolocation.getCurrentPosition(
-        (pos) => {
-          setKioskCoords({ lat: pos.coords.latitude, lng: pos.coords.longitude });
-          setKioskGpsAccuracy(pos.coords.accuracy);
-        },
-        (err) => console.warn('[Kiosk] Không lấy được GPS thực tế:', err),
-        { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
-      );
-    }
-  }, []);
+
 
   // Lấy mã QR động từ máy chủ (hiệu lực 20 giây)
   const fetchNewQrCode = useCallback(async () => {
@@ -350,7 +333,7 @@ export const FaceCheckInKiosk: React.FC = () => {
         videoRef.current.onloadedmetadata = () => {
           videoRef.current?.play().catch((playErr) => console.warn('Video play warning:', playErr));
         };
-        await videoRef.current.play().catch(() => {});
+        await videoRef.current.play().catch(() => { });
       }
       setIsCameraActive(true);
     } catch (err) {
@@ -550,19 +533,16 @@ export const FaceCheckInKiosk: React.FC = () => {
                   tCtx.drawImage(videoRef.current, 0, 0, 320, 240);
                   capturedImage = tempCanvas.toDataURL('image/jpeg', 0.6);
                 }
-              } catch {}
+              } catch { }
 
               const abortController = new AbortController();
               const timeoutId = setTimeout(() => abortController.abort(), 5000); // 5s timeout
-
-              const locationPayload = is2FaGpsEnabled && kioskCoords ? kioskCoords : undefined;
 
               attendanceApi
                 .faceCheckIn({
                   faceDescriptor: Array.from(targetFace.descriptor),
                   mode: kioskModeRef.current,
                   capturedImage,
-                  location: locationPayload,
                   signal: abortController.signal,
                 })
                 .then((res) => {
@@ -576,7 +556,6 @@ export const FaceCheckInKiosk: React.FC = () => {
                       ...prev.filter((r) => r.user?._id !== checkInResult.user?._id).slice(0, 4),
                     ]);
                     setErrorMessage(null);
-                    setTwoFaSecurityAlert(null);
                     setState('SUCCESS');
                     playBeep(true);
                     cooldownRef.current = true;
@@ -602,10 +581,7 @@ export const FaceCheckInKiosk: React.FC = () => {
                       ? `${msg} (Độ lệch vector: ${(extraDistance * 100).toFixed(1)}%)`
                       : msg;
 
-                  if (errCode === 'FACE_2FA_OUT_OF_GEOFENCE' || msg.includes('2FA') || msg.includes('khuôn viên')) {
-                    setTwoFaSecurityAlert(msg);
-                    setTimeout(() => setTwoFaSecurityAlert(null), 8000);
-                  }
+
 
                   if (!toastCooldownRef.current) {
                     toastCooldownRef.current = true;
@@ -656,10 +632,10 @@ export const FaceCheckInKiosk: React.FC = () => {
                   ? curState === 'VERIFYING'
                     ? '#38bdf8'
                     : curState === 'SUCCESS'
-                    ? '#10b981'
-                    : curState === 'ERROR'
-                    ? '#ef4444'
-                    : '#a855f7'
+                      ? '#10b981'
+                      : curState === 'ERROR'
+                        ? '#ef4444'
+                        : '#a855f7'
                   : '#64748b';
 
                 drawCornerBrackets(ctx, drawX, y, width, height, color, isTarget, isTarget ? curProgress : 0);
@@ -679,8 +655,8 @@ export const FaceCheckInKiosk: React.FC = () => {
                     ? curState === 'VERIFYING'
                       ? '● ĐANG ĐỐI SOÁT AI...'
                       : curState === 'SUCCESS'
-                      ? '✓ XÁC THỰC THÀNH CÔNG'
-                      : `★ ĐIỂM DANH (${curProgress}%)`
+                        ? '✓ XÁC THỰC THÀNH CÔNG'
+                        : `★ ĐIỂM DANH (${curProgress}%)`
                     : 'Người qua lại',
                   drawX + 6,
                   Math.max(15, y - 9)
@@ -769,7 +745,7 @@ export const FaceCheckInKiosk: React.FC = () => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
         if (document.fullscreenElement) {
-          document.exitFullscreen().catch(() => {});
+          document.exitFullscreen().catch(() => { });
         } else {
           navigate('/dashboard');
         }
@@ -811,33 +787,30 @@ export const FaceCheckInKiosk: React.FC = () => {
         <div className="flex items-center gap-1.5 p-1 bg-slate-950/90 rounded-2xl border border-slate-800 shadow-inner">
           <button
             onClick={() => setKioskMode('auto')}
-            className={`flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-bold transition duration-200 ${
-              kioskMode === 'auto'
-                ? 'bg-gradient-to-r from-indigo-600 to-purple-600 text-white shadow-lg shadow-indigo-500/30 ring-1 ring-white/20'
-                : 'text-slate-400 hover:text-slate-200 hover:bg-slate-900'
-            }`}
+            className={`flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-bold transition duration-200 ${kioskMode === 'auto'
+              ? 'bg-gradient-to-r from-indigo-600 to-purple-600 text-white shadow-lg shadow-indigo-500/30 ring-1 ring-white/20'
+              : 'text-slate-400 hover:text-slate-200 hover:bg-slate-900'
+              }`}
           >
             <Sparkles className="w-3.5 h-3.5 text-amber-300" />
             Tự Động (Auto)
           </button>
           <button
             onClick={() => setKioskMode('check_in')}
-            className={`flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-bold transition duration-200 ${
-              kioskMode === 'check_in'
-                ? 'bg-emerald-600 text-white shadow-lg shadow-emerald-600/30 ring-1 ring-emerald-300/30'
-                : 'text-slate-400 hover:text-slate-200 hover:bg-slate-900'
-            }`}
+            className={`flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-bold transition duration-200 ${kioskMode === 'check_in'
+              ? 'bg-emerald-600 text-white shadow-lg shadow-emerald-600/30 ring-1 ring-emerald-300/30'
+              : 'text-slate-400 hover:text-slate-200 hover:bg-slate-900'
+              }`}
           >
             <LogIn className="w-3.5 h-3.5 text-emerald-300" />
             Vào Ca (In)
           </button>
           <button
             onClick={() => setKioskMode('check_out')}
-            className={`flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-bold transition duration-200 ${
-              kioskMode === 'check_out'
-                ? 'bg-cyan-600 text-white shadow-lg shadow-cyan-600/30 ring-1 ring-cyan-300/30'
-                : 'text-slate-400 hover:text-slate-200 hover:bg-slate-900'
-            }`}
+            className={`flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-bold transition duration-200 ${kioskMode === 'check_out'
+              ? 'bg-cyan-600 text-white shadow-lg shadow-cyan-600/30 ring-1 ring-cyan-300/30'
+              : 'text-slate-400 hover:text-slate-200 hover:bg-slate-900'
+              }`}
           >
             <LogOut className="w-3.5 h-3.5 text-cyan-300" />
             Ra Về (Out)
@@ -891,11 +864,10 @@ export const FaceCheckInKiosk: React.FC = () => {
         <div className="flex items-center gap-2">
           <button
             onClick={() => setDisplayTab('face')}
-            className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition ${
-              displayTab === 'face'
-                ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-600/30'
-                : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/70'
-            }`}
+            className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition ${displayTab === 'face'
+              ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-600/30'
+              : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/70'
+              }`}
           >
             <UserCheck className="w-4 h-4 text-indigo-300" />
             <span>1. Camera Face ID (Kiosk Sảnh)</span>
@@ -903,11 +875,10 @@ export const FaceCheckInKiosk: React.FC = () => {
 
           <button
             onClick={() => setDisplayTab('qr')}
-            className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition ${
-              displayTab === 'qr'
-                ? 'bg-purple-600 text-white shadow-lg shadow-purple-600/30'
-                : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/70'
-            }`}
+            className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition ${displayTab === 'qr'
+              ? 'bg-purple-600 text-white shadow-lg shadow-purple-600/30'
+              : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/70'
+              }`}
           >
             <QrCode className="w-4 h-4 text-purple-300" />
             <span>2. Màn Hình QR Code Động (20s)</span>
@@ -946,32 +917,10 @@ export const FaceCheckInKiosk: React.FC = () => {
             </div>
           )}
 
-          {/* Cấu hình 2FA GPS Thực tế */}
-          <div className="flex items-center gap-2 bg-slate-950/80 px-3 py-1.5 rounded-xl border border-slate-800 text-xs">
-            <button
-              onClick={() => setIs2FaGpsEnabled(!is2FaGpsEnabled)}
-              className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg font-bold transition ${
-                is2FaGpsEnabled ? 'bg-cyan-500/20 text-cyan-300 border border-cyan-500/40' : 'text-slate-500 bg-slate-800'
-              }`}
-              title="Bảo mật 2 lớp: Bắt buộc tọa độ GPS của thiết bị nằm trong bán kính trường"
-            >
-              <ShieldCheck className="w-3.5 h-3.5" />
-              <span>2FA GPS: {is2FaGpsEnabled ? 'BẬT' : 'TẮT'}</span>
-            </button>
-
-            {is2FaGpsEnabled && (
-              <div className="flex items-center gap-1.5 pl-2 border-l border-slate-800 text-slate-300 font-mono text-[11px]">
-                <MapPin className="w-3.5 h-3.5 text-rose-400" />
-                <span>
-                  {kioskCoords
-                    ? `${kioskCoords.lat.toFixed(5)}, ${kioskCoords.lng.toFixed(5)}`
-                    : 'Đang định vị vệ tinh GPS...'}
-                </span>
-                {kioskGpsAccuracy && (
-                  <span className="text-slate-500 text-[10px]">(±{Math.round(kioskGpsAccuracy)}m)</span>
-                )}
-              </div>
-            )}
+          {/* Kiosk cố định tại sảnh - Không cần GPS */}
+          <div className="flex items-center gap-2 bg-slate-950/80 px-3 py-1.5 rounded-xl border border-slate-800 text-xs text-slate-300">
+            <ShieldCheck className="w-3.5 h-3.5 text-emerald-400" />
+            <span className="font-semibold text-emerald-300">Kiosk Điểm Danh Cố Định (Tại Sảnh)</span>
           </div>
         </div>
       </div>
@@ -1141,178 +1090,116 @@ export const FaceCheckInKiosk: React.FC = () => {
             {/* Hướng dẫn căn chỉnh khuôn mặt */}
             <div className="absolute bottom-6 inset-x-0 flex justify-center pointer-events-none z-20">
               <div className="bg-slate-950/85 backdrop-blur-md px-6 py-2.5 rounded-2xl border border-slate-800 text-xs text-slate-300 flex items-center gap-2.5 shadow-lg">
-              <span className="w-2 h-2 rounded-full bg-indigo-400 animate-ping" />
-              <span>
-                {kioskMode === 'auto'
-                  ? 'Đứng thẳng, cách camera 0.6m - 1.0m: Quét đầu ca để Vào ca, cuối ca để Ra về'
-                  : kioskMode === 'check_in'
-                  ? 'Đứng thẳng trước camera để ghi nhận Vào ca (Check-in)'
-                  : 'Đứng thẳng trước camera để ghi nhận Ra về (Check-out)'}
-              </span>
+                <span className="w-2 h-2 rounded-full bg-indigo-400 animate-ping" />
+                <span>
+                  {kioskMode === 'auto'
+                    ? 'Đứng thẳng, cách camera 0.6m - 1.0m: Quét đầu ca để Vào ca, cuối ca để Ra về'
+                    : kioskMode === 'check_in'
+                      ? 'Đứng thẳng trước camera để ghi nhận Vào ca (Check-in)'
+                      : 'Đứng thẳng trước camera để ghi nhận Ra về (Check-out)'}
+                </span>
+              </div>
             </div>
-          </div>
 
-          {/* POPUP THÀNH CÔNG (Che email nhạy cảm - P0 Item 3) */}
-          {result && (
-            <div className="absolute inset-0 bg-slate-950/95 backdrop-blur-md flex flex-col items-center justify-center p-8 z-30 animate-in fade-in zoom-in-95 duration-200">
-              <div
-                className={`w-20 h-20 rounded-full border-2 flex items-center justify-center mb-4 ${
-                  result.action === 'CHECK_OUT'
+            {/* POPUP THÀNH CÔNG (Che email nhạy cảm - P0 Item 3) */}
+            {result && (
+              <div className="absolute inset-0 bg-slate-950/95 backdrop-blur-md flex flex-col items-center justify-center p-8 z-30 animate-in fade-in zoom-in-95 duration-200">
+                <div
+                  className={`w-20 h-20 rounded-full border-2 flex items-center justify-center mb-4 ${result.action === 'CHECK_OUT'
                     ? 'bg-cyan-500/20 border-cyan-400 text-cyan-400 shadow-xl shadow-cyan-500/20'
                     : 'bg-emerald-500/20 border-emerald-500 text-emerald-400 shadow-xl shadow-emerald-500/20'
-                }`}
-              >
-                {result.action === 'CHECK_OUT' ? (
-                  <LogOut className="w-10 h-10 text-cyan-400" />
-                ) : (
-                  <CheckCircle2 className="w-10 h-10 text-emerald-400" />
-                )}
-              </div>
+                    }`}
+                >
+                  {result.action === 'CHECK_OUT' ? (
+                    <LogOut className="w-10 h-10 text-cyan-400" />
+                  ) : (
+                    <CheckCircle2 className="w-10 h-10 text-emerald-400" />
+                  )}
+                </div>
 
-              <div
-                className={`text-xs uppercase tracking-widest font-black mb-1 ${
-                  result.action === 'CHECK_OUT' ? 'text-cyan-400' : 'text-emerald-400'
-                }`}
-              >
-                {result.action === 'CHECK_OUT' ? '🎉 CHECK-OUT (RA VỀ) THÀNH CÔNG!' : '✨ CHECK-IN (VÀO CA) THÀNH CÔNG!'}
-              </div>
+                <div
+                  className={`text-xs uppercase tracking-widest font-black mb-1 ${result.action === 'CHECK_OUT' ? 'text-cyan-400' : 'text-emerald-400'
+                    }`}
+                >
+                  {result.action === 'CHECK_OUT' ? '🎉 CHECK-OUT (RA VỀ) THÀNH CÔNG!' : '✨ CHECK-IN (VÀO CA) THÀNH CÔNG!'}
+                </div>
 
-              <h2 className="text-3xl font-black text-white mb-1">{result.user?.fullName}</h2>
+                <h2 className="text-3xl font-black text-white mb-1">{result.user?.fullName}</h2>
 
-              {/* Email đã che (Masked) bảo vệ quyền riêng tư công cộng */}
-              <p className="text-sm text-slate-400 mb-5 font-mono">
-                {maskEmail(result.user?.email)}
-              </p>
+                {/* Email đã che (Masked) bảo vệ quyền riêng tư công cộng */}
+                <p className="text-sm text-slate-400 mb-5 font-mono">
+                  {maskEmail(result.user?.email)}
+                </p>
 
-              {/* Thông tin trạng thái & thời gian làm việc */}
-              <div className="flex flex-wrap items-center justify-center gap-3">
-                {result.action === 'CHECK_OUT' ? (
-                  <>
-                    <span
-                      className={`px-4 py-2 rounded-xl text-sm font-black tracking-wide border ${
-                        result.statusText === 'EARLY_LEAVE' || result.earlyLeave?.isEarlyLeave
+                {/* Thông tin trạng thái & thời gian làm việc */}
+                <div className="flex flex-wrap items-center justify-center gap-3">
+                  {result.action === 'CHECK_OUT' ? (
+                    <>
+                      <span
+                        className={`px-4 py-2 rounded-xl text-sm font-black tracking-wide border ${result.statusText === 'EARLY_LEAVE' || result.earlyLeave?.isEarlyLeave
                           ? 'bg-amber-500/20 text-amber-300 border-amber-500/40'
                           : 'bg-cyan-500/20 text-cyan-300 border-cyan-500/40'
-                      }`}
-                    >
-                      {result.statusText === 'EARLY_LEAVE' || result.earlyLeave?.isEarlyLeave
-                        ? `⚠ VỀ SỚM (${result.earlyLeave?.earlyMinutes || 0} phút)`
-                        : '✓ HOÀN THÀNH CA DẠY'}
-                    </span>
-
-                    {result.workingDuration && (
-                      <span className="px-4 py-2 rounded-xl text-sm font-semibold bg-indigo-950/60 border border-indigo-500/40 text-indigo-300 flex items-center gap-1.5">
-                        <Timer className="w-4 h-4 text-indigo-400" />
-                        Thời gian: {result.workingDuration.formatted}
+                          }`}
+                      >
+                        {result.statusText === 'EARLY_LEAVE' || result.earlyLeave?.isEarlyLeave
+                          ? `⚠ VỀ SỚM (${result.earlyLeave?.earlyMinutes || 0} phút)`
+                          : '✓ HOÀN THÀNH CA DẠY'}
                       </span>
-                    )}
-                  </>
-                ) : (
-                  <>
-                    <span
-                      className={`px-4 py-2 rounded-xl text-sm font-black tracking-wide border ${
-                        result.status === 'ON_TIME' || result.statusText === 'ON_TIME'
+
+                      {result.workingDuration && (
+                        <span className="px-4 py-2 rounded-xl text-sm font-semibold bg-indigo-950/60 border border-indigo-500/40 text-indigo-300 flex items-center gap-1.5">
+                          <Timer className="w-4 h-4 text-indigo-400" />
+                          Thời gian: {result.workingDuration.formatted}
+                        </span>
+                      )}
+                    </>
+                  ) : (
+                    <>
+                      <span
+                        className={`px-4 py-2 rounded-xl text-sm font-black tracking-wide border ${result.status === 'ON_TIME' || result.statusText === 'ON_TIME'
                           ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40'
                           : 'bg-amber-500/20 text-amber-300 border-amber-500/40'
-                      }`}
-                    >
-                      {result.status === 'ON_TIME' || result.statusText === 'ON_TIME' ? '✓ ĐÚNG GIỜ' : '⚠ ĐI MUỘN'}
-                    </span>
+                          }`}
+                      >
+                        {result.status === 'ON_TIME' || result.statusText === 'ON_TIME' ? '✓ ĐÚNG GIỜ' : '⚠ ĐI MUỘN'}
+                      </span>
 
-                    <span className="px-4 py-2 rounded-xl text-sm font-semibold bg-slate-800 border border-slate-700 text-slate-300">
-                      Độ chính xác: {(result.confidenceScore * 100).toFixed(1)}%
-                    </span>
-                  </>
-                )}
-              </div>
-
-              {result.attendance?.shiftId && (
-                <div className="mt-4 text-xs text-slate-400 flex items-center gap-1.5">
-                  <Clock className="w-3.5 h-3.5 text-indigo-400" />
-                  <span>
-                    {result.attendance.shiftId.name} ({result.attendance.shiftId.startTime} -{' '}
-                    {result.attendance.shiftId.endTime})
-                  </span>
+                      <span className="px-4 py-2 rounded-xl text-sm font-semibold bg-slate-800 border border-slate-700 text-slate-300">
+                        Độ chính xác: {(result.confidenceScore * 100).toFixed(1)}%
+                      </span>
+                    </>
+                  )}
                 </div>
-              )}
-            </div>
-          )}
 
-          {/* POPUP BÁO LỖI: Nhắc nhở */}
-          {errorMessage && !result && (
-            <div className="absolute inset-x-8 bottom-20 bg-rose-950/90 backdrop-blur-md border border-rose-600/50 p-4 rounded-2xl flex items-center gap-3 z-30 shadow-xl">
-              <AlertTriangle className="w-6 h-6 text-rose-400 shrink-0" />
-              <div className="text-xs font-semibold text-rose-200">{errorMessage}</div>
-            </div>
-          )}
-
-          {/* GỢI Ý LIVENESS: Nháy mắt hoặc cử động đầu (Issue 2) */}
-          {livenessHint && !errorMessage && !result && (
-            <div className="absolute inset-x-8 bottom-20 bg-amber-950/90 backdrop-blur-md border border-amber-500/50 p-4 rounded-2xl flex items-center gap-3 z-30 shadow-xl animate-pulse">
-              <Sparkles className="w-6 h-6 text-amber-400 shrink-0" />
-              <div className="text-xs font-bold text-amber-200">{livenessHint}</div>
-            </div>
-          )}
-          {/* CẢNH BÁO BẢO MẬT 2FA (FACE ID + GPS GEOFENCING) */}
-          {twoFaSecurityAlert && (
-            <div className="absolute inset-0 bg-slate-950/95 backdrop-blur-md flex flex-col items-center justify-center p-8 z-40 animate-in fade-in zoom-in-95 duration-200">
-              <div className="w-20 h-20 rounded-full bg-rose-500/20 border-2 border-rose-500 flex items-center justify-center mb-4 text-rose-400 shadow-2xl shadow-rose-500/40 animate-bounce">
-                <ShieldAlert className="w-10 h-10 text-rose-400" />
-              </div>
-              <div className="text-xs uppercase tracking-widest font-black text-rose-400 mb-1">
-                🚨 CẢNH BÁO BẢO MẬT 2FA (FACE ID + GPS)
-              </div>
-              <h2 className="text-2xl font-black text-white mb-2 text-center">
-                TỌA ĐỘ NGOÀI KHUÔN VIÊN TRƯỜNG!
-              </h2>
-              <div className="max-w-md bg-rose-950/60 border border-rose-600/40 p-4 rounded-2xl text-xs text-rose-200 text-center mb-4">
-                {twoFaSecurityAlert}
-              </div>
-              <p className="text-xs text-slate-400 text-center max-w-sm">
-                Cơ chế Bảo mật 2 lớp phát hiện khuôn mặt hợp lệ nhưng thiết bị nằm ngoài khuôn viên trường học. Hệ thống đã ngăn chặn hành vi sử dụng video hoặc ảnh quay lén từ xa.
-              </p>
-              <div className="flex flex-wrap items-center justify-center gap-3 mt-5">
-                <button
-                  onClick={() => {
-                    setIs2FaGpsEnabled(false);
-                    setTwoFaSecurityAlert(null);
-                    toast.success('Đã tạm tắt 2FA GPS! Bạn có thể quét khuôn mặt lại ngay bây giờ.');
-                  }}
-                  className="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 font-bold text-xs border border-slate-700 transition"
-                >
-                  Tắt 2FA GPS & Thử Lại
-                </button>
-                {kioskCoords && (
-                  <button
-                    onClick={async () => {
-                      try {
-                        await attendanceApi.updateCampusConfig({
-                          name: 'Khuôn viên Thực tế (Tọa độ Kiosk hiện tại)',
-                          lat: kioskCoords.lat,
-                          lng: kioskCoords.lng,
-                          radiusMeters: 500,
-                        });
-                        toast.success('Đã hiệu chuẩn khuôn viên trường theo GPS hiện tại (bán kính 500m)!');
-                        setTwoFaSecurityAlert(null);
-                      } catch (e) {
-                        toast.error('Không thể cập nhật cấu hình GPS');
-                      }
-                    }}
-                    className="px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs shadow-lg shadow-indigo-600/30 transition"
-                  >
-                    Hiệu Chuẩn GPS Về Vị Trí Này
-                  </button>
+                {result.attendance?.shiftId && (
+                  <div className="mt-4 text-xs text-slate-400 flex items-center gap-1.5">
+                    <Clock className="w-3.5 h-3.5 text-indigo-400" />
+                    <span>
+                      {result.attendance.shiftId.name} ({result.attendance.shiftId.startTime} -{' '}
+                      {result.attendance.shiftId.endTime})
+                    </span>
+                  </div>
                 )}
-                <button
-                  onClick={() => setTwoFaSecurityAlert(null)}
-                  className="px-4 py-2 rounded-xl bg-rose-600 hover:bg-rose-700 text-white font-bold text-xs transition"
-                >
-                  Đóng
-                </button>
               </div>
-            </div>
-          )}
-        </div>
+            )}
+
+            {/* POPUP BÁO LỖI: Nhắc nhở */}
+            {errorMessage && !result && (
+              <div className="absolute inset-x-8 bottom-20 bg-rose-950/90 backdrop-blur-md border border-rose-600/50 p-4 rounded-2xl flex items-center gap-3 z-30 shadow-xl">
+                <AlertTriangle className="w-6 h-6 text-rose-400 shrink-0" />
+                <div className="text-xs font-semibold text-rose-200">{errorMessage}</div>
+              </div>
+            )}
+
+            {/* GỢI Ý LIVENESS: Nháy mắt hoặc cử động đầu (Issue 2) */}
+            {livenessHint && !errorMessage && !result && (
+              <div className="absolute inset-x-8 bottom-20 bg-amber-950/90 backdrop-blur-md border border-amber-500/50 p-4 rounded-2xl flex items-center gap-3 z-30 shadow-xl animate-pulse">
+                <Sparkles className="w-6 h-6 text-amber-400 shrink-0" />
+                <div className="text-xs font-bold text-amber-200">{livenessHint}</div>
+              </div>
+            )}
+
+          </div>
         )}
 
         {/* Thanh hiển thị 5 lượt quét gần đây (P3 - Item 17, Issue 3) */}
@@ -1357,11 +1244,10 @@ export const FaceCheckInKiosk: React.FC = () => {
                     </p>
                   </div>
                   <span
-                    className={`text-[10px] px-2 py-0.5 rounded-lg font-bold border shrink-0 ${
-                      item.statusText === 'EARLY_LEAVE'
-                        ? 'bg-amber-500/20 text-amber-300 border-amber-500/30'
-                        : 'bg-emerald-500/20 text-emerald-300 border-emerald-500/30'
-                    }`}
+                    className={`text-[10px] px-2 py-0.5 rounded-lg font-bold border shrink-0 ${item.statusText === 'EARLY_LEAVE'
+                      ? 'bg-amber-500/20 text-amber-300 border-amber-500/30'
+                      : 'bg-emerald-500/20 text-emerald-300 border-emerald-500/30'
+                      }`}
                   >
                     {item.statusText === 'EARLY_LEAVE' ? 'Sớm' : 'OK'}
                   </span>
@@ -1400,11 +1286,10 @@ export const FaceCheckInKiosk: React.FC = () => {
           </button>
           <button
             onClick={() => setIsScanning(!isScanning)}
-            className={`px-4 py-2 rounded-xl text-xs font-bold transition border ${
-              isScanning
-                ? 'bg-indigo-600/20 text-indigo-300 border-indigo-500/40 hover:bg-indigo-600/30'
-                : 'bg-slate-800 text-slate-400 border-slate-700'
-            }`}
+            className={`px-4 py-2 rounded-xl text-xs font-bold transition border ${isScanning
+              ? 'bg-indigo-600/20 text-indigo-300 border-indigo-500/40 hover:bg-indigo-600/30'
+              : 'bg-slate-800 text-slate-400 border-slate-700'
+              }`}
           >
             {isScanning ? 'Tạm Dừng Quét' : 'Tiếp Tục Quét'}
           </button>
