@@ -3,6 +3,7 @@ const LeaveRequest = require('../models/leaveRequest.model');
 const User = require('../models/user.model');
 const { sendSuccess, sendError } = require('../utils/responseHandler');
 const { calculateLeaveDays } = require('./leaveRequest.controller');
+const { buildAttendanceDateFilter } = require('../services/attendance.service');
 
 /**
  * @desc Thống kê báo cáo chấm công
@@ -43,9 +44,8 @@ const getAttendanceReport = async (req, res, next) => {
 
     const attendanceQuery = { userId: { $in: targetUserIds } };
     if (from || to) {
-      attendanceQuery.checkInTime = {};
-      if (from) attendanceQuery.checkInTime.$gte = new Date(from);
-      if (to) attendanceQuery.checkInTime.$lte = new Date(to);
+      const dateFilter = buildAttendanceDateFilter(from, to);
+      Object.assign(attendanceQuery, dateFilter);
     }
 
     const attendances = await AttendanceLog.find(attendanceQuery);

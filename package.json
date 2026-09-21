@@ -9,7 +9,8 @@
     "build:frontend": "npm run build --prefix frontend",
     "build": "npm run build --prefix frontend",
     "seed": "node src/utils/seeder.js",
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "node src/tests/aiAssistant.test.js",
+    "test:ai": "node src/tests/aiAssistant.test.js"
   },
   "repository": {
     "type": "git",

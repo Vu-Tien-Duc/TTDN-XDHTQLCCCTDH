@@ -12,6 +12,7 @@ const {
   calculateAttendanceStatus,
   calculateCheckOutStatus,
   getAttendanceSummaryByUser,
+  buildAttendanceDateFilter,
 } = require('../services/attendance.service');
 const { runDailyAbsentCheck } = require('../services/cron.service');
 const { sendSuccess, sendError } = require('../utils/responseHandler');
@@ -305,15 +306,12 @@ const getAttendanceHistory = async (req, res, next) => {
 
     // 3. Bộ lọc theo khoảng thời gian from - to
     if (from || to) {
-      query.checkInTime = {};
-      if (from) query.checkInTime.$gte = new Date(from);
-      if (to) {
-        const toDate = new Date(to);
-        if (typeof to === 'string' && to.length <= 10) {
-          toDate.setHours(23, 59, 59, 999);
-        }
-        query.checkInTime.$lte = toDate;
+      let toDate = to ? new Date(to) : null;
+      if (toDate && typeof to === 'string' && to.length <= 10) {
+        toDate.setHours(23, 59, 59, 999);
       }
+      const dateFilter = buildAttendanceDateFilter(from, toDate);
+      Object.assign(query, dateFilter);
     }
 
     // 4. Phân trang chuẩn (page, limit, skip, total, totalPages)
