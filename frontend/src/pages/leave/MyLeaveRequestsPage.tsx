@@ -4,7 +4,6 @@ import toast from 'react-hot-toast';
 import {
   CheckCircle2,
   Clock,
-  Eye,
   FilePlus2,
   FileText,
   Paperclip,
@@ -75,12 +74,15 @@ export const MyLeaveRequestsPage: React.FC = () => {
   // Lọc danh sách
   const filteredRequests = requests.filter((r) => {
     const matchesStatus = statusFilter === 'ALL' || r.status === statusFilter;
-    const rType = (r as unknown as { type?: string }).type || r.leaveType;
+    const rType = r.type || r.leaveType || 'nghi_phep';
     const matchesType = typeFilter === 'ALL' || rType === typeFilter;
+    const searchLower = searchTerm.trim().toLowerCase();
+    const reasonLower = (r.reason || '').toLowerCase();
+    const idLower = (r._id || '').toLowerCase();
     const matchesSearch =
-      !searchTerm ||
-      r.reason.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      (r._id && r._id.toLowerCase().includes(searchTerm.toLowerCase()));
+      !searchLower ||
+      reasonLower.includes(searchLower) ||
+      idLower.includes(searchLower);
 
     return matchesStatus && matchesType && matchesSearch;
   });
@@ -201,7 +203,7 @@ export const MyLeaveRequestsPage: React.FC = () => {
                 </tr>
               ) : (
                 filteredRequests.map((req) => {
-                  const typeKey = (req as unknown as { type?: string }).type || req.leaveType || 'nghi_phep';
+                  const typeKey = req.type || req.leaveType || 'nghi_phep';
                   const typeText = LEAVE_TYPE_LABELS[typeKey] || typeKey;
                   const statusInfo = LEAVE_STATUS_MAP[req.status] || LEAVE_STATUS_MAP.PENDING;
 
@@ -210,9 +212,9 @@ export const MyLeaveRequestsPage: React.FC = () => {
                   const sUtc = Date.UTC(start.getFullYear(), start.getMonth(), start.getDate());
                   const eUtc = Date.UTC(end.getFullYear(), end.getMonth(), end.getDate());
                   const days = Math.round((eUtc - sUtc) / (1000 * 60 * 60 * 24)) + 1;
+                  const displayDays = Number.isNaN(days) || days < 1 ? 1 : days;
 
-                  const attachment =
-                    (req as unknown as { attachmentUrl?: string }).attachmentUrl || req.evidenceFile;
+                  const attachment = req.attachmentUrl || req.evidenceFile;
 
                   return (
                     <tr key={req._id} className="hover:bg-slate-50/80 transition-colors">
@@ -226,7 +228,7 @@ export const MyLeaveRequestsPage: React.FC = () => {
                         {formatDate(req.startDate)} &rarr; {formatDate(req.endDate)}
                       </td>
                       <td className="px-5 py-3.5 font-bold text-slate-800">
-                        {days} ngày
+                        {displayDays} ngày
                       </td>
                       <td className="px-5 py-3.5 max-w-xs truncate text-slate-600">
                         {req.reason}
@@ -257,10 +259,10 @@ export const MyLeaveRequestsPage: React.FC = () => {
                       <td className="px-5 py-3.5 text-right">
                         <button
                           onClick={() => handleOpenDetail(req)}
-                          className="px-2.5 py-1.5 bg-slate-100 hover:bg-blue-50 text-slate-700 hover:text-blue-700 rounded-lg text-xs font-semibold transition-colors inline-flex items-center gap-1"
+                          className="px-2.5 py-1.5 bg-slate-100 hover:bg-blue-50 text-slate-700 hover:text-blue-700 rounded-lg text-xs font-semibold transition-colors inline-flex items-center gap-1.5"
                         >
-                          <Eye className="w-3.5 h-3.5" />
-                          Chi tiết
+                          <FileText className="w-3.5 h-3.5 text-slate-500" />
+                          <span>Chi tiết</span>
                         </button>
                       </td>
                     </tr>

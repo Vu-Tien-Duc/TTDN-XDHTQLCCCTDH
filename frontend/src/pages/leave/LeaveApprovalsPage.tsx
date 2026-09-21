@@ -5,8 +5,8 @@ import {
   AlertTriangle,
   CheckCircle2,
   Clock,
-  Eye,
   FileCheck2,
+  FileText,
   Paperclip,
   RefreshCw,
   Search,
@@ -234,7 +234,7 @@ export const LeaveApprovalsPage: React.FC = () => {
                 <th className="px-5 py-3.5">Số ngày</th>
                 <th className="px-5 py-3.5">Minh chứng</th>
                 <th className="px-5 py-3.5">Trạng thái</th>
-                <th className="px-5 py-3.5 text-right">Hành động</th>
+                <th className="px-5 py-3.5 text-right">Thao tác</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
@@ -336,16 +336,18 @@ export const LeaveApprovalsPage: React.FC = () => {
                       </td>
 
                       <td className="px-5 py-3.5 text-right">
-                        <div className="inline-flex items-center gap-1.5">
+                        <div className="inline-flex items-center gap-1.5 justify-end">
+                          {/* Nút Xem chi tiết bao gồm tất cả */}
                           <button
                             onClick={() => {
                               setSelectedDetail(req);
                               setIsDetailOpen(true);
                             }}
-                            className="p-1.5 text-slate-500 hover:text-slate-800 hover:bg-slate-100 rounded-lg transition-colors"
-                            title="Xem chi tiết"
+                            className="px-2.5 py-1.5 bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200 rounded-lg text-xs font-semibold transition-all flex items-center gap-1.5 shadow-2xs"
+                            title="Xem chi tiết đầy đủ đơn"
                           >
-                            <Eye className="w-4 h-4" />
+                            <FileText className="w-3.5 h-3.5 text-blue-600" />
+                            <span>Xem chi tiết</span>
                           </button>
 
                           {req.status === 'PENDING' && (
@@ -360,8 +362,9 @@ export const LeaveApprovalsPage: React.FC = () => {
                                   setApproveItem(req);
                                   setApprovalNote('');
                                 }}
-                                className="px-2.5 py-1 bg-emerald-600 hover:bg-emerald-700 active:scale-95 text-white rounded-lg text-xs font-bold transition-all shadow-sm"
+                                className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 active:scale-95 text-white rounded-lg text-xs font-bold transition-all shadow-sm flex items-center gap-1"
                               >
+                                <CheckCircle2 className="w-3.5 h-3.5" />
                                 Duyệt
                               </button>
 
@@ -375,8 +378,9 @@ export const LeaveApprovalsPage: React.FC = () => {
                                   setRejectItem(req);
                                   setRejectionReason('');
                                 }}
-                                className="px-2.5 py-1 bg-rose-600 hover:bg-rose-700 active:scale-95 text-white rounded-lg text-xs font-bold transition-all shadow-sm"
+                                className="px-3 py-1.5 bg-rose-600 hover:bg-rose-700 active:scale-95 text-white rounded-lg text-xs font-bold transition-all shadow-sm flex items-center gap-1"
                               >
+                                <XCircle className="w-3.5 h-3.5" />
                                 Từ chối
                               </button>
                             </>
@@ -392,10 +396,10 @@ export const LeaveApprovalsPage: React.FC = () => {
         </div>
       </div>
 
-      {/* Modal Phê Duyệt Đơn */}
+      {/* Modal Phê Duyệt Đơn - Chi tiết đơn hiện ra luôn */}
       {approveItem && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-fadeIn">
-          <div className="bg-white rounded-2xl shadow-2xl border border-slate-200 max-w-md w-full p-6 space-y-4">
+          <div className="bg-white rounded-2xl shadow-2xl border border-slate-200 max-w-lg w-full p-6 space-y-4">
             <div className="flex items-center gap-3">
               <div className="w-10 h-10 rounded-xl bg-emerald-100 text-emerald-700 flex items-center justify-center shrink-0">
                 <CheckCircle2 className="w-6 h-6" />
@@ -406,10 +410,62 @@ export const LeaveApprovalsPage: React.FC = () => {
               </div>
             </div>
 
-            <p className="text-xs text-slate-600 leading-relaxed bg-slate-50 p-3 rounded-xl border border-slate-200">
-              Đồng ý cho giảng viên nghỉ từ ngày <strong>{formatDate(approveItem.startDate)}</strong> đến ngày{' '}
-              <strong>{formatDate(approveItem.endDate)}</strong>. Hệ thống sẽ tự động chuyển các tiết dạy tương ứng thành{' '}
-              <strong className="text-blue-600">Nghỉ có phép (EXCUSED_ABSENCE)</strong>.
+            {/* Chi tiết đơn hiện ra luôn trực tiếp trong hộp duyệt */}
+            <div className="bg-slate-50 rounded-xl p-4 border border-slate-200/90 space-y-3 text-xs">
+              <div className="flex justify-between items-start pb-2.5 border-b border-slate-200">
+                <div>
+                  <span className="text-slate-400 text-[10px] uppercase font-bold tracking-wider">Người nộp đơn:</span>
+                  <p className="font-bold text-slate-900 text-sm mt-0.5">
+                    {typeof approveItem.userId === 'object' && approveItem.userId !== null
+                      ? (approveItem.userId as User).fullName
+                      : 'Giảng viên / Cán bộ'}
+                  </p>
+                  <p className="text-slate-500 font-mono text-[11px]">
+                    {typeof approveItem.userId === 'object' && approveItem.userId !== null
+                      ? (approveItem.userId as User).email
+                      : ''}
+                  </p>
+                </div>
+                <div className="text-right">
+                  <span className="text-slate-400 text-[10px] uppercase font-bold tracking-wider block">Loại đơn:</span>
+                  <span className="font-semibold text-slate-800 bg-white px-2.5 py-1 rounded-lg border border-slate-200 text-xs inline-block mt-1 shadow-2xs">
+                    {LEAVE_TYPE_LABELS[(approveItem as unknown as { type?: string }).type || approveItem.leaveType || ''] || 'Nghỉ phép'}
+                  </span>
+                </div>
+              </div>
+
+              <div className="flex items-center justify-between text-slate-700 pt-0.5">
+                <span className="text-slate-500 font-medium">Thời gian xin nghỉ:</span>
+                <span className="font-bold font-mono text-slate-900">
+                  {formatDate(approveItem.startDate)} &rarr; {formatDate(approveItem.endDate)}
+                </span>
+              </div>
+
+              <div className="pt-1">
+                <span className="text-slate-500 font-semibold block mb-1">Lý do xin nghỉ:</span>
+                <div className="p-3 bg-white rounded-xl border border-slate-200 text-slate-800 leading-relaxed font-medium">
+                  {approveItem.reason || 'Không ghi rõ lý do'}
+                </div>
+              </div>
+
+              {((approveItem as unknown as { attachmentUrl?: string }).attachmentUrl || approveItem.evidenceFile) && (
+                <div className="pt-1">
+                  <a
+                    href={(approveItem as unknown as { attachmentUrl?: string }).attachmentUrl || approveItem.evidenceFile}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="inline-flex items-center gap-1.5 text-blue-600 hover:text-blue-800 font-semibold text-xs"
+                  >
+                    <Paperclip className="w-3.5 h-3.5" />
+                    Xem minh chứng đính kèm (Mở tab mới)
+                  </a>
+                </div>
+              )}
+            </div>
+
+            <p className="text-xs text-slate-600 leading-relaxed bg-emerald-50/60 p-3 rounded-xl border border-emerald-200/80">
+              💡 Hệ thống sẽ tự động chuyển các tiết dạy tương ứng thành{' '}
+              <strong className="text-emerald-700">Nghỉ có phép (EXCUSED_ABSENCE)</strong> và đồng bộ chấm công.
             </p>
 
             <div>
@@ -420,7 +476,7 @@ export const LeaveApprovalsPage: React.FC = () => {
                 value={approvalNote}
                 onChange={(e) => setApprovalNote(e.target.value)}
                 placeholder="Nhập ghi chú hoặc dặn dò cho giảng viên..."
-                rows={3}
+                rows={2}
                 className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-800 focus:bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500"
               />
             </div>
@@ -447,10 +503,10 @@ export const LeaveApprovalsPage: React.FC = () => {
         </div>
       )}
 
-      {/* Modal Từ Chối Đơn */}
+      {/* Modal Từ Chối Đơn - Chi tiết đơn hiện ra luôn */}
       {rejectItem && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-fadeIn">
-          <div className="bg-white rounded-2xl shadow-2xl border border-slate-200 max-w-md w-full p-6 space-y-4">
+          <div className="bg-white rounded-2xl shadow-2xl border border-slate-200 max-w-lg w-full p-6 space-y-4">
             <div className="flex items-center gap-3">
               <div className="w-10 h-10 rounded-xl bg-rose-100 text-rose-700 flex items-center justify-center shrink-0">
                 <AlertTriangle className="w-6 h-6" />
@@ -458,6 +514,45 @@ export const LeaveApprovalsPage: React.FC = () => {
               <div>
                 <h3 className="text-base font-bold text-slate-900">Từ Chối Đơn Xin Nghỉ</h3>
                 <p className="text-xs text-slate-500">Mã đơn: #{rejectItem._id.slice(-6).toUpperCase()}</p>
+              </div>
+            </div>
+
+            {/* Chi tiết đơn hiện ra luôn trực tiếp */}
+            <div className="bg-slate-50 rounded-xl p-4 border border-slate-200/90 space-y-3 text-xs">
+              <div className="flex justify-between items-start pb-2.5 border-b border-slate-200">
+                <div>
+                  <span className="text-slate-400 text-[10px] uppercase font-bold tracking-wider">Người nộp đơn:</span>
+                  <p className="font-bold text-slate-900 text-sm mt-0.5">
+                    {typeof rejectItem.userId === 'object' && rejectItem.userId !== null
+                      ? (rejectItem.userId as User).fullName
+                      : 'Giảng viên / Cán bộ'}
+                  </p>
+                  <p className="text-slate-500 font-mono text-[11px]">
+                    {typeof rejectItem.userId === 'object' && rejectItem.userId !== null
+                      ? (rejectItem.userId as User).email
+                      : ''}
+                  </p>
+                </div>
+                <div className="text-right">
+                  <span className="text-slate-400 text-[10px] uppercase font-bold tracking-wider block">Loại đơn:</span>
+                  <span className="font-semibold text-slate-800 bg-white px-2.5 py-1 rounded-lg border border-slate-200 text-xs inline-block mt-1 shadow-2xs">
+                    {LEAVE_TYPE_LABELS[(rejectItem as unknown as { type?: string }).type || rejectItem.leaveType || ''] || 'Nghỉ phép'}
+                  </span>
+                </div>
+              </div>
+
+              <div className="flex items-center justify-between text-slate-700 pt-0.5">
+                <span className="text-slate-500 font-medium">Thời gian xin nghỉ:</span>
+                <span className="font-bold font-mono text-slate-900">
+                  {formatDate(rejectItem.startDate)} &rarr; {formatDate(rejectItem.endDate)}
+                </span>
+              </div>
+
+              <div className="pt-1">
+                <span className="text-slate-500 font-semibold block mb-1">Lý do xin nghỉ:</span>
+                <div className="p-3 bg-white rounded-xl border border-slate-200 text-slate-800 leading-relaxed font-medium">
+                  {rejectItem.reason || 'Không ghi rõ lý do'}
+                </div>
               </div>
             </div>
 
@@ -501,11 +596,19 @@ export const LeaveApprovalsPage: React.FC = () => {
         </div>
       )}
 
-      {/* Chi Tiết Modal */}
+      {/* Chi Tiết Modal Bao Gồm Tất Cả */}
       <LeaveDetailModal
         isOpen={isDetailOpen}
         onClose={() => setIsDetailOpen(false)}
         leaveRequest={selectedDetail}
+        onApprove={(req) => {
+          setApproveItem(req);
+          setApprovalNote('');
+        }}
+        onReject={(req) => {
+          setRejectItem(req);
+          setRejectionReason('');
+        }}
       />
     </div>
   );

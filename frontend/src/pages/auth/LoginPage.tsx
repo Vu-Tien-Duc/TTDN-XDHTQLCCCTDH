@@ -22,7 +22,7 @@ import { authService } from '../../services/authService';
 export const LoginPage: React.FC = () => {
   const navigate = useNavigate();
   const location = useLocation();
-  const { login, isAuthenticated } = useAuth();
+  const { user, login, logout, isAuthenticated } = useAuth();
 
   const [email, setEmail] = useState(() => localStorage.getItem('edu_remembered_email') || '');
   const [password, setPassword] = useState('');
@@ -276,6 +276,33 @@ export const LoginPage: React.FC = () => {
             <h2 className="text-2xl font-black text-slate-900 tracking-tight">Đăng Nhập Hệ Thống</h2>
             <p className="text-slate-500 text-xs sm:text-sm mt-1">Cổng thông tin Cán bộ, Giảng viên & Nhân viên</p>
           </div>
+
+          {/* Thông báo nếu đã có phiên đăng nhập trước đó */}
+          {isAuthenticated && user && (
+            <div className="mb-6 p-4 bg-blue-50/90 border border-blue-200 rounded-2xl flex flex-col gap-2.5 animate-fadeIn">
+              <div className="text-xs text-blue-900">
+                <span className="text-slate-500">Đang có phiên đăng nhập:</span>{' '}
+                <strong className="font-bold text-slate-900">{user.fullName}</strong>{' '}
+                <span className="text-slate-500">({user.email})</span>
+              </div>
+              <div className="flex items-center gap-2 pt-0.5">
+                <button
+                  type="button"
+                  onClick={() => navigate('/dashboard')}
+                  className="flex-1 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl text-xs font-bold transition-all shadow-sm"
+                >
+                  Vào Bảng điều khiển &rarr;
+                </button>
+                <button
+                  type="button"
+                  onClick={logout}
+                  className="px-3 py-2 bg-white hover:bg-slate-100 text-slate-700 border border-slate-200 rounded-xl text-xs font-semibold transition-colors"
+                >
+                  Đăng xuất
+                </button>
+              </div>
+            </div>
+          )}
 
           {/* Form */}
           {forgotMode ? (

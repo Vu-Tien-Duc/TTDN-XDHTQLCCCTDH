@@ -92,6 +92,71 @@ const createLeaveRequest = async (req, res, next) => {
       return sendError(res, 'Lý do phải có từ 5 đến 500 ký tự.', null, 400);
     }
 
+    // Kiểm tra chống trùng lặp khoảng thời gian đơn nghỉ đã nộp (PENDING hoặc APPROVED)
+    const overlappingLeave = await LeaveRequest.findOne({
+      userId: req.user.id,
+      status: { $in: ['PENDING', 'APPROVED'] },
+      startDate: { $lte: end },
+      endDate: { $gte: start },
+    });
+
+    if (overlappingLeave) {
+      const statusDesc = overlappingLeave.status === 'APPROVED' ? 'đã được phê duyệt' : 'đang chờ xét duyệt';
+      const startFormatted = new Date(overlappingLeave.startDate).toLocaleDateString('vi-VN');
+      const endFormatted = new Date(overlappingLeave.endDate).toLocaleDateString('vi-VN');
+      return sendError(
+        res,
+        `Bạn đã có một đơn nghỉ (${statusDesc}) từ ngày ${startFormatted} đến ${endFormatted} trùng với thời gian này.`,
+        null,
+        400
+      );
+    }
+
+    // Kiểm tra hạn mức ngày phép năm nếu nộp đơn nghỉ phép thường
+    if (type === 'nghi_phep') {
+      const requestedDays = calculateLeaveDays(start, end);
+      const currentYear = new Date().getFullYear();
+      const yearStart = new Date(currentYear, 0, 1);
+      const yearEnd = new Date(currentYear, 11, 31, 23, 59, 59, 999);
+
+      const user = await User.findById(req.user.id);
+      const quota = user?.annualLeaveQuota !== undefined ? user.annualLeaveQuota : 12;
+
+      const approvedLeaves = await LeaveRequest.find({
+        userId: req.user.id,
+        status: 'APPROVED',
+        type: 'nghi_phep',
+        startDate: { $lte: yearEnd },
+        endDate: { $gte: yearStart },
+      });
+
+      let daysUsed = 0;
+      for (const leave of approvedLeaves) {
+        const effectiveStart = new Date(Math.max(leave.startDate.getTime(), yearStart.getTime()));
+        const effectiveEnd = new Date(Math.min(leave.endDate.getTime(), yearEnd.getTime()));
+        daysUsed += calculateLeaveDays(effectiveStart, effectiveEnd);
+      }
+
+      const remainingDays = Math.max(0, quota - daysUsed);
+      if (remainingDays <= 0) {
+        return sendError(
+          res,
+          `Bạn đã sử dụng hết ${quota} ngày phép năm. Vui lòng chọn loại đơn "Đăng ký dạy bù" hoặc "Xin đổi ca dạy".`,
+          null,
+          400
+        );
+      }
+
+      if (requestedDays > remainingDays) {
+        return sendError(
+          res,
+          `Số ngày xin nghỉ (${requestedDays} ngày) vượt quá số ngày phép còn lại khả dụng (${remainingDays} ngày).`,
+          null,
+          400
+        );
+      }
+    }
+
     // Nếu người dùng tải file trực tiếp qua multipart/form-data thì lấy req.file, ngược lại dùng attachmentUrl
     let finalAttachmentUrl = attachmentUrl || null;
     if (req.file) {
@@ -292,8 +357,10 @@ const getLeaveBalance = async (req, res, next) => {
  * - Đơn của Trưởng khoa bắt buộc phải do Admin duyệt
  */
 const validateLeaveApprovalPermission = async (currentUser, leaveRequest) => {
+  const applicantId = (leaveRequest.userId?._id || leaveRequest.userId).toString();
+
   // 1. Chặn người dùng tự duyệt/từ chối đơn của chính mình
-  if (leaveRequest.userId.toString() === currentUser.id.toString()) {
+  if (applicantId === currentUser.id.toString()) {
     return {
       allowed: false,
       message: 'Bạn không thể tự xử lý đơn xin nghỉ của chính mình. Đơn của bạn phải do cấp trên phê duyệt.',
@@ -308,7 +375,7 @@ const validateLeaveApprovalPermission = async (currentUser, leaveRequest) => {
 
   // 3. Nếu là Trưởng khoa
   if (currentUser.role === 'truongkhoa') {
-    const applicant = await User.findById(leaveRequest.userId).select('role departmentId');
+    const applicant = await User.findById(applicantId).select('role departmentId');
     if (!applicant) {
       return { allowed: false, message: 'Người nộp đơn không tồn tại trên hệ thống.', status: 404 };
     }
@@ -357,6 +424,42 @@ const approveLeaveRequest = async (req, res, next) => {
     const permCheck = await validateLeaveApprovalPermission(req.user, request);
     if (!permCheck.allowed) {
       return sendError(res, permCheck.message, null, permCheck.status || 403);
+    }
+
+    // Nếu là đơn nghỉ phép thường, kiểm tra xem người nộp đơn còn đủ số dư phép hay không
+    if (request.type === 'nghi_phep') {
+      const requestedDays = calculateLeaveDays(request.startDate, request.endDate);
+      const currentYear = new Date().getFullYear();
+      const yearStart = new Date(currentYear, 0, 1);
+      const yearEnd = new Date(currentYear, 11, 31, 23, 59, 59, 999);
+
+      const applicantUser = await User.findById(request.userId);
+      const quota = applicantUser?.annualLeaveQuota !== undefined ? applicantUser.annualLeaveQuota : 12;
+
+      const approvedLeaves = await LeaveRequest.find({
+        userId: request.userId,
+        status: 'APPROVED',
+        type: 'nghi_phep',
+        startDate: { $lte: yearEnd },
+        endDate: { $gte: yearStart },
+      });
+
+      let daysUsed = 0;
+      for (const leave of approvedLeaves) {
+        const effectiveStart = new Date(Math.max(leave.startDate.getTime(), yearStart.getTime()));
+        const effectiveEnd = new Date(Math.min(leave.endDate.getTime(), yearEnd.getTime()));
+        daysUsed += calculateLeaveDays(effectiveStart, effectiveEnd);
+      }
+
+      const remainingDays = Math.max(0, quota - daysUsed);
+      if (requestedDays > remainingDays) {
+        return sendError(
+          res,
+          `Không thể phê duyệt đơn: Cán bộ/giảng viên chỉ còn ${remainingDays} ngày phép khả dụng, đơn này xin nghỉ ${requestedDays} ngày.`,
+          null,
+          400
+        );
+      }
     }
 
     request.status = 'APPROVED';
