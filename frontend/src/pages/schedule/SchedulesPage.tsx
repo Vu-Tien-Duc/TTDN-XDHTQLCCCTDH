@@ -382,8 +382,6 @@ export const SchedulesPage: React.FC = () => {
   // Mở Modal Sửa lịch
   const handleOpenEditModal = (sch: Schedule) => {
     setEditingSchedule(sch);
-    const schUserId: string = typeof sch.userId === 'object' && sch.userId !== null ? (sch.userId as User)._id : (sch.userId as string) || '';
-    const schShiftId: string = typeof sch.shiftId === 'object' && sch.shiftId !== null ? (sch.shiftId as ShiftConfig)._id : (sch.shiftId as string) || '';
     setConflictError(null);
 
     const schUserId: string =
@@ -392,17 +390,18 @@ export const SchedulesPage: React.FC = () => {
         : typeof sch.userId === 'string'
           ? sch.userId
           : '';
+
     const schShiftId: string =
       typeof sch.shiftId === 'object' && sch.shiftId !== null
         ? (sch.shiftId as ShiftConfig)._id
         : typeof sch.shiftId === 'string'
           ? sch.shiftId
           : '';
+
     const shiftObj = shifts.find((s) => s._id === schShiftId);
 
     const formattedStartDate = sch.startDate ? new Date(sch.startDate).toISOString().split('T')[0] : '';
     const formattedEndDate = sch.endDate ? new Date(sch.endDate).toISOString().split('T')[0] : '';
-
     setFormData({
       userId: schUserId,
       shiftId: schShiftId,
