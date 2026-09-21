@@ -186,6 +186,12 @@ export const MainLayout: React.FC = () => {
       email: 'giangvien.bich@university.edu.vn',
       badge: 'Giảng Viên',
     },
+    {
+      role: 'nhanvien',
+      name: 'Đỗ Thu Hà',
+      email: 'nhanvien.ha@university.edu.vn',
+      badge: 'Nhân Viên',
+    },
   ];
 
   const handleQuickSwitch = async (email: string) => {
@@ -334,7 +340,7 @@ export const MainLayout: React.FC = () => {
         <div className="px-3 pb-2 xl:hidden">
           <div className="p-2.5 rounded-xl bg-slate-800/40 border border-slate-700/40 space-y-1.5">
             <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Chuyển tài khoản demo:</p>
-            <div className="grid grid-cols-3 gap-1">
+            <div className="grid grid-cols-2 gap-1.5">
               {demoAccounts.map((acc) => {
                 const isActive = user?.email === acc.email;
                 return (

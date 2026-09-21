@@ -30,6 +30,12 @@ const runAssert = (condition, message) => {
 };
 
 async function ensureServerRunning() {
+  const dbUri = process.env.MONGODB_URI || 'mongodb://localhost:27017/university_attendance_db';
+  if (mongoose.connection.readyState === 0) {
+    await mongoose.connect(dbUri);
+    console.log('[Database] Kết nối MongoDB thành công trong tiến trình test');
+  }
+
   try {
     const res = await fetch(`${BASE_URL}/health`);
     if (res.ok) return null;
@@ -37,12 +43,6 @@ async function ensureServerRunning() {
 
   console.log('🔄 Đang tự động kết nối CSDL và khởi động máy chủ API Express (Port 5000)...');
   const app = require('./src/app');
-  const dbUri = process.env.MONGODB_URI || 'mongodb://localhost:27017/university_attendance_db';
-
-  if (mongoose.connection.readyState === 0) {
-    await mongoose.connect(dbUri);
-    console.log('[Database] Kết nối MongoDB thành công');
-  }
 
   const server = http.createServer(app);
   await new Promise((resolve) => server.listen(5000, resolve));
