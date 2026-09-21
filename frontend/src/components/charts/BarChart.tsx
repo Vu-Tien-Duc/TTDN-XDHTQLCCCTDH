@@ -93,6 +93,7 @@ export const BarChart: React.FC<BarChartProps> = ({
                 key={idx}
                 onMouseEnter={() => setHoveredGroup(idx)}
                 onMouseLeave={() => setHoveredGroup(null)}
+                onClick={() => setHoveredGroup((prev) => (prev === idx ? null : idx))}
                 className="cursor-pointer transition-opacity"
               >
                 {/* Highlight background khi hover */}

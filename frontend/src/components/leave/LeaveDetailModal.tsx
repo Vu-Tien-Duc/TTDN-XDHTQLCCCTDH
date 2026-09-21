@@ -58,22 +58,22 @@ export const LeaveDetailModal: React.FC<LeaveDetailModalProps> = ({ isOpen, onCl
   const isImage = attachment && /\.(jpg|jpeg|png|webp|gif|svg)$/i.test(attachment.split('?')[0]);
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-fadeIn">
-      <div className="bg-white rounded-2xl shadow-2xl border border-slate-200 max-w-2xl w-full overflow-hidden flex flex-col max-h-[90vh]">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6 overflow-y-auto bg-slate-900/60 backdrop-blur-sm animate-fadeIn">
+      <div className="bg-white rounded-2xl shadow-2xl border border-slate-200 max-w-2xl w-full overflow-hidden flex flex-col max-h-[90vh] my-auto">
         {/* Header */}
-        <div className="px-6 py-4 bg-slate-50 border-b border-slate-200 flex items-center justify-between">
-          <div className="flex items-center gap-2.5">
-            <div className="w-9 h-9 rounded-lg bg-blue-100 text-blue-700 flex items-center justify-center">
+        <div className="px-6 py-4 bg-slate-50 border-b border-slate-200 flex items-center justify-between gap-3">
+          <div className="flex items-center gap-2.5 min-w-0 flex-1">
+            <div className="w-9 h-9 rounded-lg bg-blue-100 text-blue-700 flex items-center justify-center shrink-0">
               <FileText className="w-5 h-5" />
             </div>
-            <div>
-              <h3 className="text-base font-bold text-slate-900">Chi Tiết Đơn Nghỉ / Dạy Bù</h3>
-              <p className="text-xs text-slate-500">Mã đơn: #{leaveRequest._id.slice(-6).toUpperCase()}</p>
+            <div className="min-w-0 flex-1">
+              <h3 className="text-base font-bold text-slate-900 truncate">Chi Tiết Đơn Nghỉ / Dạy Bù</h3>
+              <p className="text-xs text-slate-500 truncate">Mã đơn: #{leaveRequest._id.slice(-6).toUpperCase()}</p>
             </div>
           </div>
           <button
             onClick={onClose}
-            className="w-8 h-8 rounded-lg hover:bg-slate-200/80 text-slate-500 hover:text-slate-700 flex items-center justify-center transition-colors"
+            className="w-8 h-8 rounded-lg hover:bg-slate-200/80 text-slate-500 hover:text-slate-700 flex items-center justify-center transition-colors shrink-0"
           >
             <X className="w-5 h-5" />
           </button>

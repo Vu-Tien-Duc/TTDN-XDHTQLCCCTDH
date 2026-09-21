@@ -349,7 +349,79 @@ export const UsersPage: React.FC = () => {
             Không tìm thấy người dùng nào phù hợp với điều kiện tìm kiếm.
           </div>
         ) : (
-          <div className="overflow-x-auto">
+          <>
+            {/* Giao diện Thẻ dành riêng cho Mobile */}
+            <div className="md:hidden divide-y divide-slate-100">
+              {users.map((u) => {
+                const deptName =
+                  u.departmentId && typeof u.departmentId === 'object'
+                    ? u.departmentId.name
+                    : '-';
+                return (
+                  <div key={u._id} className="p-4 space-y-3">
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="flex items-center gap-3 min-w-0">
+                        <div className="w-10 h-10 rounded-xl bg-blue-100 text-blue-700 font-bold text-xs flex items-center justify-center border border-blue-200 shrink-0">
+                          {u.fullName.split(' ').pop()?.substring(0, 2).toUpperCase() || 'U'}
+                        </div>
+                        <div className="min-w-0">
+                          <p className="font-bold text-slate-900 text-sm truncate">{u.fullName}</p>
+                          <p className="text-slate-400 text-xs font-mono truncate">{u.email}</p>
+                        </div>
+                      </div>
+                      <div className="shrink-0">{getRoleBadge(u.role)}</div>
+                    </div>
+
+                    <div className="flex flex-wrap items-center gap-2 text-xs text-slate-600">
+                      <span className="inline-flex items-center gap-1 bg-slate-50 px-2.5 py-1 rounded-lg border border-slate-200">
+                        <Building2 className="w-3.5 h-3.5 text-slate-400" />
+                        <span className="truncate max-w-[140px]">{deptName}</span>
+                      </span>
+                      <span className="inline-flex items-center gap-1 bg-slate-50 px-2.5 py-1 rounded-lg border border-slate-200">
+                        <Award className="w-3.5 h-3.5 text-amber-500" />
+                        <span>{u.annualLeaveQuota || 12} ngày phép</span>
+                      </span>
+                      {u.isActive !== false ? (
+                        <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-emerald-50 text-emerald-700 border border-emerald-200 font-bold">
+                          <UserCheck className="w-3 h-3" />
+                          <span>Hoạt Động</span>
+                        </span>
+                      ) : (
+                        <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-rose-50 text-rose-700 border border-rose-200 font-bold">
+                          <UserX className="w-3 h-3" />
+                          <span>Đã Khóa</span>
+                        </span>
+                      )}
+                    </div>
+
+                    <div className="flex items-center justify-end gap-2 pt-1 border-t border-slate-50">
+                      <button
+                        onClick={() => handleOpenEditModal(u)}
+                        className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold text-blue-600 bg-blue-50 border border-blue-100 hover:bg-blue-100 transition"
+                      >
+                        <Edit2 className="w-3.5 h-3.5" />
+                        <span>Chỉnh sửa</span>
+                      </button>
+                      {isAdmin && (
+                        <button
+                          onClick={() => {
+                            setUserToDelete(u);
+                            setDeleteModalOpen(true);
+                          }}
+                          className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold text-rose-600 bg-rose-50 border border-rose-100 hover:bg-rose-100 transition"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                          <span>Khóa / Xóa</span>
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+
+            {/* Bảng dữ liệu dành cho Tablet & Desktop */}
+            <div className="hidden md:block overflow-x-auto">
             <table className="w-full text-left text-xs text-slate-700">
               <thead className="bg-slate-50/80 text-slate-500 uppercase tracking-wider font-bold border-b border-slate-200">
                 <tr>
@@ -451,6 +523,7 @@ export const UsersPage: React.FC = () => {
               </tbody>
             </table>
           </div>
+        </>
         )}
       </div>
 
@@ -533,7 +606,7 @@ export const UsersPage: React.FC = () => {
                 </div>
               </div>
 
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
                   <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
                     Vai Trò (Role) *
@@ -662,7 +735,7 @@ export const UsersPage: React.FC = () => {
               {/* Các trường chỉ ADMIN mới được sửa */}
               {isAdmin && (
                 <>
-                  <div className="grid grid-cols-2 gap-3">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                     <div>
                       <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
                         Vai Trò (Role)

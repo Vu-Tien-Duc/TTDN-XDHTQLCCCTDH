@@ -12,6 +12,8 @@ import {
   HelpCircle,
   Search,
   ChevronUp,
+  ChevronLeft,
+  ChevronRight,
   Award,
   Info,
 } from 'lucide-react';
@@ -31,6 +33,8 @@ export const AttendanceDashboardPage: React.FC = () => {
   const [loading, setLoading] = useState<boolean>(true);
   const [showGuide, setShowGuide] = useState<boolean>(true);
   const [searchTerm, setSearchTerm] = useState<string>('');
+  const [currentPage, setCurrentPage] = useState<number>(1);
+  const pageSize = 10;
 
   const [summary, setSummary] = useState<AttendanceReportData | null>(null);
   const [staffList, setStaffList] = useState<MonthlyStaffReportItem[]>([]);
@@ -69,6 +73,10 @@ export const AttendanceDashboardPage: React.FC = () => {
     fetchDashboardData();
   }, [selectedMonth, selectedYear]);
 
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [selectedMonth, selectedYear, searchTerm]);
+
   // Tính tỷ lệ chuyên cần tổng quan
   const totalShifts = summary?.totalRecords || 0;
   const onTimeShifts = summary?.onTimeCount || 0;
@@ -78,7 +86,8 @@ export const AttendanceDashboardPage: React.FC = () => {
   const absentShifts = summary?.absentCount || 0;
 
   const validShifts = onTimeShifts + excusedShifts;
-  const overallAttendanceRate = totalShifts > 0 ? Math.round((validShifts / totalShifts) * 100) : 100;
+  const hasRecords = totalShifts > 0;
+  const overallAttendanceRate = hasRecords ? Math.round((validShifts / totalShifts) * 100) : null;
 
   // Lọc danh sách nhân sự theo tìm kiếm
   const filteredStaffList = useMemo(() => {
@@ -91,6 +100,12 @@ export const AttendanceDashboardPage: React.FC = () => {
         s.user.role.toLowerCase().includes(term)
     );
   }, [staffList, searchTerm]);
+
+  const totalPages = Math.ceil(filteredStaffList.length / pageSize) || 1;
+  const paginatedStaffList = useMemo(() => {
+    const start = (currentPage - 1) * pageSize;
+    return filteredStaffList.slice(start, start + pageSize);
+  }, [filteredStaffList, currentPage]);
 
   // Chuẩn bị dữ liệu cho 3 Biểu đồ
   // 1. Biểu đồ tròn (Donut)
@@ -111,13 +126,22 @@ export const AttendanceDashboardPage: React.FC = () => {
     excused: item.excusedCount,
   }));
 
-  // 3. Biểu đồ đường (Line Trend)
-  const trendData: TrendPoint[] = [
-    { label: 'Tuần 1', rate: 94, lateRate: 6 },
-    { label: 'Tuần 2', rate: 89, lateRate: 11 },
-    { label: 'Tuần 3', rate: 96, lateRate: 4 },
-    { label: 'Tuần 4', rate: overallAttendanceRate, lateRate: Math.max(0, 100 - overallAttendanceRate) },
-  ];
+  // 3. Biểu đồ đường (Line Trend) lấy dữ liệu thực tế từ backend
+  const trendData: TrendPoint[] = useMemo(() => {
+    if (summary?.weeklyTrend && summary.weeklyTrend.length > 0) {
+      return summary.weeklyTrend.map((t) => ({
+        label: t.label,
+        rate: t.rate,
+        lateRate: t.lateRate,
+      }));
+    }
+    return [
+      { label: 'Tuần 1', rate: 0, lateRate: 0 },
+      { label: 'Tuần 2', rate: 0, lateRate: 0 },
+      { label: 'Tuần 3', rate: 0, lateRate: 0 },
+      { label: 'Tuần 4', rate: 0, lateRate: 0 },
+    ];
+  }, [summary?.weeklyTrend]);
 
   // Xuất Excel
   const handleExportExcel = () => {
@@ -327,20 +351,28 @@ export const AttendanceDashboardPage: React.FC = () => {
             </span>
             <span
               className={`px-2.5 py-0.5 rounded-full text-[11px] font-bold ${
-                overallAttendanceRate >= 90
+                !hasRecords
+                  ? 'bg-slate-500/20 text-slate-300 border border-slate-500/30'
+                  : overallAttendanceRate! >= 90
                   ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
-                  : overallAttendanceRate >= 75
+                  : overallAttendanceRate! >= 75
                   ? 'bg-amber-500/20 text-amber-300 border border-amber-500/30'
                   : 'bg-rose-500/20 text-rose-300 border border-rose-500/30'
               }`}
             >
-              {overallAttendanceRate >= 90 ? 'Xếp loại: Tốt' : overallAttendanceRate >= 75 ? 'Xếp loại: Khá' : 'Cần nhắc nhở'}
+              {!hasRecords
+                ? 'Chưa có dữ liệu'
+                : overallAttendanceRate! >= 90
+                ? 'Xếp loại: Tốt'
+                : overallAttendanceRate! >= 75
+                ? 'Xếp loại: Khá'
+                : 'Cần nhắc nhở'}
             </span>
           </div>
 
           <div className="my-4 flex items-baseline gap-3">
             <span className="text-4xl sm:text-5xl font-black tracking-tight text-white font-mono">
-              {overallAttendanceRate}%
+              {hasRecords ? `${overallAttendanceRate}%` : 'N/A'}
             </span>
             <div className="text-xs text-blue-200">
               <p className="font-semibold">{validShifts} / {totalShifts} ca hợp lệ</p>
@@ -353,9 +385,15 @@ export const AttendanceDashboardPage: React.FC = () => {
             <div className="w-full bg-white/10 rounded-full h-2 overflow-hidden">
               <div
                 className={`h-full rounded-full transition-all duration-500 ${
-                  overallAttendanceRate >= 90 ? 'bg-emerald-400' : overallAttendanceRate >= 75 ? 'bg-amber-400' : 'bg-rose-400'
+                  !hasRecords
+                    ? 'bg-slate-500'
+                    : overallAttendanceRate! >= 90
+                    ? 'bg-emerald-400'
+                    : overallAttendanceRate! >= 75
+                    ? 'bg-amber-400'
+                    : 'bg-rose-400'
                 }`}
-                style={{ width: `${Math.min(100, overallAttendanceRate)}%` }}
+                style={{ width: `${hasRecords ? Math.min(100, overallAttendanceRate!) : 0}%` }}
               ></div>
             </div>
             <div className="flex justify-between text-[10px] text-blue-300/80">
@@ -512,15 +550,15 @@ export const AttendanceDashboardPage: React.FC = () => {
                   </td>
                 </tr>
               ) : (
-                filteredStaffList.map((item, idx) => {
-                  const onTimeRate =
-                    item.totalWorkingDays > 0
-                      ? Math.round(((item.onTimeCount + item.excusedCount) / item.totalWorkingDays) * 100)
-                      : 100;
+                paginatedStaffList.map((item, idx) => {
+                  const hasShifts = item.totalWorkingDays > 0;
+                  const onTimeRate = hasShifts
+                    ? Math.round(((item.onTimeCount + item.excusedCount) / item.totalWorkingDays) * 100)
+                    : null;
 
                   return (
                     <tr key={item.user.id} className="hover:bg-slate-50 transition-colors">
-                      <td className="px-4 py-3 text-slate-400 font-mono">{idx + 1}</td>
+                      <td className="px-4 py-3 text-slate-400 font-mono">{(currentPage - 1) * pageSize + idx + 1}</td>
                       <td className="px-4 py-3 font-bold text-slate-900">{item.user.fullName}</td>
                       <td className="px-4 py-3 text-slate-500 font-mono">{item.user.email}</td>
                       <td className="px-4 py-3 capitalize text-slate-700">{item.user.role}</td>
@@ -545,14 +583,16 @@ export const AttendanceDashboardPage: React.FC = () => {
                       <td className="px-4 py-3 text-right">
                         <span
                           className={`font-mono font-bold px-2 py-0.5 rounded text-[11px] ${
-                            onTimeRate >= 90
+                            !hasShifts
+                              ? 'bg-slate-100 text-slate-500'
+                              : onTimeRate! >= 90
                               ? 'bg-emerald-50 text-emerald-700'
-                              : onTimeRate >= 75
+                              : onTimeRate! >= 75
                               ? 'bg-amber-50 text-amber-700'
                               : 'bg-rose-50 text-rose-700'
                           }`}
                         >
-                          {onTimeRate}%
+                          {hasShifts ? `${onTimeRate}%` : '-'}
                         </span>
                       </td>
                     </tr>
@@ -562,6 +602,38 @@ export const AttendanceDashboardPage: React.FC = () => {
             </tbody>
           </table>
         </div>
+
+        {/* Phân trang danh sách nhân sự */}
+        {filteredStaffList.length > pageSize && (
+          <div className="px-4 py-3 border-t border-slate-200/80 bg-slate-50/60 flex flex-col sm:flex-row items-center justify-between gap-2 text-xs text-slate-500 print:hidden">
+            <div>
+              Hiển thị <span className="font-semibold text-slate-700 font-mono">{(currentPage - 1) * pageSize + 1}</span> - <span className="font-semibold text-slate-700 font-mono">{Math.min(currentPage * pageSize, filteredStaffList.length)}</span> trên tổng số <span className="font-semibold text-slate-700 font-mono">{filteredStaffList.length}</span> nhân sự
+            </div>
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                disabled={currentPage === 1}
+                onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+                className="px-3 py-1 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed text-slate-700 font-medium transition flex items-center gap-1 shadow-2xs"
+              >
+                <ChevronLeft className="w-3.5 h-3.5" />
+                <span>Trước</span>
+              </button>
+              <span className="px-2 font-semibold text-slate-700 font-mono">
+                {currentPage} / {totalPages}
+              </span>
+              <button
+                type="button"
+                disabled={currentPage === totalPages}
+                onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+                className="px-3 py-1 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed text-slate-700 font-medium transition flex items-center gap-1 shadow-2xs"
+              >
+                <span>Sau</span>
+                <ChevronRight className="w-3.5 h-3.5" />
+              </button>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Chữ ký nghiệm thu dành riêng cho bản in PDF */}

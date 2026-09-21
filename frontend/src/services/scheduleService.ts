@@ -51,17 +51,19 @@ export const scheduleService = {
    * Lấy danh sách lịch phân công giảng dạy / công tác
    * GET /api/schedules
    */
-  async getSchedules(params?: ScheduleFilterParams): Promise<Schedule[]> {
-    const res = await axiosClient.get<unknown, { success: boolean; data: Schedule[] | { schedules: Schedule[] } }>('/schedules', {
+  async getSchedules(params?: ScheduleFilterParams): Promise<Schedule[] & { total?: number }> {
+    const res = await axiosClient.get<unknown, { success: boolean; data: Schedule[] | { schedules: Schedule[]; total: number } }>('/schedules', {
       params,
     });
     
-    // Backend có thể trả về array trực tiếp hoặc đối tượng phân trang { schedules: [...] }
+    // Backend có thể trả về array trực tiếp hoặc đối tượng phân trang { schedules: [...], total: number }
     if (Array.isArray(res.data)) {
       return res.data;
     }
     if (res.data && Array.isArray((res.data as { schedules: Schedule[] }).schedules)) {
-      return (res.data as { schedules: Schedule[] }).schedules;
+      const list = (res.data as { schedules: Schedule[]; total: number }).schedules as Schedule[] & { total?: number };
+      list.total = (res.data as { schedules: Schedule[]; total: number }).total;
+      return list;
     }
     return [];
   },

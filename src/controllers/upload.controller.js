@@ -9,18 +9,24 @@ const { uploadDir } = require('../middlewares/upload.middleware');
  */
 const uploadSingleFile = async (req, res, next) => {
   try {
-    if (!req.file) {
+    const file = req.file || (req.files && req.files.length > 0 ? req.files[0] : null);
+    if (!file) {
       return sendError(res, 'Vui lòng chọn file cần tải lên.', null, 400);
     }
 
-    const fileUrl = `/uploads/${req.file.filename}`;
+    const fileUrl = `/uploads/${file.filename}`;
+    const protocol = req.headers['x-forwarded-proto'] || req.protocol || 'http';
+    const host = req.get('host');
+    const fullUrl = `${protocol}://${host}${fileUrl}`;
 
     return sendSuccess(res, 'Tải lên file thành công.', {
-      originalName: req.file.originalname,
-      filename: req.file.filename,
-      mimetype: req.file.mimetype,
-      size: req.file.size,
+      originalName: file.originalname,
+      filename: file.filename,
+      mimetype: file.mimetype,
+      size: file.size,
       fileUrl,
+      fullUrl,
+      url: fullUrl, // Trả về đường dẫn tuyệt đối cho Mobile App
     }, 201);
   } catch (error) {
     next(error);

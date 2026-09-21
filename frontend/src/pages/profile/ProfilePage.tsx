@@ -35,6 +35,11 @@ export const ProfilePage: React.FC = () => {
   // Avatar / Face ID Upload State
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const [uploadingAvatar, setUploadingAvatar] = useState<boolean>(false);
+  const [avatarError, setAvatarError] = useState<boolean>(false);
+
+  useEffect(() => {
+    setAvatarError(false);
+  }, [user?.avatar]);
 
   // Password change state
   const [currentPassword, setCurrentPassword] = useState('');
@@ -169,12 +174,13 @@ export const ProfilePage: React.FC = () => {
 
         <div className="relative z-10 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-6">
           <div className="flex items-center gap-4">
-            {user?.avatar ? (
+            {user?.avatar && !avatarError ? (
               <div className="relative group cursor-pointer" onClick={() => fileInputRef.current?.click()}>
                 <img
                   src={user.avatar}
                   alt={user.fullName || 'Avatar'}
                   className="w-16 h-16 sm:w-20 sm:h-20 rounded-2xl object-cover shadow-lg border-2 border-white/30 shrink-0"
+                  onError={() => setAvatarError(true)}
                 />
                 <div className="absolute inset-0 bg-black/40 rounded-2xl flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
                   <Camera className="w-5 h-5 text-white" />
@@ -346,12 +352,13 @@ export const ProfilePage: React.FC = () => {
                 </span>
               </div>
 
-              {user?.avatar ? (
+              {user?.avatar && !avatarError ? (
                 <div className="relative aspect-4/3 w-full rounded-xl overflow-hidden flex items-center justify-center bg-slate-900">
                   <img
                     src={user.avatar}
                     alt={user.fullName || 'Ảnh mẫu Face ID'}
                     className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                    onError={() => setAvatarError(true)}
                   />
                   <div className="absolute inset-0 bg-gradient-to-t from-slate-950/80 via-transparent to-transparent pointer-events-none" />
                   <div className="absolute bottom-2 left-3 right-3 flex items-center justify-between text-[11px] text-white/90">

@@ -7,7 +7,8 @@ export interface AuditLogItem {
     fullName: string;
     email: string;
     role: string;
-  };
+  } | null;
+  actorType?: 'USER' | 'SYSTEM';
   action: string;
   targetId: string;
   targetType: string;
@@ -18,17 +19,29 @@ export interface AuditLogItem {
   updatedAt?: string;
 }
 
+export interface AuditLogPagination {
+  page: number;
+  limit: number;
+  totalPages: number;
+  totalDocs: number;
+  hasNextPage: boolean;
+  hasPrevPage: boolean;
+}
+
 export interface AuditLogFilterParams {
   actor?: string;
   action?: string;
   targetType?: string;
   startDate?: string;
   endDate?: string;
+  page?: number;
+  limit?: number;
 }
 
 export interface AuditLogResponse {
   totalRecords: number;
   logs: AuditLogItem[];
+  pagination?: AuditLogPagination;
 }
 
 export const auditLogService = {

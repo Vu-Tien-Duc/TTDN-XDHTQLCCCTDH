@@ -61,13 +61,49 @@ export function formatDateTime(dateString?: string | Date | null): string {
 }
 
 /**
- * Token Management Utilities
+ * Lấy chuỗi ngày YYYY-MM-DD theo múi giờ chuẩn Việt Nam (Asia/Ho_Chi_Minh)
+ */
+export function getVietnamDateString(date: Date = new Date()): string {
+  return new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Asia/Ho_Chi_Minh',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).format(date);
+}
+
+/**
+ * Token Management Utilities (Session-based & Inactivity Timeout)
  */
 const ACCESS_TOKEN_KEY = 'edu_access_token';
 const REFRESH_TOKEN_KEY = 'edu_refresh_token';
 const USER_KEY = 'edu_user';
+const LAST_ACTIVE_KEY = 'edu_last_active';
+
+// Thời gian tối đa không hoạt động trước khi phiên hết hạn (30 phút)
+export const INACTIVITY_TIMEOUT_MS = 30 * 60 * 1000;
 
 export const tokenStorage = {
+  getAccessToken: (): string | null => {
+    if (tokenStorage.isSessionExpired()) {
+      tokenStorage.clear();
+      return null;
+    }
+    return sessionStorage.getItem(ACCESS_TOKEN_KEY);
+  },
+  setAccessToken: (token: string): void => {
+    sessionStorage.setItem(ACCESS_TOKEN_KEY, token);
+    tokenStorage.updateActivity();
+  },
+  getRefreshToken: (): string | null => sessionStorage.getItem(REFRESH_TOKEN_KEY),
+  setRefreshToken: (token: string): void => {
+    sessionStorage.setItem(REFRESH_TOKEN_KEY, token);
+  },
+  getUser: () => {
+    if (tokenStorage.isSessionExpired()) {
+      tokenStorage.clear();
+      return null;
+    }
   getAccessToken: () => {
     // Xóa triệt để token cũ trong localStorage nếu còn sót lại
     if (localStorage.getItem(ACCESS_TOKEN_KEY)) localStorage.removeItem(ACCESS_TOKEN_KEY);
@@ -88,6 +124,41 @@ export const tokenStorage = {
       return null;
     }
   },
+  setUser: (user: unknown): void => {
+    sessionStorage.setItem(USER_KEY, JSON.stringify(user));
+    tokenStorage.updateActivity();
+  },
+  getLastActiveTime: (): number => {
+    const raw = sessionStorage.getItem(LAST_ACTIVE_KEY);
+    return raw ? parseInt(raw, 10) || 0 : 0;
+  },
+  updateActivity: (): void => {
+    sessionStorage.setItem(LAST_ACTIVE_KEY, Date.now().toString());
+  },
+  isSessionExpired: (): boolean => {
+    const raw = sessionStorage.getItem(LAST_ACTIVE_KEY);
+    const hasToken = !!sessionStorage.getItem(ACCESS_TOKEN_KEY);
+    // Nếu chưa có token thì không coi là session expired
+    if (!hasToken || !raw) return false;
+    const lastActive = parseInt(raw, 10) || 0;
+    if (!lastActive) return false;
+    return Date.now() - lastActive > INACTIVITY_TIMEOUT_MS;
+  },
+  clear: (): void => {
+    sessionStorage.removeItem(ACCESS_TOKEN_KEY);
+    sessionStorage.removeItem(REFRESH_TOKEN_KEY);
+    sessionStorage.removeItem(USER_KEY);
+    sessionStorage.removeItem(LAST_ACTIVE_KEY);
+
+    // Xóa sạch dữ liệu phiên cũ lưu trong localStorage từ các phiên trước
+    try {
+      localStorage.removeItem(ACCESS_TOKEN_KEY);
+      localStorage.removeItem(REFRESH_TOKEN_KEY);
+      localStorage.removeItem(USER_KEY);
+      localStorage.removeItem(LAST_ACTIVE_KEY);
+    } catch {
+      // Bỏ qua lỗi truy cập storage
+    }
   setUser: (user: unknown) => sessionStorage.setItem(USER_KEY, JSON.stringify(user)),
   clear: () => {
     sessionStorage.removeItem(ACCESS_TOKEN_KEY);
@@ -98,6 +169,15 @@ export const tokenStorage = {
     localStorage.removeItem(USER_KEY);
   },
 };
+
+// Dọn dẹp tàn dư cũ trong localStorage khi tải trang
+try {
+  localStorage.removeItem(ACCESS_TOKEN_KEY);
+  localStorage.removeItem(REFRESH_TOKEN_KEY);
+  localStorage.removeItem(USER_KEY);
+} catch {
+  // Bỏ qua nếu môi trường không cho phép truy cập localStorage
+}
 
 /**
  * Role Labels

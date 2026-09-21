@@ -157,60 +157,79 @@ const MENU_ITEMS: SidebarMenuItem[] = [
 ];
 
 export const MainLayout: React.FC = () => {
-  const { user, login, logout } = useAuth();
+  const { user, logout } = useAuth();
   const location = useLocation();
   const navigate = useNavigate();
 
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [showNotifications, setShowNotifications] = useState(false);
   const [showUserMenu, setShowUserMenu] = useState(false);
-  const [isSwitchingAccount, setIsSwitchingAccount] = useState(false);
+  const [notifications, setNotifications] = useState<Array<{
+    id: string;
+    title: string;
+    message: string;
+    type: 'attendance' | 'leave' | 'report' | 'schedule' | 'system';
+    status: 'success' | 'warning' | 'danger' | 'info';
+    timestamp: string;
+    link: string;
+  }>>([]);
+  const [unreadCount, setUnreadCount] = useState(0);
+  const [isLoadingNotifications, setIsLoadingNotifications] = useState(false);
+  const [avatarError, setAvatarError] = useState(false);
 
-  // Danh sách tài khoản demo phục vụ hội đồng nghiệm thu & kiểm thử
-  const demoAccounts = [
-    {
-      role: 'admin',
-      name: 'Ban Giám Hiệu (Admin)',
-      email: 'daihocdtd@gmail.com',
-      badge: 'Admin',
-    },
-    {
-      role: 'truongkhoa',
-      name: 'Trưởng Khoa CNTT',
-      email: 'truongkhoa.cntt@university.edu.vn',
-      badge: 'Trưởng Khoa',
-    },
-    {
-      role: 'giangvien',
-      name: 'TS. Trần Thị Bích',
-      email: 'giangvien.bich@university.edu.vn',
-      badge: 'Giảng Viên',
-    },
-  ];
+  React.useEffect(() => {
+    setAvatarError(false);
+  }, [user?.avatar]);
 
-  const handleQuickSwitch = async (email: string) => {
-    setIsSwitchingAccount(true);
+  // Lấy dữ liệu thông báo thực tế từ CSDL & email hệ thống
+  const fetchRealNotifications = async () => {
     try {
-      const res = (await axiosClient.post('/auth/login', {
-        email,
-        password: 'password123',
-      })) as unknown as {
+      setIsLoadingNotifications(true);
+      const res = (await axiosClient.get('/notifications')) as unknown as {
         success: boolean;
-        message?: string;
-        data?: { accessToken: string; user: import('../types').User };
+        data?: {
+          total: number;
+          unreadCount: number;
+          notifications: Array<{
+            id: string;
+            title: string;
+            message: string;
+            type: 'attendance' | 'leave' | 'report' | 'schedule' | 'system';
+            status: 'success' | 'warning' | 'danger' | 'info';
+            timestamp: string;
+            link: string;
+          }>;
+        };
       };
 
       if (res.success && res.data) {
-        login(res.data.accessToken, res.data.user);
-        toast.success(`Đã chuyển sang: ${res.data.user.fullName} (${res.data.user.role})`, {
-          icon: '🔄',
-        });
+        setNotifications(res.data.notifications || []);
+        setUnreadCount(res.data.unreadCount || 0);
       }
-    } catch {
-      toast.error('Không thể chuyển đổi tài khoản demo. Vui lòng kiểm tra backend.');
+    } catch (err) {
+      console.error('[Notifications] Lỗi tải thông báo thực tế:', err);
     } finally {
-      setIsSwitchingAccount(false);
+      setIsLoadingNotifications(false);
     }
+  };
+
+  React.useEffect(() => {
+    if (user) {
+      fetchRealNotifications();
+    }
+  }, [user]);
+
+  const getTimeAgo = (dateStr: string) => {
+    if (!dateStr) return '';
+    const diffMs = Date.now() - new Date(dateStr).getTime();
+    if (diffMs < 0) return 'Vừa xong';
+    const diffMins = Math.floor(diffMs / 60000);
+    if (diffMins < 1) return 'Vừa xong';
+    if (diffMins < 60) return `${diffMins} phút trước`;
+    const diffHours = Math.floor(diffMins / 60);
+    if (diffHours < 24) return `${diffHours} giờ trước`;
+    const diffDays = Math.floor(diffHours / 24);
+    return `${diffDays} ngày trước`;
   };
 
   // Lọc danh sách menu dựa theo vai trò của người dùng
@@ -280,7 +299,7 @@ export const MainLayout: React.FC = () => {
 
       <aside
         className={cn(
-          'fixed lg:static inset-y-0 left-0 z-50 w-72 bg-slate-900 text-slate-200 flex flex-col transition-transform duration-300 ease-in-out border-r border-slate-800 shadow-xl lg:shadow-none print:hidden',
+          'fixed lg:static inset-y-0 left-0 z-50 w-72 max-w-[calc(100vw-3rem)] bg-slate-900 text-slate-200 flex flex-col transition-transform duration-300 ease-in-out border-r border-slate-800 shadow-xl lg:shadow-none print:hidden',
           isSidebarOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'
         )}
       >
@@ -306,11 +325,12 @@ export const MainLayout: React.FC = () => {
 
         {/* User Card Mini in Sidebar */}
         <div className="p-4 mx-3 my-3 rounded-2xl bg-slate-800/60 border border-slate-700/50 flex items-center gap-3">
-          {user?.avatar ? (
+          {user?.avatar && !avatarError ? (
             <img
               src={user.avatar}
               alt={user?.fullName || 'Avatar'}
               className="w-10 h-10 rounded-xl object-cover border border-blue-400/30 shadow-xs shrink-0"
+              onError={() => setAvatarError(true)}
             />
           ) : (
             <div className="w-10 h-10 rounded-xl bg-blue-600/30 border border-blue-400/30 text-blue-300 font-bold text-sm flex items-center justify-center shrink-0">
@@ -327,33 +347,6 @@ export const MainLayout: React.FC = () => {
             >
               {user ? ROLE_LABELS[user.role] : 'Khách'}
             </span>
-          </div>
-        </div>
-
-        {/* Quick Demo Switcher inside Sidebar for Mobile/Tablet */}
-        <div className="px-3 pb-2 xl:hidden">
-          <div className="p-2.5 rounded-xl bg-slate-800/40 border border-slate-700/40 space-y-1.5">
-            <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Chuyển tài khoản demo:</p>
-            <div className="grid grid-cols-3 gap-1">
-              {demoAccounts.map((acc) => {
-                const isActive = user?.email === acc.email;
-                return (
-                  <button
-                    key={acc.email}
-                    disabled={isSwitchingAccount || isActive}
-                    onClick={() => handleQuickSwitch(acc.email)}
-                    className={cn(
-                      'px-2 py-1 rounded-lg text-[10px] font-bold text-center transition',
-                      isActive
-                        ? 'bg-blue-600 text-white'
-                        : 'bg-slate-700/50 text-slate-300 hover:bg-slate-700 hover:text-white'
-                    )}
-                  >
-                    {acc.badge}
-                  </button>
-                );
-              })}
-            </div>
           </div>
         </div>
 
@@ -450,70 +443,109 @@ export const MainLayout: React.FC = () => {
             </div>
           </div>
 
-          {/* Phải: Demo Quick Switcher + Chuông thông báo + Profile User + Nút Đăng xuất */}
+          {/* Phải: Chuông thông báo thực tế + Profile User + Nút Đăng xuất */}
           <div className="flex items-center gap-2 sm:gap-3">
-            {/* Demo Account Switcher (Header) */}
-            <div className="hidden xl:flex items-center gap-1.5 p-1 bg-slate-100 rounded-xl border border-slate-200">
-              <span className="text-[10px] uppercase font-bold text-slate-400 px-2">Demo:</span>
-              {demoAccounts.map((acc) => {
-                const isActive = user?.email === acc.email;
-                return (
-                  <button
-                    key={acc.email}
-                    disabled={isSwitchingAccount || isActive}
-                    onClick={() => handleQuickSwitch(acc.email)}
-                    className={`px-2.5 py-1 rounded-lg text-[11px] font-bold transition-all ${
-                      isActive
-                        ? 'bg-blue-600 text-white shadow-sm'
-                        : 'text-slate-600 hover:text-slate-900 hover:bg-white'
-                    }`}
-                  >
-                    {acc.badge}
-                  </button>
-                );
-              })}
-            </div>
-
-            {/* Chuông Thông Báo */}
+            {/* Chuông Thông Báo Thực Tế */}
             <div className="relative">
               <button
                 onClick={() => {
-                  setShowNotifications(!showNotifications);
+                  const nextState = !showNotifications;
+                  setShowNotifications(nextState);
                   setShowUserMenu(false);
+                  if (nextState) {
+                    fetchRealNotifications();
+                  }
                 }}
                 className="relative p-2 rounded-xl text-slate-600 hover:text-blue-600 hover:bg-slate-100 transition"
-                title="Thông báo hệ thống"
+                title="Thông báo hệ thống & email"
               >
                 <Bell className="w-5 h-5" />
-                <span className="absolute top-1.5 right-1.5 w-2.5 h-2.5 bg-rose-500 rounded-full border-2 border-white ring-1 ring-rose-500" />
+                {unreadCount > 0 && (
+                  <span className="absolute top-1 right-1 min-w-[18px] h-[18px] px-1 bg-rose-500 text-white font-bold text-[10px] rounded-full flex items-center justify-center border-2 border-white animate-pulse">
+                    {unreadCount > 9 ? '9+' : unreadCount}
+                  </span>
+                )}
               </button>
 
-              {/* Popover thông báo */}
+              {/* Popover thông báo thực tế */}
               {showNotifications && (
                 <>
                   <div
                     className="fixed inset-0 z-40"
                     onClick={() => setShowNotifications(false)}
                   />
-                  <div className="absolute right-0 mt-2 w-80 sm:w-96 bg-white rounded-2xl shadow-xl border border-slate-200 p-4 z-50 animate-in fade-in slide-in-from-top-2">
+                  <div className="absolute right-0 mt-2 w-[calc(100vw-2rem)] sm:w-[420px] max-w-[420px] bg-white rounded-2xl shadow-2xl border border-slate-200 p-4 z-50 animate-in fade-in slide-in-from-top-2">
                     <div className="flex items-center justify-between pb-3 border-b border-slate-100 mb-3">
-                      <h4 className="text-sm font-bold text-slate-900">Thông báo mới</h4>
-                      <span className="text-[11px] font-semibold text-blue-600 bg-blue-50 px-2 py-0.5 rounded-full">
-                        2 chưa đọc
-                      </span>
-                    </div>
-                    <div className="space-y-3 text-xs">
-                      <div className="p-2.5 rounded-xl bg-slate-50 hover:bg-blue-50/50 transition cursor-pointer border border-slate-100">
-                        <p className="font-semibold text-slate-800">Đơn xin nghỉ phép đã được phê duyệt</p>
-                        <p className="text-slate-500 mt-0.5">Trưởng khoa đã duyệt đơn xin nghỉ phép ngày mai của bạn.</p>
-                        <span className="text-[10px] text-slate-400 mt-1.5 block">10 phút trước</span>
+                      <div className="flex items-center gap-2">
+                        <h4 className="text-sm font-bold text-slate-900">Thông báo hệ thống & Email</h4>
+                        <span className="text-[10px] font-semibold text-blue-600 bg-blue-50 px-2 py-0.5 rounded-full border border-blue-100">
+                          {notifications.length} bản ghi
+                        </span>
                       </div>
-                      <div className="p-2.5 rounded-xl bg-slate-50 hover:bg-blue-50/50 transition cursor-pointer border border-slate-100">
-                        <p className="font-semibold text-slate-800">Nhắc nhở chấm công ca sáng</p>
-                        <p className="text-slate-500 mt-0.5">Ca dạy Tiết 1-4 tại Phòng A2-301 bắt đầu lúc 07:00.</p>
-                        <span className="text-[10px] text-slate-400 mt-1.5 block">1 giờ trước</span>
-                      </div>
+                      <button
+                        onClick={fetchRealNotifications}
+                        disabled={isLoadingNotifications}
+                        className="text-[11px] font-semibold text-slate-500 hover:text-blue-600 transition"
+                      >
+                        {isLoadingNotifications ? 'Đang tải...' : 'Làm mới'}
+                      </button>
                     </div>
+
+                    {isLoadingNotifications ? (
+                      <div className="py-8 text-center text-xs text-slate-400">
+                        Đang đồng bộ dữ liệu thông báo...
+                      </div>
+                    ) : notifications.length === 0 ? (
+                      <div className="py-8 text-center text-xs text-slate-400">
+                        Chưa có thông báo mới. Mọi cập nhật điểm danh, duyệt đơn và email báo cáo sẽ hiển thị ở đây.
+                      </div>
+                    ) : (
+                      <div className="space-y-2.5 max-h-[380px] overflow-y-auto custom-scrollbar pr-1">
+                        {notifications.map((item) => {
+                          const getBadgeBg = (st: string) => {
+                            switch (st) {
+                              case 'success':
+                                return 'bg-emerald-50 border-emerald-200 text-emerald-700';
+                              case 'warning':
+                                return 'bg-amber-50 border-amber-200 text-amber-700';
+                              case 'danger':
+                                return 'bg-rose-50 border-rose-200 text-rose-700';
+                              case 'info':
+                              default:
+                                return 'bg-blue-50 border-blue-200 text-blue-700';
+                            }
+                          };
+
+                          return (
+                            <div
+                              key={item.id}
+                              onClick={() => {
+                                setShowNotifications(false);
+                                if (item.link) {
+                                  navigate(item.link);
+                                }
+                              }}
+                              className="p-3 rounded-xl bg-slate-50 hover:bg-slate-100/80 transition cursor-pointer border border-slate-200/80 group"
+                            >
+                              <div className="flex items-start justify-between gap-2">
+                                <p className="font-bold text-xs text-slate-900 group-hover:text-blue-600 transition">
+                                  {item.title}
+                                </p>
+                                <span className={cn('text-[9px] font-bold px-1.5 py-0.5 rounded border shrink-0', getBadgeBg(item.status))}>
+                                  {item.type === 'attendance' ? 'Điểm danh' : item.type === 'leave' ? 'Đơn nghỉ' : item.type === 'schedule' ? 'Lịch dạy' : 'Báo cáo Email'}
+                                </span>
+                              </div>
+                              <p className="text-xs text-slate-600 mt-1 leading-relaxed">
+                                {item.message}
+                              </p>
+                              <span className="text-[10px] text-slate-400 mt-1.5 block font-medium">
+                                {getTimeAgo(item.timestamp)}
+                              </span>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
                   </div>
                 </>
               )}
@@ -528,11 +560,12 @@ export const MainLayout: React.FC = () => {
                 }}
                 className="flex items-center gap-2 p-1.5 sm:px-3 sm:py-1.5 rounded-xl hover:bg-slate-100 transition border border-transparent hover:border-slate-200"
               >
-                {user?.avatar ? (
+                {user?.avatar && !avatarError ? (
                   <img
                     src={user.avatar}
                     alt={user?.fullName || 'Avatar'}
                     className="w-8 h-8 rounded-lg object-cover shadow-sm border border-slate-200 shrink-0"
+                    onError={() => setAvatarError(true)}
                   />
                 ) : (
                   <div className="w-8 h-8 rounded-lg bg-blue-600 text-white font-bold text-xs flex items-center justify-center shadow-sm shrink-0">

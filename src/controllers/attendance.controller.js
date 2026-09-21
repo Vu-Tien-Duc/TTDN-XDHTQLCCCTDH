@@ -84,6 +84,7 @@ const checkIn = async (req, res, next) => {
       selectedSchedule = await Schedule.findOne({
         _id: scheduleId,
         userId,
+        weekday: currentWeekday,
         startDate: { $lte: endOfDay },
         endDate: { $gte: startOfDay },
       }).populate('shiftId');
@@ -95,6 +96,13 @@ const checkIn = async (req, res, next) => {
       shift = selectedSchedule.shiftId;
       if (!shift) {
         return sendError(res, 'Lịch giảng dạy chưa được cấu hình ca làm việc.', null, 400);
+      }
+
+      // Xác thực ca làm việc nếu client gửi kèm shiftId
+      if (shiftId && mongoose.Types.ObjectId.isValid(shiftId)) {
+        if (shift._id.toString() !== shiftId.toString()) {
+          return sendError(res, 'Ca làm việc (shiftId) không khớp với lịch giảng dạy đã chọn.', null, 400);
+        }
       }
 
       // Kiểm tra xem hôm nay đã check-in cho lịch này chưa
@@ -724,7 +732,7 @@ const processFaceAttendanceUser = async ({
         status: finalStatus,
         location,
       },
-    }).catch(() => {});
+    }).catch((err) => console.error('[AuditLog Error] Lỗi ghi audit log Face Check-out:', err.message));
 
     return {
       status: 'OK',
@@ -832,7 +840,7 @@ const processFaceAttendanceUser = async ({
         status,
         location,
       },
-    }).catch(() => {});
+    }).catch((err) => console.error('[AuditLog Error] Lỗi ghi audit log Face Check-in:', err.message));
 
     return {
       status: 'OK',
@@ -1304,7 +1312,7 @@ const scanQRCode = async (req, res, next) => {
         deviceId: finalDeviceId,
         location: finalLocation,
       },
-    }).catch(() => {});
+    }).catch((err) => console.error('[AuditLog Error] Lỗi ghi audit log QR Check-in:', err.message));
 
     return sendSuccess(res, '🎉 Điểm danh bằng Mã QR Động thành công!', populatedLog, 200);
   } catch (error) {
