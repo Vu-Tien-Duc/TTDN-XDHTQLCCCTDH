@@ -9,9 +9,8 @@
     "build:frontend": "npm run build --prefix frontend",
     "build": "npm run build --prefix frontend",
     "seed": "node src/utils/seeder.js",
-    "test": "node src/tests/aiAssistant.test.js",
+    "test": "node test_demo_all_weeks.js",
     "test:ai": "node src/tests/aiAssistant.test.js"
-    "test": "node test_demo_all_weeks.js"
   },
   "repository": {
     "type": "git",
