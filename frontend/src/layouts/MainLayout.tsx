@@ -5,6 +5,7 @@ import {
   Building2,
   Users,
   User,
+  UserCheck,
   Clock,
   CalendarDays,
   FilePlus2,
@@ -21,6 +22,9 @@ import {
   ChevronRight,
   Sparkles,
   ExternalLink,
+  ScanFace,
+  History,
+  Scan,
 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { axiosClient } from '../api/axiosClient';
@@ -74,6 +78,36 @@ const MENU_ITEMS: SidebarMenuItem[] = [
     icon: CalendarDays,
     allowedRoles: ['admin', 'truongkhoa', 'giangvien', 'nhanvien'],
     description: 'Thời khóa biểu & lịch học kỳ',
+  },
+  {
+    title: 'Điểm Danh Chấm Công',
+    path: '/attendance/check-in',
+    icon: UserCheck,
+    allowedRoles: ['admin', 'truongkhoa', 'giangvien', 'nhanvien'],
+    description: 'Check-in & Check-out ca dạy',
+  },
+  {
+    title: 'Lịch Sử Chấm Công',
+    path: '/attendance/history',
+    icon: History,
+    allowedRoles: ['admin', 'truongkhoa', 'giangvien', 'nhanvien'],
+    description: 'Tra cứu lịch sử đa phương thức',
+  },
+  {
+    title: 'Đăng Ký Face ID',
+    path: '/face-registration',
+    icon: Scan,
+    badge: 'Mới',
+    allowedRoles: ['admin'],
+    description: 'Đăng ký vector khuôn mặt 128 số',
+  },
+  {
+    title: 'Kiosk Điểm Danh',
+    path: '/kiosk',
+    icon: ScanFace,
+    badge: 'Kiosk',
+    allowedRoles: ['admin', 'truongkhoa'],
+    description: 'Màn hình Kiosk điểm danh sảnh trường',
   },
   {
     title: 'Tạo Đơn Xin Nghỉ',

@@ -11,7 +11,7 @@ const generateMonthlyReport = async (month, year, departmentId = null) => {
 
   let userFilter = { isActive: true };
   if (departmentId) {
-    userFilter.departmentId = departmentId;
+    userFilter.departmentId = Array.isArray(departmentId) ? { $in: departmentId } : departmentId;
   }
 
   const users = await User.find(userFilter).select('_id fullName email role departmentId');

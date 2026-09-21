@@ -43,7 +43,10 @@ const departmentSchema = new mongoose.Schema(
   }
 );
 
-departmentSchema.index({ parentId: 1, name: 1 });
+departmentSchema.index(
+  { parentId: 1, name: 1 },
+  { unique: true, collation: { locale: 'vi', strength: 2 } }
+);
 departmentSchema.index({ managerId: 1 });
 
 module.exports = mongoose.model('Department', departmentSchema, 'departments');

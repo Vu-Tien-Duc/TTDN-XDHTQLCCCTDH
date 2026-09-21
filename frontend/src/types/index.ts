@@ -15,7 +15,9 @@ export interface User {
   isActive: boolean;
   isVerified?: boolean;
   faceDescriptor?: number[]; // Vector 128 chiều (TV B)
+  faceDescriptors?: number[][]; // Đa vector nhiều góc (TV B)
   faceDataRegistered?: boolean;
+  faceRegistered?: boolean;
   annualLeaveQuota?: number; // Hạn mức ngày phép trong năm
   remainingLeaveDays?: number;
   createdAt?: string;
@@ -45,7 +47,7 @@ export interface Department {
   _id: string;
   name: string;
   code?: string;
-  type?: 'truong' | 'khoa' | 'bomon' | 'phongban';
+  type?: 'khoa' | 'bomon' | 'phongban';
   parentId?: string | null | Department;
   managerId?: string | null | User;
   location?: {
@@ -101,7 +103,15 @@ export interface Schedule {
 // 4. Attendance & Face ID Types (TV B)
 // =======================================================
 export type AttendanceStatus = 'ON_TIME' | 'LATE' | 'EARLY_LEAVE' | 'ABSENT' | 'EXCUSED_ABSENCE';
-export type AttendanceMethod = 'manual' | 'face' | 'FACE_ID' | 'MANUAL';
+export type AttendanceMethod =
+  | 'manual'
+  | 'face'
+  | 'qr'
+  | 'gps'
+  | 'fingerprint'
+  | 'admin_override'
+  | 'FACE_ID'
+  | 'MANUAL';
 
 export interface AttendanceLog {
   _id: string;
@@ -109,11 +119,23 @@ export interface AttendanceLog {
   scheduleId?: string | Schedule;
   shiftId?: string | ShiftConfig;
   date: string;
+  workDate?: string;
   checkInTime?: string;
   checkOutTime?: string;
   status: AttendanceStatus;
   method: AttendanceMethod;
   confidenceScore?: number;
+  deviceId?: string;
+  isManualOverride?: boolean;
+  capturedImage?: string;
+  workingDuration?: {
+    totalMinutes: number;
+    formatted: string;
+  };
+  earlyLeave?: {
+    isEarlyLeave: boolean;
+    earlyMinutes: number;
+  };
   lateMinutes?: number;
   earlyMinutes?: number;
   note?: string;
@@ -122,8 +144,10 @@ export interface AttendanceLog {
 }
 
 export interface FaceCheckinRequest {
-  faceDescriptor: number[]; // Vector 128 số thực trích từ face-api.js
+  faceDescriptor?: number[]; // Vector 128 số thực trích từ face-api.js
+  faceDescriptors?: number[][];
   image?: string; // Base64 dự phòng nếu cần lưu minh chứng
+  capturedImage?: string;
 }
 
 export interface FaceCheckinResponse {
@@ -139,7 +163,8 @@ export interface FaceCheckinResponse {
 }
 
 export interface RegisterFaceDescriptorRequest {
-  faceDescriptor: number[];
+  faceDescriptor?: number[];
+  faceDescriptors?: number[][];
 }
 
 // =======================================================

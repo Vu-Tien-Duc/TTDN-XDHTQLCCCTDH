@@ -4,6 +4,7 @@ const User = require('../models/user.model');
 const { sendSuccess, sendError } = require('../utils/responseHandler');
 const { calculateLeaveDays } = require('./leaveRequest.controller');
 const { buildAttendanceDateFilter } = require('../services/attendance.service');
+const { getDeanDepartmentIds, getDeanScopedUserIds } = require('../utils/deanScope');
 
 /**
  * @desc Thống kê báo cáo chấm công
@@ -18,12 +19,10 @@ const getAttendanceReport = async (req, res, next) => {
     if (req.user.role === 'giangvien' || req.user.role === 'nhanvien') {
       targetUserIds = [req.user.id];
     } else if (req.user.role === 'truongkhoa') {
-      const myInfo = await User.findById(req.user.id);
-      const facultyUsers = await User.find({ departmentId: myInfo.departmentId }).select('_id');
-      const allFacultyIds = facultyUsers.map((u) => u._id.toString());
+      const allFacultyIds = await getDeanScopedUserIds(req.user);
 
       if (userId) {
-        if (!allFacultyIds.includes(userId)) {
+        if (!allFacultyIds.includes(userId.toString())) {
           return sendError(res, 'Bạn không có quyền xem thống kê của nhân sự ngoài khoa.', null, 403);
         }
         targetUserIds = [userId];
@@ -90,15 +89,21 @@ const getMonthlyReport = async (req, res, next) => {
   try {
     const month = parseInt(req.query.month, 10) || new Date().getMonth() + 1;
     const year = parseInt(req.query.year, 10) || new Date().getFullYear();
-    let departmentId = req.query.departmentId || null;
+    let departmentFilter = req.query.departmentId || null;
 
     if (req.user.role === 'truongkhoa') {
-      const myInfo = await User.findById(req.user.id);
-      departmentId = myInfo.departmentId ? myInfo.departmentId.toString() : null;
+      const scopeDeptIds = await getDeanDepartmentIds(req.user);
+      if (departmentFilter) {
+        if (!scopeDeptIds.some((id) => id.toString() === departmentFilter.toString())) {
+          return sendError(res, 'Bạn không có quyền xem báo cáo của đơn vị ngoài khoa.', null, 403);
+        }
+      } else {
+        departmentFilter = scopeDeptIds;
+      }
     }
 
     const { generateMonthlyReport } = require('../services/report.service');
-    const data = await generateMonthlyReport(month, year, departmentId);
+    const data = await generateMonthlyReport(month, year, departmentFilter);
 
     return sendSuccess(res, `Lấy báo cáo tổng hợp tháng ${month}/${year} thành công.`, {
       month,

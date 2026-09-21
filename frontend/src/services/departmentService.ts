@@ -59,7 +59,7 @@ export const departmentService = {
   },
 
   /**
-   * Cập nhật thông tin Khoa / Bộ môn (Admin / Trưởng khoa)
+   * Cập nhật thông tin Khoa / Bộ môn / Phòng ban (Chỉ Admin)
    * PUT /api/departments/:id
    */
   async updateDepartment(id: string, payload: Partial<DepartmentPayload>): Promise<Department> {
