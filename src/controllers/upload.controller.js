@@ -14,8 +14,7 @@ const uploadSingleFile = async (req, res, next) => {
       return sendError(res, 'Vui lòng chọn file cần tải lên.', null, 400);
     }
 
-    const fileUrl = `/api/uploads/${file.filename}`;
-    const legacyUrl = `/uploads/${file.filename}`;
+    const fileUrl = `/uploads/${file.filename}`;
     const protocol = req.headers['x-forwarded-proto'] || req.protocol || 'http';
     const host = req.get('host');
     const fullUrl = `${protocol}://${host}${fileUrl}`;
@@ -26,7 +25,6 @@ const uploadSingleFile = async (req, res, next) => {
       mimetype: file.mimetype,
       size: file.size,
       fileUrl,
-      legacyUrl,
       fullUrl,
       url: fullUrl, // Trả về đường dẫn tuyệt đối cho Mobile App
     }, 201);

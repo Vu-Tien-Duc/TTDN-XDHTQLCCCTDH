@@ -50,17 +50,6 @@
       "createdAt": "2026-09-19T09:03:04.302Z",
       "updatedAt": "2026-09-19T09:04:31.855Z",
       "__v": 0
-    },
-    {
-      "_id": "6ab022192b541c880f1b683e",
-      "name": "Ca ma hoc",
-      "startTime": "02:20",
-      "endTime": "03:30",
-      "lateThresholdMinutes": 10,
-      "isActive": true,
-      "createdAt": "2026-09-20T18:12:41.499Z",
-      "updatedAt": "2026-09-20T19:16:23.694Z",
-      "__v": 0
     }
   ],
   "leave_requests": [
@@ -808,6 +797,401 @@
       "createdAt": "2026-09-20T18:14:48.798Z",
       "updatedAt": "2026-09-20T18:14:48.798Z",
       "__v": 0
+    },
+    {
+      "_id": "6ab1118a51eff7441277aa37",
+      "actor": "6aad1efecb830382061c8fbf",
+      "actorType": "USER",
+      "action": "USER_LOGOUT",
+      "targetId": "6aad1efecb830382061c8fbf",
+      "targetType": "User",
+      "ipAddress": "127.0.0.1",
+      "details": {
+        "reason": "Người dùng chủ động đăng xuất"
+      },
+      "timestamp": "2026-09-21T11:14:18.305Z",
+      "createdAt": "2026-09-21T11:14:18.306Z",
+      "updatedAt": "2026-09-21T11:14:18.306Z",
+      "__v": 0
+    },
+    {
+      "_id": "6ab1119551eff7441277aa38",
+      "actor": "6aad20a3ec8fdb5e09d06488",
+      "actorType": "USER",
+      "action": "USER_LOGIN_FAILED",
+      "targetId": "6aad20a3ec8fdb5e09d06488",
+      "targetType": "User",
+      "ipAddress": "127.0.0.1",
+      "details": {
+        "email": "vutienduc05@gmail.com",
+        "reason": "Sai mật khẩu"
+      },
+      "timestamp": "2026-09-21T11:14:29.093Z",
+      "createdAt": "2026-09-21T11:14:29.096Z",
+      "updatedAt": "2026-09-21T11:14:29.096Z",
+      "__v": 0
+    },
+    {
+      "_id": "6ab1119951eff7441277aa39",
+      "actor": "6aad20a3ec8fdb5e09d06488",
+      "actorType": "USER",
+      "action": "USER_LOGIN_FAILED",
+      "targetId": "6aad20a3ec8fdb5e09d06488",
+      "targetType": "User",
+      "ipAddress": "127.0.0.1",
+      "details": {
+        "email": "vutienduc05@gmail.com",
+        "reason": "Sai mật khẩu"
+      },
+      "timestamp": "2026-09-21T11:14:33.036Z",
+      "createdAt": "2026-09-21T11:14:33.037Z",
+      "updatedAt": "2026-09-21T11:14:33.037Z",
+      "__v": 0
+    },
+    {
+      "_id": "6ab111cf639e4098459295d7",
+      "actor": "6aad20a3ec8fdb5e09d06488",
+      "actorType": "USER",
+      "action": "USER_LOGIN_FAILED",
+      "targetId": "6aad20a3ec8fdb5e09d06488",
+      "targetType": "User",
+      "ipAddress": "127.0.0.1",
+      "details": {
+        "email": "vutienduc05@gmail.com",
+        "reason": "Sai mật khẩu"
+      },
+      "timestamp": "2026-09-21T11:15:27.187Z",
+      "createdAt": "2026-09-21T11:15:27.203Z",
+      "updatedAt": "2026-09-21T11:15:27.203Z",
+      "__v": 0
+    },
+    {
+      "_id": "6ab111d7639e4098459295d8",
+      "actor": "6aad20a3ec8fdb5e09d06488",
+      "actorType": "USER",
+      "action": "USER_LOGIN_FAILED",
+      "targetId": "6aad20a3ec8fdb5e09d06488",
+      "targetType": "User",
+      "ipAddress": "127.0.0.1",
+      "details": {
+        "email": "vutienduc05@gmail.com",
+        "reason": "Sai mật khẩu"
+      },
+      "timestamp": "2026-09-21T11:15:35.257Z",
+      "createdAt": "2026-09-21T11:15:35.262Z",
+      "updatedAt": "2026-09-21T11:15:35.262Z",
+      "__v": 0
+    },
+    {
+      "_id": "6ab111ed639e4098459295d9",
+      "actor": "6aad1efecb830382061c8fbf",
+      "actorType": "USER",
+      "action": "USER_LOGIN_FAILED",
+      "targetId": "6aad1efecb830382061c8fbf",
+      "targetType": "User",
+      "ipAddress": "127.0.0.1",
+      "details": {
+        "email": "daihocdtd@gmail.com",
+        "reason": "Sai mật khẩu"
+      },
+      "timestamp": "2026-09-21T11:15:57.120Z",
+      "createdAt": "2026-09-21T11:15:57.122Z",
+      "updatedAt": "2026-09-21T11:15:57.122Z",
+      "__v": 0
+    },
+    {
+      "_id": "6ab111f1639e4098459295db",
+      "actor": "6aad1efecb830382061c8fbf",
+      "actorType": "USER",
+      "action": "USER_LOGIN_SUCCESS",
+      "targetId": "6aad1efecb830382061c8fbf",
+      "targetType": "User",
+      "ipAddress": "127.0.0.1",
+      "details": {
+        "email": "daihocdtd@gmail.com",
+        "fullName": "Quản Trị Viên Hệ Thống (Admin IT)",
+        "role": "admin"
+      },
+      "timestamp": "2026-09-21T11:16:01.075Z",
+      "createdAt": "2026-09-21T11:16:01.078Z",
+      "updatedAt": "2026-09-21T11:16:01.078Z",
+      "__v": 0
+    },
+    {
+      "_id": "6ab11211639e4098459295dd",
+      "actor": "6aad1efecb830382061c8fc3",
+      "actorType": "USER",
+      "action": "USER_LOGIN_SUCCESS",
+      "targetId": "6aad1efecb830382061c8fc3",
+      "targetType": "User",
+      "ipAddress": "127.0.0.1",
+      "details": {
+        "email": "giangvien.bich@university.edu.vn",
+        "fullName": "TS. Trần Thị Bích (Giảng viên KTPM)",
+        "role": "giangvien"
+      },
+      "timestamp": "2026-09-21T11:16:33.104Z",
+      "createdAt": "2026-09-21T11:16:33.105Z",
+      "updatedAt": "2026-09-21T11:16:33.105Z",
+      "__v": 0
+    },
+    {
+      "_id": "6ab11225639e4098459295e0",
+      "actor": "6aad1efecb830382061c8fbf",
+      "actorType": "USER",
+      "action": "USER_LOGIN_SUCCESS",
+      "targetId": "6aad1efecb830382061c8fbf",
+      "targetType": "User",
+      "ipAddress": "127.0.0.1",
+      "details": {
+        "email": "daihocdtd@gmail.com",
+        "fullName": "Quản Trị Viên Hệ Thống (Admin IT)",
+        "role": "admin"
+      },
+      "timestamp": "2026-09-21T11:16:53.102Z",
+      "createdAt": "2026-09-21T11:16:53.105Z",
+      "updatedAt": "2026-09-21T11:16:53.105Z",
+      "__v": 0
+    },
+    {
+      "_id": "6ab1122a639e4098459295e2",
+      "actor": "6aad1efecb830382061c8fbf",
+      "actorType": "USER",
+      "action": "USER_LOGOUT",
+      "targetId": "6aad1efecb830382061c8fbf",
+      "targetType": "User",
+      "ipAddress": "127.0.0.1",
+      "details": {
+        "reason": "Người dùng chủ động đăng xuất"
+      },
+      "timestamp": "2026-09-21T11:16:58.104Z",
+      "createdAt": "2026-09-21T11:16:58.105Z",
+      "updatedAt": "2026-09-21T11:16:58.105Z",
+      "__v": 0
+    },
+    {
+      "_id": "6ab11230639e4098459295e3",
+      "actor": "6aad20a3ec8fdb5e09d06488",
+      "actorType": "USER",
+      "action": "USER_LOGIN_FAILED",
+      "targetId": "6aad20a3ec8fdb5e09d06488",
+      "targetType": "User",
+      "ipAddress": "127.0.0.1",
+      "details": {
+        "email": "vutienduc05@gmail.com",
+        "reason": "Sai mật khẩu"
+      },
+      "timestamp": "2026-09-21T11:17:04.552Z",
+      "createdAt": "2026-09-21T11:17:04.555Z",
+      "updatedAt": "2026-09-21T11:17:04.555Z",
+      "__v": 0
+    },
+    {
+      "_id": "6ab11235639e4098459295e4",
+      "actor": "6aad20a3ec8fdb5e09d06488",
+      "actorType": "USER",
+      "action": "USER_LOGIN_FAILED",
+      "targetId": "6aad20a3ec8fdb5e09d06488",
+      "targetType": "User",
+      "ipAddress": "127.0.0.1",
+      "details": {
+        "email": "vutienduc05@gmail.com",
+        "reason": "Sai mật khẩu"
+      },
+      "timestamp": "2026-09-21T11:17:09.665Z",
+      "createdAt": "2026-09-21T11:17:09.666Z",
+      "updatedAt": "2026-09-21T11:17:09.666Z",
+      "__v": 0
+    },
+    {
+      "_id": "6ab11238639e4098459295e5",
+      "actor": "6aad20a3ec8fdb5e09d06488",
+      "actorType": "USER",
+      "action": "USER_LOGIN_FAILED",
+      "targetId": "6aad20a3ec8fdb5e09d06488",
+      "targetType": "User",
+      "ipAddress": "127.0.0.1",
+      "details": {
+        "email": "vutienduc05@gmail.com",
+        "reason": "Sai mật khẩu"
+      },
+      "timestamp": "2026-09-21T11:17:12.704Z",
+      "createdAt": "2026-09-21T11:17:12.706Z",
+      "updatedAt": "2026-09-21T11:17:12.706Z",
+      "__v": 0
+    },
+    {
+      "_id": "6ab11271639e4098459295e6",
+      "actor": "6aad20a3ec8fdb5e09d06488",
+      "actorType": "USER",
+      "action": "RESET_PASSWORD",
+      "targetId": "6aad20a3ec8fdb5e09d06488",
+      "targetType": "User",
+      "ipAddress": "127.0.0.1",
+      "details": {
+        "email": "vutienduc05@gmail.com",
+        "method": "OTP"
+      },
+      "timestamp": "2026-09-21T11:18:09.481Z",
+      "createdAt": "2026-09-21T11:18:09.483Z",
+      "updatedAt": "2026-09-21T11:18:09.483Z",
+      "__v": 0
+    },
+    {
+      "_id": "6ab11276639e4098459295e8",
+      "actor": "6aad20a3ec8fdb5e09d06488",
+      "actorType": "USER",
+      "action": "USER_LOGIN_SUCCESS",
+      "targetId": "6aad20a3ec8fdb5e09d06488",
+      "targetType": "User",
+      "ipAddress": "127.0.0.1",
+      "details": {
+        "email": "vutienduc05@gmail.com",
+        "fullName": "Vũ Tiến Đức (GV: CNTT)",
+        "role": "giangvien"
+      },
+      "timestamp": "2026-09-21T11:18:14.613Z",
+      "createdAt": "2026-09-21T11:18:14.614Z",
+      "updatedAt": "2026-09-21T11:18:14.614Z",
+      "__v": 0
+    },
+    {
+      "_id": "6ab112d5639e4098459295e9",
+      "actor": "6aad20a3ec8fdb5e09d06488",
+      "actorType": "USER",
+      "action": "UPDATE_AVATAR",
+      "targetId": "6aad20a3ec8fdb5e09d06488",
+      "targetType": "User",
+      "ipAddress": "127.0.0.1",
+      "details": {
+        "hasFaceDescriptor": false
+      },
+      "timestamp": "2026-09-21T11:19:49.110Z",
+      "createdAt": "2026-09-21T11:19:49.112Z",
+      "updatedAt": "2026-09-21T11:19:49.112Z",
+      "__v": 0
+    },
+    {
+      "_id": "6ab1137b639e4098459295eb",
+      "actor": "6aad20a3ec8fdb5e09d06488",
+      "actorType": "USER",
+      "action": "USER_LOGIN_SUCCESS",
+      "targetId": "6aad20a3ec8fdb5e09d06488",
+      "targetType": "User",
+      "ipAddress": "127.0.0.1",
+      "details": {
+        "email": "vutienduc05@gmail.com",
+        "fullName": "Vũ Tiến Đức (GV: CNTT)",
+        "role": "giangvien"
+      },
+      "timestamp": "2026-09-21T11:22:35.094Z",
+      "createdAt": "2026-09-21T11:22:35.095Z",
+      "updatedAt": "2026-09-21T11:22:35.095Z",
+      "__v": 0
+    },
+    {
+      "_id": "6ab1137f639e4098459295ed",
+      "actor": "6aad1efecb830382061c8fbf",
+      "actorType": "USER",
+      "action": "USER_LOGIN_SUCCESS",
+      "targetId": "6aad1efecb830382061c8fbf",
+      "targetType": "User",
+      "ipAddress": "127.0.0.1",
+      "details": {
+        "email": "daihocdtd@gmail.com",
+        "fullName": "Quản Trị Viên Hệ Thống (Admin IT)",
+        "role": "admin"
+      },
+      "timestamp": "2026-09-21T11:22:39.907Z",
+      "createdAt": "2026-09-21T11:22:39.909Z",
+      "updatedAt": "2026-09-21T11:22:39.909Z",
+      "__v": 0
+    },
+    {
+      "_id": "6ab11389639e4098459295ef",
+      "actor": "6aad1efecb830382061c8fbf",
+      "actorType": "USER",
+      "action": "USER_LOGOUT",
+      "targetId": "6aad1efecb830382061c8fbf",
+      "targetType": "User",
+      "ipAddress": "127.0.0.1",
+      "details": {
+        "reason": "Người dùng chủ động đăng xuất"
+      },
+      "timestamp": "2026-09-21T11:22:49.184Z",
+      "createdAt": "2026-09-21T11:22:49.186Z",
+      "updatedAt": "2026-09-21T11:22:49.186Z",
+      "__v": 0
+    },
+    {
+      "_id": "6ab1138d639e4098459295f1",
+      "actor": "6aad20a3ec8fdb5e09d06488",
+      "actorType": "USER",
+      "action": "USER_LOGIN_SUCCESS",
+      "targetId": "6aad20a3ec8fdb5e09d06488",
+      "targetType": "User",
+      "ipAddress": "127.0.0.1",
+      "details": {
+        "email": "vutienduc05@gmail.com",
+        "fullName": "Vũ Tiến Đức (GV: CNTT)",
+        "role": "giangvien"
+      },
+      "timestamp": "2026-09-21T11:22:53.859Z",
+      "createdAt": "2026-09-21T11:22:53.860Z",
+      "updatedAt": "2026-09-21T11:22:53.860Z",
+      "__v": 0
+    },
+    {
+      "_id": "6ab113ca639e4098459295f3",
+      "actor": "6aad1efecb830382061c8fbf",
+      "actorType": "USER",
+      "action": "USER_LOGIN_SUCCESS",
+      "targetId": "6aad1efecb830382061c8fbf",
+      "targetType": "User",
+      "ipAddress": "127.0.0.1",
+      "details": {
+        "email": "daihocdtd@gmail.com",
+        "fullName": "Quản Trị Viên Hệ Thống (Admin IT)",
+        "role": "admin"
+      },
+      "timestamp": "2026-09-21T11:23:54.352Z",
+      "createdAt": "2026-09-21T11:23:54.353Z",
+      "updatedAt": "2026-09-21T11:23:54.353Z",
+      "__v": 0
+    },
+    {
+      "_id": "6ab113e6639e4098459295f5",
+      "actor": "6aad1efecb830382061c8fbf",
+      "actorType": "USER",
+      "action": "USER_LOGOUT",
+      "targetId": "6aad1efecb830382061c8fbf",
+      "targetType": "User",
+      "ipAddress": "127.0.0.1",
+      "details": {
+        "reason": "Người dùng chủ động đăng xuất"
+      },
+      "timestamp": "2026-09-21T11:24:22.731Z",
+      "createdAt": "2026-09-21T11:24:22.733Z",
+      "updatedAt": "2026-09-21T11:24:22.733Z",
+      "__v": 0
+    },
+    {
+      "_id": "6ab113ec639e4098459295f7",
+      "actor": "6aad20a3ec8fdb5e09d06488",
+      "actorType": "USER",
+      "action": "USER_LOGIN_SUCCESS",
+      "targetId": "6aad20a3ec8fdb5e09d06488",
+      "targetType": "User",
+      "ipAddress": "127.0.0.1",
+      "details": {
+        "email": "vutienduc05@gmail.com",
+        "fullName": "Vũ Tiến Đức (GV: CNTT)",
+        "role": "giangvien"
+      },
+      "timestamp": "2026-09-21T11:24:28.029Z",
+      "createdAt": "2026-09-21T11:24:28.033Z",
+      "updatedAt": "2026-09-21T11:24:28.033Z",
+      "__v": 0
     }
   ],
   "attendance_logs": [
@@ -1319,20 +1703,20 @@
       "_id": "6aad20a3ec8fdb5e09d06488",
       "fullName": "Vũ Tiến Đức (GV: CNTT)",
       "email": "vutienduc05@gmail.com",
-      "passwordHash": "$2b$12$s3JIUybTcouo2IgawrYR1.m3LSDCjomqcFuez.jBNRXonPcqKEVuK",
+      "passwordHash": "$2b$12$ZmrtPmBDLCJe3pTsrqJ2d.975GL2hnvgb7zqGboRBxPHPkA.zBgtm",
       "role": "giangvien",
       "departmentId": "6aad1efecb830382061c8fb3",
       "isActive": true,
       "isVerified": true,
-      "otpCode": "eaa106f131898b7082d5f86b5dfbf58871a355d58d3d8b1d3fa99e803f72097a",
-      "otpExpiresAt": "2026-09-20T08:19:18.134Z",
-      "otpType": "FORGOT_PASSWORD",
+      "otpCode": null,
+      "otpExpiresAt": null,
+      "otpType": null,
       "annualLeaveQuota": 12,
       "createdAt": "2026-09-18T11:29:39.529Z",
-      "updatedAt": "2026-09-20T19:53:00.327Z",
+      "updatedAt": "2026-09-21T11:19:49.095Z",
       "__v": 1,
       "otpAttempts": 0,
-      "otpSentAt": "2026-09-20T08:09:18.134Z",
+      "otpSentAt": null,
       "faceDescriptor": [
         -0.022391339763998985,
         0.06426431983709335,
@@ -1854,7 +2238,9 @@
           0.15534242987632751,
           -0.004174231551587582
         ]
-      ]
+      ],
+      "passwordChangedAt": "2026-09-21T11:18:09.472Z",
+      "avatar": "/uploads/attachment-1789989589069-756254247.jpg"
     }
   ],
   "refresh_tokens": [
@@ -1985,15 +2371,6 @@
       "__v": 0
     },
     {
-      "_id": "6aae4c49a63cfef21a2fda0d",
-      "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6IjZhYWQyMGEzZWM4ZmRiNWUwOWQwNjQ4OCIsImlhdCI6MTc4OTgwNzY4OSwiZXhwIjoxNzkwNDEyNDg5fQ.54at4DqqwLySC293-vrzMBA0NMqaeIr_DSLtyKrq6kE",
-      "userId": "6aad20a3ec8fdb5e09d06488",
-      "expiresAt": "2026-09-26T08:48:09.950Z",
-      "createdAt": "2026-09-19T08:48:09.954Z",
-      "updatedAt": "2026-09-19T08:48:09.954Z",
-      "__v": 0
-    },
-    {
       "_id": "6aae4da0a63cfef21a2fda14",
       "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6IjZhYWQxZWZlY2I4MzAzODIwNjFjOGZiZiIsImlhdCI6MTc4OTgwODAzMiwiZXhwIjoxNzkwNDEyODMyfQ.uOFLL6kNr79IAD1RyqVKBu5TFSjRTAGswDHdla-HlRk",
       "userId": "6aad1efecb830382061c8fbf",
@@ -2003,57 +2380,12 @@
       "__v": 0
     },
     {
-      "_id": "6aae4e49a63cfef21a2fda18",
-      "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6IjZhYWQyMGEzZWM4ZmRiNWUwOWQwNjQ4OCIsImlhdCI6MTc4OTgwODIwMSwiZXhwIjoxNzkwNDEzMDAxfQ.QLNlu00Omu8ZpR3b6OyxYN5svCf3Q5IT3aTnpuP4ePQ",
-      "userId": "6aad20a3ec8fdb5e09d06488",
-      "expiresAt": "2026-09-26T08:56:41.480Z",
-      "createdAt": "2026-09-19T08:56:41.482Z",
-      "updatedAt": "2026-09-19T08:56:41.482Z",
-      "__v": 0
-    },
-    {
-      "_id": "6aae5119a63cfef21a2fda21",
-      "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6IjZhYWQyMGEzZWM4ZmRiNWUwOWQwNjQ4OCIsImlhdCI6MTc4OTgwODkyMSwiZXhwIjoxNzkwNDEzNzIxfQ.CmvMHWrKo1__VzACshQRWewfRnzRzHQJW8AIqos3YG0",
-      "userId": "6aad20a3ec8fdb5e09d06488",
-      "expiresAt": "2026-09-26T09:08:41.343Z",
-      "createdAt": "2026-09-19T09:08:41.346Z",
-      "updatedAt": "2026-09-19T09:08:41.346Z",
-      "__v": 0
-    },
-    {
       "_id": "6aae5d53addc8cd5ddd78270",
       "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6IjZhYWQxZWZlY2I4MzAzODIwNjFjOGZiZiIsImlhdCI6MTc4OTgxMjA1MSwiZXhwIjoxNzkwNDE2ODUxfQ.q0J_OI3_6XcM-KSrt0xdjgI5WBsttDY3GxpUDU_G4OU",
       "userId": "6aad1efecb830382061c8fbf",
       "expiresAt": "2026-09-26T10:00:51.099Z",
       "createdAt": "2026-09-19T10:00:51.103Z",
       "updatedAt": "2026-09-19T10:00:51.103Z",
-      "__v": 0
-    },
-    {
-      "_id": "6aae67b0addc8cd5ddd78272",
-      "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6IjZhYWQyMGEzZWM4ZmRiNWUwOWQwNjQ4OCIsImlhdCI6MTc4OTgxNDcwNCwiZXhwIjoxNzkwNDE5NTA0fQ.iqM8u7gzAOosfv1M2zbNtc5B9G4kT-2-QlE-riW2dLA",
-      "userId": "6aad20a3ec8fdb5e09d06488",
-      "expiresAt": "2026-09-26T10:45:04.293Z",
-      "createdAt": "2026-09-19T10:45:04.299Z",
-      "updatedAt": "2026-09-19T10:45:04.299Z",
-      "__v": 0
-    },
-    {
-      "_id": "6aae67d1addc8cd5ddd78273",
-      "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6IjZhYWQyMGEzZWM4ZmRiNWUwOWQwNjQ4OCIsImlhdCI6MTc4OTgxNDczNywiZXhwIjoxNzkwNDE5NTM3fQ.SJLBX98NIGq0pyhl3IcZhOoTepN1RTAo09DG7FihZBg",
-      "userId": "6aad20a3ec8fdb5e09d06488",
-      "expiresAt": "2026-09-26T10:45:37.283Z",
-      "createdAt": "2026-09-19T10:45:37.285Z",
-      "updatedAt": "2026-09-19T10:45:37.285Z",
-      "__v": 0
-    },
-    {
-      "_id": "6aae68eaaddc8cd5ddd78276",
-      "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6IjZhYWQyMGEzZWM4ZmRiNWUwOWQwNjQ4OCIsImlhdCI6MTc4OTgxNTAxOCwiZXhwIjoxNzkwNDE5ODE4fQ.dqSZ3im9XKlZI-Bf8P218omBH82jWHjMoaEKgGNDpQE",
-      "userId": "6aad20a3ec8fdb5e09d06488",
-      "expiresAt": "2026-09-26T10:50:18.671Z",
-      "createdAt": "2026-09-19T10:50:18.673Z",
-      "updatedAt": "2026-09-19T10:50:18.673Z",
       "__v": 0
     },
     {
@@ -2219,15 +2551,6 @@
       "__v": 0
     },
     {
-      "_id": "6aaf94613b2ca401c5a34958",
-      "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6IjZhYWQyMGEzZWM4ZmRiNWUwOWQwNjQ4OCIsImlhdCI6MTc4OTg5MTY4MSwiZXhwIjoxNzkwNDk2NDgxfQ._p1IJB4qGBCsjZel7qWFBBZMbcNyqXJ6RrOQIvTAd3g",
-      "userId": "6aad20a3ec8fdb5e09d06488",
-      "expiresAt": "2026-09-27T08:08:01.493Z",
-      "createdAt": "2026-09-20T08:08:01.515Z",
-      "updatedAt": "2026-09-20T08:08:01.515Z",
-      "__v": 0
-    },
-    {
       "_id": "6aaff731a50709d864253bcd",
       "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6IjZhYWQxZWZlY2I4MzAzODIwNjFjOGZiZiIsImlhdCI6MTc4OTkxNjk3NywiZXhwIjoxNzkwNTIxNzc3fQ.TZTnmyTXHbcsZWwEcvYZ8DKqet60PVMQDL0kMmOiNE8",
       "userId": "6aad1efecb830382061c8fbf",
@@ -2300,15 +2623,6 @@
       "__v": 0
     },
     {
-      "_id": "6ab019925e844835da0c05b4",
-      "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6IjZhYWQyMGEzZWM4ZmRiNWUwOWQwNjQ4OCIsImlhdCI6MTc4OTkyNTc3OCwiZXhwIjoxNzkwNTMwNTc4fQ.4fl8PqwvbdoPT1GvrZwW6ZlEaSOR-9urP5Fqgn1lqRM",
-      "userId": "6aad20a3ec8fdb5e09d06488",
-      "expiresAt": "2026-09-27T17:36:18.484Z",
-      "createdAt": "2026-09-20T17:36:18.486Z",
-      "updatedAt": "2026-09-20T17:36:18.486Z",
-      "__v": 0
-    },
-    {
       "_id": "6ab021932b541c880f1b683d",
       "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6IjZhYWQxZWZlY2I4MzAzODIwNjFjOGZiZiIsImlhdCI6MTc4OTkyNzgyNywiZXhwIjoxNzkwNTMyNjI3fQ.uu_illKOCr2lSMZfwU-6X-_BfHMWygWq__Bo6UpX8fs",
       "userId": "6aad1efecb830382061c8fbf",
@@ -2318,12 +2632,93 @@
       "__v": 0
     },
     {
-      "_id": "6ab030d3f4b0fb08c2f87321",
-      "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6IjZhYWQxZWZlY2I4MzAzODIwNjFjOGZiZiIsImlhdCI6MTc4OTkzMTczMSwiZXhwIjoxNzkwNTM2NTMxfQ.55ZaSIuirgKoypjxJI23ztvS_UvQZg2Ltx2_Ugl22tU",
+      "_id": "6ab03a6cba3b08b6908a3506",
+      "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6IjZhYWQxZWZlY2I4MzAzODIwNjFjOGZiZiIsImlhdCI6MTc4OTkzNDE4OCwiZXhwIjoxNzkwNTM4OTg4fQ.rqiSdu5UXBpLZOEYnbi59_HD-u4laOj7vnn_vQ-uMEE",
       "userId": "6aad1efecb830382061c8fbf",
-      "expiresAt": "2026-09-27T19:15:31.993Z",
-      "createdAt": "2026-09-20T19:15:32.010Z",
-      "updatedAt": "2026-09-20T19:15:32.010Z",
+      "expiresAt": "2026-09-27T19:56:28.235Z",
+      "createdAt": "2026-09-20T19:56:28.245Z",
+      "updatedAt": "2026-09-20T19:56:28.245Z",
+      "__v": 0
+    },
+    {
+      "_id": "6ab111f1639e4098459295da",
+      "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6IjZhYWQxZWZlY2I4MzAzODIwNjFjOGZiZiIsImlhdCI6MTc4OTk4OTM2MSwiZXhwIjoxNzkwMDAzNzYxfQ.diJbFx1n-pDn0S95E5hJfnDqb8i-yGe33DMm5ZKKo8Y",
+      "userId": "6aad1efecb830382061c8fbf",
+      "expiresAt": "2026-09-21T15:16:01.061Z",
+      "createdAt": "2026-09-21T11:16:01.069Z",
+      "updatedAt": "2026-09-21T11:16:01.069Z",
+      "__v": 0
+    },
+    {
+      "_id": "6ab11211639e4098459295de",
+      "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6IjZhYWQxZWZlY2I4MzAzODIwNjFjOGZjMyIsImlhdCI6MTc4OTk4OTM5MywiZXhwIjoxNzkwMDAzNzkzfQ.Oa91Bi7J-UiYOy4xYPj4WfFWhQu5dPsjrm2AoItLa0I",
+      "userId": "6aad1efecb830382061c8fc3",
+      "expiresAt": "2026-09-21T15:16:33.233Z",
+      "createdAt": "2026-09-21T11:16:33.234Z",
+      "updatedAt": "2026-09-21T11:16:33.234Z",
+      "__v": 0
+    },
+    {
+      "_id": "6ab11276639e4098459295e7",
+      "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6IjZhYWQyMGEzZWM4ZmRiNWUwOWQwNjQ4OCIsImlhdCI6MTc4OTk4OTQ5NCwiZXhwIjoxNzkwMDAzODk0fQ.EB473RYtl4HDHbBqhsxy5ETlbv5WG6W-Yk6YpZ3e_2Q",
+      "userId": "6aad20a3ec8fdb5e09d06488",
+      "expiresAt": "2026-09-21T15:18:14.609Z",
+      "createdAt": "2026-09-21T11:18:14.610Z",
+      "updatedAt": "2026-09-21T11:18:14.610Z",
+      "__v": 0
+    },
+    {
+      "_id": "6ab1137b639e4098459295ea",
+      "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6IjZhYWQyMGEzZWM4ZmRiNWUwOWQwNjQ4OCIsImlhdCI6MTc4OTk4OTc1NSwiZXhwIjoxNzkwMDA0MTU1fQ.Jkr_YPVEUBQce4hGW_eMPLUfYtoMuQTYrRQhSYHR0gc",
+      "userId": "6aad20a3ec8fdb5e09d06488",
+      "expiresAt": "2026-09-21T15:22:35.088Z",
+      "createdAt": "2026-09-21T11:22:35.090Z",
+      "updatedAt": "2026-09-21T11:22:35.090Z",
+      "__v": 0
+    },
+    {
+      "_id": "6ab1138d639e4098459295f0",
+      "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6IjZhYWQyMGEzZWM4ZmRiNWUwOWQwNjQ4OCIsImlhdCI6MTc4OTk4OTc3MywiZXhwIjoxNzkwMDA0MTczfQ.Z7ab22ew9Ue7R0add-SynlktUV66oQlrgDOvkpcDuwI",
+      "userId": "6aad20a3ec8fdb5e09d06488",
+      "expiresAt": "2026-09-21T15:22:53.855Z",
+      "createdAt": "2026-09-21T11:22:53.857Z",
+      "updatedAt": "2026-09-21T11:22:53.857Z",
+      "__v": 0
+    },
+    {
+      "_id": "6ab115f5293501994b5f7293",
+      "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6IjZhYWQxZWZlY2I4MzAzODIwNjFjOGZiZiIsImlhdCI6MTc4OTk5MDM4OSwiZXhwIjoxNzkwMDA0Nzg5fQ.k3vy-JElpcUIoiNx_a6iM1vLdEyPl5ozgvYJAVAx5nA",
+      "userId": "6aad1efecb830382061c8fbf",
+      "expiresAt": "2026-09-21T15:33:09.745Z",
+      "createdAt": "2026-09-21T11:33:09.748Z",
+      "updatedAt": "2026-09-21T11:33:09.748Z",
+      "__v": 0
+    },
+    {
+      "_id": "6ab11f77ec9c8ac26383de31",
+      "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6IjZhYWQyMGEzZWM4ZmRiNWUwOWQwNjQ4OCIsImlhdCI6MTc4OTk5MjgyMywiZXhwIjoxNzkwMDA3MjIzfQ.Cai6wIjIIFYCdaD3QCeVQVi6dYS1qGMCeNDxfbFm4VI",
+      "userId": "6aad20a3ec8fdb5e09d06488",
+      "expiresAt": "2026-09-21T16:13:43.190Z",
+      "createdAt": "2026-09-21T12:13:43.227Z",
+      "updatedAt": "2026-09-21T12:13:43.227Z",
+      "__v": 0
+    },
+    {
+      "_id": "6ab12513ec9c8ac26383de3c",
+      "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6IjZhYWQxZWZlY2I4MzAzODIwNjFjOGZiZiIsImlhdCI6MTc4OTk5NDI1OSwiZXhwIjoxNzkwMDA4NjU5fQ.54VW7cBWo1eHpTJG2CHnqIvWhSP8uskRddEx2o3a0SI",
+      "userId": "6aad1efecb830382061c8fbf",
+      "expiresAt": "2026-09-21T16:37:39.301Z",
+      "createdAt": "2026-09-21T12:37:39.304Z",
+      "updatedAt": "2026-09-21T12:37:39.304Z",
+      "__v": 0
+    },
+    {
+      "_id": "6ab13588f74108527fa342b9",
+      "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6IjZhYWQxZWZlY2I4MzAzODIwNjFjOGZiZiIsImlhdCI6MTc4OTk5ODQ3MiwiZXhwIjoxNzkwMDEyODcyfQ.95vZdM2SN1KQUVTW8pVYnGuecbCJnBxEUA6t7PHyx64",
+      "userId": "6aad1efecb830382061c8fbf",
+      "expiresAt": "2026-09-21T17:47:52.170Z",
+      "createdAt": "2026-09-21T13:47:52.173Z",
+      "updatedAt": "2026-09-21T13:47:52.173Z",
       "__v": 0
     }
   ],
@@ -2587,23 +2982,6 @@
       "endDate": "2027-01-17T00:00:00.000Z",
       "createdAt": "2026-09-19T11:28:08.750Z",
       "updatedAt": "2026-09-19T11:28:08.750Z",
-      "__v": 0
-    },
-    {
-      "_id": "6ab0310cf4b0fb08c2f87322",
-      "userId": "6aad20a3ec8fdb5e09d06488",
-      "shiftId": "6ab022192b541c880f1b683e",
-      "startTime": "02:20",
-      "endTime": "03:30",
-      "roomId": "Giảng đường A2-301",
-      "subjectName": "Lập trình Web",
-      "subjectCode": "CS201",
-      "weekday": 1,
-      "isRecurring": true,
-      "startDate": "2026-09-20T00:00:00.000Z",
-      "endDate": "2027-01-18T00:00:00.000Z",
-      "createdAt": "2026-09-20T19:16:28.335Z",
-      "updatedAt": "2026-09-20T19:16:28.335Z",
       "__v": 0
     }
   ],
