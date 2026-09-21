@@ -1,4 +1,4 @@
-const { sendSuccess, sendError } = require('../utils/responseHandler');
+const { sendSuccess, sendError, getBaseUrl } = require('../utils/responseHandler');
 const fs = require('fs');
 const path = require('path');
 const { uploadDir } = require('../middlewares/upload.middleware');
@@ -15,9 +15,8 @@ const uploadSingleFile = async (req, res, next) => {
     }
 
     const fileUrl = `/uploads/${file.filename}`;
-    const protocol = req.headers['x-forwarded-proto'] || req.protocol || 'http';
-    const host = req.get('host');
-    const fullUrl = `${protocol}://${host}${fileUrl}`;
+    const baseUrl = getBaseUrl(req);
+    const fullUrl = `${baseUrl}${fileUrl}`;
 
     return sendSuccess(res, 'Tải lên file thành công.', {
       originalName: file.originalname,

@@ -8,6 +8,7 @@ const RefreshToken = require('../models/refreshToken.model');
 const TokenBlacklist = require('../models/tokenBlacklist.model');
 const AuditLog = require('../models/auditLog.model');
 const { sendSuccess, sendError } = require('../utils/responseHandler');
+const { getBaseUrl } = require('../utils/responseHandler');
 const { sendOtpEmail, sendRegistrationSuccessEmail } = require('../services/email.service');
 const { uploadDir } = require('../middlewares/upload.middleware');
 
@@ -570,9 +571,8 @@ const updateAvatar = async (req, res, next) => {
     }
 
     // Luôn lưu URL tuyệt đối vào CSDL để hoạt động đúng trên mọi môi trường (VPS/Nginx)
-    const protocol = req.headers['x-forwarded-proto'] || req.protocol || 'http';
-    const host = req.get('host');
-    const fullAvatarUrl = avatar.startsWith('http') ? avatar : `${protocol}://${host}${avatar}`;
+    const baseUrl = getBaseUrl(req);
+    const fullAvatarUrl = avatar.startsWith('http') ? avatar : `${baseUrl}${avatar}`;
     updateData.avatar = fullAvatarUrl;
 
     const user = await User.findByIdAndUpdate(

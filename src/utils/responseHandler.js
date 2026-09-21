@@ -28,5 +28,17 @@ const sendError = (res, message = 'Có lỗi xảy ra', errors = null, statusCod
 module.exports = {
   sendSuccess,
   sendError,
+  /**
+   * Lấy base URL đúng protocol (https khi chạy sau Nginx/VPS, http khi local dev)
+   * Ưu tiên: x-forwarded-proto header > CLIENT_URL env > req.protocol
+   */
+  getBaseUrl: (req) => {
+    const proto = req.headers['x-forwarded-proto'] ||
+      (process.env.CLIENT_URL?.startsWith('https') ? 'https' : null) ||
+      req.protocol ||
+      'http';
+    const host = req.get('host');
+    return `${proto}://${host}`;
+  },
 };
 
