@@ -112,6 +112,8 @@ app.use('/uploads', express.static(uploadsStaticDir));
 app.use('/api/uploads', express.static(uploadsStaticDir));
 app.use('/api/v1/uploads', express.static(uploadsStaticDir));
 app.get('/uploads/:filename', downloadFile);
+app.get('/api/uploads/:filename', downloadFile);
+app.get('/api/v1/uploads/:filename', downloadFile);
 
 // 4. Swagger UI Documentation Route
 const swaggerUiOptions = {

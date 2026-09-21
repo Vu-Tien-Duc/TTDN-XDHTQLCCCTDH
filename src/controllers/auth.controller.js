@@ -576,6 +576,9 @@ const updateAvatar = async (req, res, next) => {
     if (fullAvatarUrl.startsWith('http://chamcongdh.io.vn')) {
       fullAvatarUrl = fullAvatarUrl.replace('http://chamcongdh.io.vn', 'https://chamcongdh.io.vn');
     }
+    if (fullAvatarUrl.includes('chamcongdh.io.vn/uploads/')) {
+      fullAvatarUrl = fullAvatarUrl.replace('chamcongdh.io.vn/uploads/', 'chamcongdh.io.vn/api/uploads/');
+    }
     updateData.avatar = fullAvatarUrl;
 
     const user = await User.findByIdAndUpdate(

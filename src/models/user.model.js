@@ -107,8 +107,15 @@ const userSchema = new mongoose.Schema(
         delete ret.otpCode;
         delete ret.otpExpiresAt;
         delete ret.otpType;
-        if (typeof ret.avatar === 'string' && ret.avatar.startsWith('http://chamcongdh.io.vn')) {
-          ret.avatar = ret.avatar.replace('http://chamcongdh.io.vn', 'https://chamcongdh.io.vn');
+        if (typeof ret.avatar === 'string') {
+          if (ret.avatar.startsWith('http://chamcongdh.io.vn')) {
+            ret.avatar = ret.avatar.replace('http://chamcongdh.io.vn', 'https://chamcongdh.io.vn');
+          }
+          if (ret.avatar.startsWith('/uploads/')) {
+            ret.avatar = `/api${ret.avatar}`;
+          } else if (ret.avatar.includes('chamcongdh.io.vn/uploads/')) {
+            ret.avatar = ret.avatar.replace('chamcongdh.io.vn/uploads/', 'chamcongdh.io.vn/api/uploads/');
+          }
         }
         return ret;
       },
@@ -119,8 +126,15 @@ const userSchema = new mongoose.Schema(
         delete ret.otpCode;
         delete ret.otpExpiresAt;
         delete ret.otpType;
-        if (typeof ret.avatar === 'string' && ret.avatar.startsWith('http://chamcongdh.io.vn')) {
-          ret.avatar = ret.avatar.replace('http://chamcongdh.io.vn', 'https://chamcongdh.io.vn');
+        if (typeof ret.avatar === 'string') {
+          if (ret.avatar.startsWith('http://chamcongdh.io.vn')) {
+            ret.avatar = ret.avatar.replace('http://chamcongdh.io.vn', 'https://chamcongdh.io.vn');
+          }
+          if (ret.avatar.startsWith('/uploads/')) {
+            ret.avatar = `/api${ret.avatar}`;
+          } else if (ret.avatar.includes('chamcongdh.io.vn/uploads/')) {
+            ret.avatar = ret.avatar.replace('chamcongdh.io.vn/uploads/', 'chamcongdh.io.vn/api/uploads/');
+          }
         }
         return ret;
       },
