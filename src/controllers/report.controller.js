@@ -214,10 +214,83 @@ const getMonthlyReport = async (req, res, next) => {
     return sendSuccess(res, `Lấy báo cáo tổng hợp tháng ${month}/${year} thành công.`, {
       month,
       year,
-      totalUsers: result.totalUsers,
-      report: result.report,
+      totalUsers: result.totalUsers !== undefined ? result.totalUsers : (result.report?.length || 0),
+      report: result.report || [],
+      weeklyTrend: result.weeklyTrend || [],
       pagination: result.pagination,
     });
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * @desc Lấy dữ liệu trích xuất báo cáo Excel 5 Sheets đầy đủ
+ * @route GET /api/reports/export-data
+ */
+const getExportReportData = async (req, res, next) => {
+  try {
+    const { userId, departmentId, from, to } = req.query;
+
+    let month = undefined;
+    if (req.query.month !== undefined && req.query.month !== '') {
+      const parsedMonth = parseInt(req.query.month, 10);
+      if (!isNaN(parsedMonth) && parsedMonth >= 1 && parsedMonth <= 12) {
+        month = parsedMonth;
+      }
+    }
+
+    let year = undefined;
+    if (req.query.year !== undefined && req.query.year !== '') {
+      const parsedYear = parseInt(req.query.year, 10);
+      if (!isNaN(parsedYear) && parsedYear >= 2000 && parsedYear <= 2100) {
+        year = parsedYear;
+      }
+    }
+
+    let targetUserIds = [];
+    let deptFilter = departmentId || null;
+
+    if (req.user.role === 'giangvien' || req.user.role === 'nhanvien') {
+      targetUserIds = [req.user.id];
+    } else if (req.user.role === 'truongkhoa') {
+      const allFacultyIds = await getDeanScopedUserIds(req.user);
+      const scopeDeptIds = await getDeanDepartmentIds(req.user);
+
+      if (userId) {
+        if (!allFacultyIds.includes(userId.toString())) {
+          return sendError(res, 'Bạn không có quyền xuất dữ liệu của nhân sự ngoài khoa.', null, 403);
+        }
+        targetUserIds = [userId];
+      } else {
+        targetUserIds = allFacultyIds;
+      }
+
+      if (departmentId) {
+        if (!scopeDeptIds.some((id) => id.toString() === departmentId.toString())) {
+          return sendError(res, 'Bạn không có quyền xuất báo cáo của đơn vị ngoài khoa.', null, 403);
+        }
+        deptFilter = departmentId;
+      } else {
+        deptFilter = scopeDeptIds;
+      }
+    } else if (req.user.role === 'admin') {
+      if (userId) {
+        targetUserIds = [userId];
+      }
+    }
+
+    const { generateExportReportData } = require('../services/report.service');
+    const exportData = await generateExportReportData({
+      month,
+      year,
+      from,
+      to,
+      departmentId: deptFilter,
+      targetUserIds,
+    });
+
+    return sendSuccess(res, 'Trích xuất dữ liệu báo cáo Excel thành công.', exportData);
   } catch (error) {
     next(error);
   }
@@ -226,4 +299,6 @@ const getMonthlyReport = async (req, res, next) => {
 module.exports = {
   getAttendanceReport,
   getMonthlyReport,
+  getExportReportData,
 };
+

@@ -200,7 +200,7 @@ const MENU_GROUPS: SidebarMenuGroup[] = [
 const MENU_ITEMS = MENU_GROUPS.flatMap((group) => group.items);
 
 export const MainLayout: React.FC = () => {
-  const { user, logout } = useAuth();
+  const { user, logout, login } = useAuth();
   const location = useLocation();
   const navigate = useNavigate();
 
@@ -239,10 +239,64 @@ export const MainLayout: React.FC = () => {
   const [unreadCount, setUnreadCount] = useState(0);
   const [isLoadingNotifications, setIsLoadingNotifications] = useState(false);
   const [avatarError, setAvatarError] = useState(false);
+  const [isSwitchingAccount, setIsSwitchingAccount] = useState(false);
 
   React.useEffect(() => {
     setAvatarError(false);
   }, [user?.avatar]);
+
+  // Danh sách tài khoản demo phục vụ hội đồng nghiệm thu & kiểm thử
+  const demoAccounts = [
+    {
+      role: 'admin',
+      name: 'Ban Giám Hiệu (Admin)',
+      email: 'daihocdtd@gmail.com',
+      badge: 'Admin',
+    },
+    {
+      role: 'truongkhoa',
+      name: 'Trưởng Khoa CNTT',
+      email: 'truongkhoa.cntt@university.edu.vn',
+      badge: 'Trưởng Khoa',
+    },
+    {
+      role: 'giangvien',
+      name: 'TS. Trần Thị Bích',
+      email: 'giangvien.bich@university.edu.vn',
+      badge: 'Giảng Viên',
+    },
+    {
+      role: 'nhanvien',
+      name: 'Đỗ Thu Hà',
+      email: 'nhanvien.ha@university.edu.vn',
+      badge: 'Nhân Viên',
+    },
+  ];
+
+  const handleQuickSwitch = async (email: string) => {
+    setIsSwitchingAccount(true);
+    try {
+      const res = (await axiosClient.post('/auth/login', {
+        email,
+        password: 'password123',
+      })) as unknown as {
+        success: boolean;
+        message?: string;
+        data?: { accessToken: string; user: import('../types').User };
+      };
+
+      if (res.success && res.data) {
+        login(res.data.accessToken, res.data.user);
+        toast.success(`Đã chuyển sang: ${res.data.user.fullName} (${res.data.user.role})`, {
+          icon: '🔄',
+        });
+      }
+    } catch {
+      toast.error('Không thể chuyển đổi tài khoản demo. Vui lòng kiểm tra backend.');
+    } finally {
+      setIsSwitchingAccount(false);
+    }
+  };
 
   // Lấy dữ liệu thông báo thực tế từ CSDL & email hệ thống
   const fetchRealNotifications = async () => {

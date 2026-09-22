@@ -1,6 +1,6 @@
 const express = require('express');
 const router = express.Router();
-const { getAttendanceReport, getMonthlyReport } = require('../controllers/report.controller');
+const { getAttendanceReport, getMonthlyReport, getExportReportData } = require('../controllers/report.controller');
 const { verifyToken, verifyRole } = require('../middlewares/auth.middleware');
 
 router.use(verifyToken);
@@ -11,4 +11,8 @@ router.get('/attendance', verifyRole(['admin', 'truongkhoa', 'giangvien', 'nhanv
 // Báo cáo chi tiết theo tháng: Dành cho Admin và Trưởng khoa
 router.get('/monthly', verifyRole(['admin', 'truongkhoa']), getMonthlyReport);
 
+// Dữ liệu trích xuất báo cáo Excel 5 Sheets
+router.get('/export-data', verifyRole(['admin', 'truongkhoa', 'giangvien', 'nhanvien']), getExportReportData);
+
 module.exports = router;
+
