@@ -102,8 +102,20 @@ const leaveRequestSchema = new mongoose.Schema(
   }
 );
 
-// Index bắt buộc tăng tốc pipeline aggregate tính số ngày phép còn lại
-leaveRequestSchema.index({ userId: 1, status: 1, type: 1 });
+// Indexes tăng tốc truy vấn lọc, kiểm tra trùng lặp và aggregate số dư ngày phép (chuẩn ESR)
+leaveRequestSchema.index({ userId: 1, type: 1, status: 1, startDate: 1, endDate: 1 });
+leaveRequestSchema.index({ userId: 1, status: 1, createdAt: -1 });
+leaveRequestSchema.index({ status: 1, createdAt: -1 });
+
+// Khóa chống Race Condition: Ngăn chặn tạo 2 đơn trùng lặp thời gian cho cùng 1 user cấp CSDL
+leaveRequestSchema.index(
+  { userId: 1, startDate: 1, endDate: 1 },
+  {
+    unique: true,
+    partialFilterExpression: { status: { $in: ['PENDING', 'APPROVED'] } },
+    name: 'unique_active_leave_range',
+  }
+);
 
 leaveRequestSchema.pre('validate', function () {
   if (this.startDate && this.endDate && this.startDate > this.endDate) {

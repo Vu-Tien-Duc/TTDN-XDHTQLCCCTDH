@@ -80,11 +80,11 @@ const processScheduleAttendanceCheck = async (schedule, dayRange) => {
   const shiftName = schedule.shiftId?.name || shiftId;
 
   // 1. Kiểm tra đối chiếu xem giảng viên đã có bản ghi chấm công nào hôm nay cho ca/lịch này chưa
-  // Tính cả checkInTime hoặc createdAt nằm trong khoảng [00:00:00, 23:59:59] của ngày hôm nay
   const existingLog = await AttendanceLog.findOne({
     userId,
     scheduleId: schedule._id,
     $or: [
+      { workDate: dayRange.dateStr },
       { checkInTime: { $gte: startOfDay, $lte: endOfDay } },
       { createdAt: { $gte: startOfDay, $lte: endOfDay } },
     ],
@@ -119,18 +119,37 @@ const processScheduleAttendanceCheck = async (schedule, dayRange) => {
   // 3. Cơ chế Idempotent (Chống trùng lặp tuyệt đối):
   // Tạo bản ghi trong attendance_logs với status: 'ABSENT' (hoặc 'EXCUSED_ABSENCE' nếu có phép),
   // method: 'manual', checkInTime: null, checkOutTime: null
-  const newLog = await AttendanceLog.create({
-    userId,
-    shiftId,
-    scheduleId: schedule._id,
-    status: finalStatus,
-    method: 'manual',
-    checkInTime: null, // Vắng mặt hoặc nghỉ phép thì không có giờ check-in
-    checkOutTime: null,
-    leaveRequestId,
-    isManualOverride: false,
-    createdAt: endOfDay,
-  });
+  let newLog;
+  try {
+    newLog = await AttendanceLog.create({
+      userId,
+      shiftId,
+      scheduleId: schedule._id,
+      status: finalStatus,
+      method: 'system',
+      deviceId: 'SYSTEM_CRON',
+      checkInTime: null, // Vắng mặt hoặc nghỉ phép thì không có giờ check-in
+      checkOutTime: null,
+      workDate: dayRange.dateStr,
+      leaveRequestId,
+      isManualOverride: false,
+      createdAt: endOfDay,
+    });
+  } catch (err) {
+    if (err.code === 11000) {
+      console.log(`[Cron Service] [BỎ QUA] Giảng viên ${teacherName} (${shiftName}): Đã tồn tại bản ghi trong CSDL (E11000 duplicate key).`);
+      return {
+        scheduleId: schedule._id,
+        userId,
+        teacherName,
+        shiftName,
+        action: 'SKIPPED',
+        status: finalStatus,
+        reason: 'Đã có bản ghi chấm công (duplicate key)',
+      };
+    }
+    throw err;
+  }
 
   console.log(`[Cron Service] [ĐÁNH VẮNG] Tự động ghi nhận '${finalStatus}' cho Giảng viên ${teacherName} (${shiftName}) - Log ID: ${newLog._id}`);
 
@@ -390,16 +409,20 @@ const scanAndMarkExpiredShiftsAbsent = async (targetDate = new Date()) => {
     const activeSchedules = await getTodayActiveSchedules(targetDate);
 
     for (const schedule of activeSchedules) {
-      const shift = schedule.shiftId;
-      if (!shift || !shift.startTime) continue;
+      try {
+        const shift = schedule.shiftId;
+        if (!shift || !shift.startTime) continue;
 
-      const shiftStartStr = schedule.startTime || shift.startTime;
-      const startMinutes = timeStringToMinutes(shiftStartStr);
-      const lateThreshold = shift.lateThresholdMinutes !== undefined ? shift.lateThresholdMinutes : 15;
+        const shiftStartStr = schedule.startTime || shift.startTime;
+        const startMinutes = timeStringToMinutes(shiftStartStr);
+        const lateThreshold = shift.lateThresholdMinutes !== undefined ? shift.lateThresholdMinutes : 15;
 
-      // Nếu thời điểm hiện tại đã vượt quá giờ bắt đầu ca + ngưỡng cho phép đi muộn
-      if (currentMinutes > startMinutes + lateThreshold) {
-        await processScheduleAttendanceCheck(schedule, dayRange);
+        // Nếu thời điểm hiện tại đã vượt quá giờ bắt đầu ca + ngưỡng cho phép đi muộn
+        if (currentMinutes > startMinutes + lateThreshold) {
+          await processScheduleAttendanceCheck(schedule, dayRange);
+        }
+      } catch (itemErr) {
+        console.error(`[Cron Service] Lỗi khi xử lý lịch ${schedule._id}:`, itemErr.message);
       }
     }
   } catch (error) {
@@ -451,9 +474,8 @@ const initCronJobs = () => {
 module.exports = {
   getTodayActiveSchedules,
   runDailyAbsentCheck,
-  scanAndMarkExpiredShiftsAbsent,
   processScheduleAttendanceCheck,
-  isDeliverableEmail,
+  scanAndMarkExpiredShiftsAbsent,
   initCronJobs,
 };
 

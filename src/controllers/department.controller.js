@@ -212,7 +212,7 @@ const getAllDepartments = async (req, res, next) => {
     if (tree === 'true' && !type && parentId === undefined) {
       const departments = await Department.find(query)
         .populate('parentId', 'name type')
-        .populate('managerId', 'fullName email role')
+        .populate('managerId', 'fullName email role avatar')
         .sort({ name: 1 })
         .lean();
 
@@ -229,7 +229,7 @@ const getAllDepartments = async (req, res, next) => {
       const [departments, total] = await Promise.all([
         Department.find(query)
           .populate('parentId', 'name type')
-          .populate('managerId', 'fullName email role')
+          .populate('managerId', 'fullName email role avatar')
           .sort({ name: 1 })
           .skip(skip)
           .limit(limitNum)
@@ -251,7 +251,7 @@ const getAllDepartments = async (req, res, next) => {
     // Lấy toàn bộ danh sách phẳng không phân trang (tương thích backward)
     const departments = await Department.find(query)
       .populate('parentId', 'name type')
-      .populate('managerId', 'fullName email role')
+      .populate('managerId', 'fullName email role avatar')
       .sort({ name: 1 })
       .lean();
 
@@ -265,7 +265,7 @@ const getDepartmentById = async (req, res, next) => {
   try {
     const department = await Department.findById(req.params.id)
       .populate('parentId', 'name type')
-      .populate('managerId', 'fullName email role');
+      .populate('managerId', 'fullName email role avatar');
 
     if (!department) {
       return sendError(res, 'Không tìm thấy Khoa / Phòng ban.', null, 404);
@@ -361,7 +361,7 @@ const createDepartment = async (req, res, next) => {
 
     const populatedDept = await Department.findById(newDept._id)
       .populate('parentId', 'name type')
-      .populate('managerId', 'fullName email role');
+      .populate('managerId', 'fullName email role avatar');
 
     return sendSuccess(res, 'Tạo mới Khoa / Phòng ban thành công.', populatedDept, 201);
   } catch (error) {
@@ -483,7 +483,7 @@ const updateDepartment = async (req, res, next) => {
 
       updatedDept = await Department.findByIdAndUpdate(req.params.id, updatePayload, updateOptions)
         .populate('parentId', 'name type')
-        .populate('managerId', 'fullName email role');
+        .populate('managerId', 'fullName email role avatar');
 
       // 8. Tự động đồng bộ vai trò Trưởng khoa và DepartmentId khi có thay đổi người quản lý HOẶC thay đổi loại đơn vị
       if (needsManagerSync) {

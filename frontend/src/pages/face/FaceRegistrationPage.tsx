@@ -18,7 +18,7 @@ import {
   RotateCcw,
   Check,
 } from 'lucide-react';
-import { attendanceApi } from '../api';
+import { attendanceApi } from '../../api';
 import { toast } from 'react-hot-toast';
 
 interface Lecturer {

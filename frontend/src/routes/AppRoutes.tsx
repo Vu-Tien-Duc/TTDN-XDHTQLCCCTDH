@@ -22,10 +22,10 @@ const UsersPage = lazy(() => import('../pages/admin/UsersPage').then((m) => ({ d
 const SchedulesPage = lazy(() => import('../pages/schedule/SchedulesPage').then((m) => ({ default: m.SchedulesPage })));
 const ProfilePage = lazy(() => import('../pages/profile/ProfilePage').then((m) => ({ default: m.ProfilePage })));
 const AuditLogsPage = lazy(() => import('../pages/admin/AuditLogsPage').then((m) => ({ default: m.AuditLogsPage })));
-const AttendanceCheckInPage = lazy(() => import('../pages/AttendanceCheckInPage').then((m) => ({ default: m.AttendanceCheckInPage })));
-const AttendanceHistoryPage = lazy(() => import('../pages/AttendanceHistoryPage').then((m) => ({ default: m.AttendanceHistoryPage })));
-const FaceRegistrationPage = lazy(() => import('../pages/FaceRegistrationPage').then((m) => ({ default: m.FaceRegistrationPage })));
-const FaceCheckInKiosk = lazy(() => import('../pages/FaceCheckInKiosk').then((m) => ({ default: m.FaceCheckInKiosk })));
+const AttendanceCheckInPage = lazy(() => import('../pages/attendance/AttendanceCheckInPage').then((m) => ({ default: m.AttendanceCheckInPage })));
+const AttendanceHistoryPage = lazy(() => import('../pages/attendance/AttendanceHistoryPage').then((m) => ({ default: m.AttendanceHistoryPage })));
+const FaceRegistrationPage = lazy(() => import('../pages/face/FaceRegistrationPage').then((m) => ({ default: m.FaceRegistrationPage })));
+const FaceCheckInKiosk = lazy(() => import('../pages/face/FaceCheckInKiosk').then((m) => ({ default: m.FaceCheckInKiosk })));
 
 // Phân hệ Đơn từ & Báo cáo & AI
 const CreateLeavePage = lazy(() => import('../pages/leave/CreateLeavePage'));

@@ -63,10 +63,51 @@ const checkIn = async (req, res, next) => {
 
     // 0. Geofencing Validation: Nếu phương thức là 'gps' hoặc client gửi tọa độ
     if (method === 'gps' || (finalLocation && finalLocation.lat !== null && finalLocation.lng !== null)) {
-      // GPS check-in uses the centrally configured campus geofence. Department
-      // locations are organizational metadata and may not be the attendance site.
-      const campusConfig = getCampusConfig();
-      const geofenceResult = validateGeofence(finalLocation, campusConfig, campusConfig.radiusMeters);
+      // 0.1 Kiểm tra độ tin cậy tín hiệu GPS (chặn giả lập tọa độ với accuracy bất thường hoặc quá lớn)
+      if (accuracy !== undefined && accuracy !== null) {
+        if (typeof accuracy !== 'number' || accuracy <= 0 || accuracy > 100) {
+          return sendError(
+            res,
+            `Độ chính xác GPS không đủ tin cậy (bán kính sai số ${accuracy}m vượt ngưỡng an toàn <= 100m). Vui lòng di chuyển ra nơi thoáng hoặc chuyển sang Quét mã QR.`,
+            { accuracy },
+            400,
+            'GPS_ACCURACY_UNRELIABLE'
+          );
+        }
+      }
+
+      // 0.2 Thuật toán chống dịch chuyển bất thường (Teleportation check): Chống người dùng dùng Fake GPS nhảy vị trí tức thời
+      if (finalLocation.lat && finalLocation.lng) {
+        const lastRecentLog = await AttendanceLog.findOne({
+          userId,
+          'location.lat': { $ne: null },
+          createdAt: { $gte: new Date(Date.now() - 30 * 60 * 1000) },
+        }).sort({ createdAt: -1 });
+
+        if (lastRecentLog && lastRecentLog.location?.lat && lastRecentLog.location?.lng) {
+          const elapsedMinutes = (Date.now() - new Date(lastRecentLog.createdAt).getTime()) / 60000;
+          const distMeters = calculateDistanceMeters(
+            lastRecentLog.location.lat,
+            lastRecentLog.location.lng,
+            finalLocation.lat,
+            finalLocation.lng
+          );
+          // Vận tốc di chuyển vượt quá 2500m/phút (~150 km/h) trong thời gian ngắn
+          if (elapsedMinutes > 0.05 && distMeters / elapsedMinutes > 2500) {
+            return sendError(
+              res,
+              'Phát hiện thay đổi tọa độ GPS bất thường trong thời gian ngắn (nghi vấn sử dụng công cụ Fake GPS). Điểm danh bị từ chối.',
+              { distMeters: Math.round(distMeters), elapsedMinutes: Math.round(elapsedMinutes) },
+              400,
+              'GPS_SPOOF_DETECTED'
+            );
+          }
+        }
+      }
+
+      const user = await User.findById(userId).populate('departmentId');
+      const deptLocation = user?.departmentId?.location;
+      const geofenceResult = validateGeofence(finalLocation, deptLocation);
 
       if (!geofenceResult.isInside) {
         return sendError(
@@ -141,9 +182,28 @@ const checkIn = async (req, res, next) => {
         );
       }
 
-      // Kiểm tra quá 15 phút -> Tự động hủy lịch và đánh vắng
+      // Kiểm tra thời gian điểm danh: Chỉ cho phép điểm danh trước giờ bắt đầu tối đa 30 phút
       const shiftStartStr = selectedSchedule.startTime || shift.startTime;
       const startMinutes = timeStringToMinutes(shiftStartStr);
+      const earlyLimitMinutes = Math.max(0, startMinutes - 30);
+
+      if (currentMinutes < earlyLimitMinutes) {
+        const openH = Math.floor(earlyLimitMinutes / 60).toString().padStart(2, '0');
+        const openM = (earlyLimitMinutes % 60).toString().padStart(2, '0');
+        return sendError(
+          res,
+          `Chưa đến thời gian điểm danh. Bạn chỉ có thể điểm danh trước giờ bắt đầu tối đa 30 phút (Ca bắt đầu lúc ${shiftStartStr}, mở điểm danh từ ${openH}:${openM}).`,
+          {
+            shiftName: shift.name,
+            startTime: shiftStartStr,
+            openCheckInTime: `${openH}:${openM}`,
+          },
+          400,
+          'TOO_EARLY'
+        );
+      }
+
+      // Kiểm tra quá 15 phút -> Tự động hủy lịch và đánh vắng
       const lateThreshold = shift.lateThresholdMinutes !== undefined ? shift.lateThresholdMinutes : 15;
       if (currentMinutes > startMinutes + lateThreshold) {
         try {
@@ -151,7 +211,7 @@ const checkIn = async (req, res, next) => {
           if (processScheduleAttendanceCheck) {
             await processScheduleAttendanceCheck(selectedSchedule, { startOfDay, endOfDay, dateStr: nowVN.toISOString().slice(0, 10) });
           }
-        } catch (e) {}
+        } catch (e) { }
         return sendError(
           res,
           `Ca làm việc ${shift.name} (${shiftStartStr}) đã quá hạn check-in (vượt ngưỡng cho phép đi muộn ${lateThreshold} phút) và đã tự động bị hủy lịch / ghi nhận vắng mặt.`,
@@ -197,7 +257,7 @@ const checkIn = async (req, res, next) => {
     });
 
     const populatedLog = await AttendanceLog.findById(log._id)
-      .populate('userId', 'fullName email')
+      .populate('userId', 'fullName email avatar')
       .populate('shiftId', 'name startTime endTime lateThresholdMinutes')
       .populate('scheduleId', 'roomId weekday');
 
@@ -244,49 +304,27 @@ const checkOut = async (req, res, next) => {
     // Giới hạn trong khoảng [00:00:00 - 23:59:59] của NGÀY HÔM NAY theo múi giờ UTC+7
     const { startOfDay, endOfDay } = getVietnamDayRange();
 
-    let openLog = null;
+    const query = {
+      userId,
+      checkOutTime: null,
+      checkInTime: { $gte: startOfDay, $lte: endOfDay },
+    };
 
-    // 1. Ưu tiên tìm theo attendanceId chính xác nếu client truyền lên
     if (attendanceId && mongoose.Types.ObjectId.isValid(attendanceId)) {
-      openLog = await AttendanceLog.findOne({
-        _id: attendanceId,
-        userId,
-        checkOutTime: null,
-      }).populate('shiftId');
+      query._id = attendanceId;
+    } else if (shiftId && mongoose.Types.ObjectId.isValid(shiftId)) {
+      query.shiftId = shiftId;
     }
 
-    // 2. Tìm theo shiftId hoặc ca mở trong ngày hôm nay
-    if (!openLog) {
-      const query = {
-        userId,
-        checkOutTime: null,
-        checkInTime: { $gte: startOfDay, $lte: endOfDay },
-      };
-
-      if (shiftId && mongoose.Types.ObjectId.isValid(shiftId)) {
-        query.shiftId = shiftId;
-      }
-
-      openLog = await AttendanceLog.findOne(query)
-        .populate('shiftId')
-        .sort({ checkInTime: -1 });
-    }
-
-    // 3. Fallback tìm bất kỳ bản ghi check-in nào chưa checkout của chính userId
-    if (!openLog) {
-      openLog = await AttendanceLog.findOne({
-        userId,
-        checkOutTime: null,
-        checkInTime: { $ne: null },
-      })
-        .populate('shiftId')
-        .sort({ checkInTime: -1 });
-    }
+    // Tự tìm bản ghi đang mở (chưa có checkOutTime) của chính userId trong ngày hôm nay
+    const openLog = await AttendanceLog.findOne(query)
+      .populate('shiftId')
+      .sort({ checkInTime: -1 });
 
     if (!openLog) {
       return sendError(
         res,
-        'Không tìm thấy bản ghi check-in nào còn mở để thực hiện check-out.',
+        'Không tìm thấy bản ghi check-in nào còn mở trong ngày hôm nay.',
         null,
         404,
         ERROR_CODES.ATTENDANCE_NO_OPEN_RECORD
@@ -309,12 +347,12 @@ const checkOut = async (req, res, next) => {
     await openLog.save();
 
     const populated = await AttendanceLog.findById(openLog._id)
-      .populate('userId', 'fullName email')
+      .populate('userId', 'fullName email avatar')
       .populate('shiftId', 'name startTime endTime lateThresholdMinutes')
       .populate('scheduleId', 'roomId weekday');
 
-    // Tính tổng thời lượng làm việc thực tế (chống lỗi null checkInTime)
-    const durationMs = openLog.checkInTime ? (openLog.checkOutTime.getTime() - openLog.checkInTime.getTime()) : 0;
+    // Tính tổng thời lượng làm việc thực tế
+    const durationMs = openLog.checkOutTime.getTime() - openLog.checkInTime.getTime();
     const durationMinutes = Math.max(0, Math.round(durationMs / (60 * 1000)));
     const hours = Math.floor(durationMinutes / 60);
     const mins = durationMinutes % 60;
@@ -413,7 +451,7 @@ const getAttendanceHistory = async (req, res, next) => {
     const totalPages = Math.ceil(total / limitNum);
 
     const logs = await AttendanceLog.find(query)
-      .populate('userId', 'fullName email role departmentId')
+      .populate('userId', 'fullName email role departmentId avatar')
       .populate('shiftId', 'name startTime endTime')
       .populate('scheduleId', 'roomId weekday')
       .populate('leaveRequestId', 'type reason')
@@ -421,20 +459,11 @@ const getAttendanceHistory = async (req, res, next) => {
       .skip(skip)
       .limit(limitNum);
 
-    // Chuẩn hóa: người vắng mặt hoặc nghỉ phép tuyệt đối không có giờ check-in
-    const sanitizedLogs = logs.map((log) => {
-      const obj = log.toObject();
-      if (obj.status === 'ABSENT' || obj.status === 'EXCUSED_ABSENCE') {
-        obj.checkInTime = null;
-      }
-      return obj;
-    });
-
     return sendSuccess(res, 'Lấy lịch sử chấm công thành công.', {
       total,
       page: pageNum,
       totalPages,
-      records: sanitizedLogs,
+      records: logs,
     });
   } catch (error) {
     next(error);
@@ -453,7 +482,7 @@ const getAttendanceById = async (req, res, next) => {
     }
 
     const log = await AttendanceLog.findById(id)
-      .populate('userId', 'fullName email role departmentId')
+      .populate('userId', 'fullName email role departmentId avatar')
       .populate('shiftId', 'name startTime endTime lateThresholdMinutes')
       .populate('scheduleId', 'roomId weekday startDate endDate')
       .populate('leaveRequestId', 'type reason status');
@@ -474,12 +503,7 @@ const getAttendanceById = async (req, res, next) => {
       }
     }
 
-    const logObj = log.toObject();
-    if (logObj.status === 'ABSENT' || logObj.status === 'EXCUSED_ABSENCE') {
-      logObj.checkInTime = null;
-    }
-
-    return sendSuccess(res, 'Lấy chi tiết bản ghi chấm công thành công.', logObj, 200);
+    return sendSuccess(res, 'Lấy chi tiết chấm công thành công.', log);
   } catch (error) {
     next(error);
   }
@@ -558,7 +582,7 @@ const updateAttendanceByAdmin = async (req, res, next) => {
     });
 
     const populatedLog = await AttendanceLog.findById(log._id)
-      .populate('userId', 'fullName email role departmentId')
+      .populate('userId', 'fullName email role departmentId avatar')
       .populate('shiftId', 'name startTime endTime lateThresholdMinutes')
       .populate('scheduleId', 'roomId weekday')
       .populate('leaveRequestId', 'type reason status');
@@ -943,8 +967,23 @@ const processFaceAttendanceUser = async ({
  */
 const faceCheckIn = async (req, res, next) => {
   try {
-    const { faceDescriptor, mode = 'auto', capturedImage, image, location, latitude, longitude } = req.body;
+    const { faceDescriptor, mode = 'auto', capturedImage, image, location, latitude, longitude, clientTimestamp } = req.body;
     const finalLocation = location || (latitude !== undefined && longitude !== undefined ? { lat: latitude, lng: longitude } : null);
+
+    // 0. Chống Replay Attack: Nếu client gửi timestamp, kiểm tra độ tươi mới của frame (không quá 30 giây)
+    if (clientTimestamp !== undefined && clientTimestamp !== null) {
+      const now = Date.now();
+      const ts = Number(clientTimestamp);
+      if (isNaN(ts) || Math.abs(now - ts) > 30000) {
+        return sendError(
+          res,
+          'Khung hình nhận diện khuôn mặt đã hết hạn hoặc thời gian thiết bị Kiosk bị sai lệch.',
+          null,
+          400,
+          'EXPIRED_FRAME'
+        );
+      }
+    }
 
     // 1. Validate faceDescriptor
     if (!faceDescriptor || !Array.isArray(faceDescriptor) || faceDescriptor.length !== 128) {
@@ -1114,8 +1153,9 @@ const scanQRCode = async (req, res, next) => {
       );
     }
 
-    const campusConfig = getCampusConfig();
-    const geofenceResult = validateGeofence(finalLocation, campusConfig, campusConfig.radiusMeters);
+    const user = await User.findById(userId).populate('departmentId');
+    const deptLocation = user?.departmentId?.location;
+    const geofenceResult = validateGeofence(finalLocation, deptLocation);
 
     if (!geofenceResult.isInside) {
       return sendError(
@@ -1221,7 +1261,7 @@ const getCampusLocationConfig = async (req, res, next) => {
  */
 const updateCampusLocationConfig = async (req, res, next) => {
   try {
-    if (req.user?.role !== 'admin') {
+    if (process.env.NODE_ENV === 'production' && req.user?.role !== 'admin') {
       return sendError(res, 'Chỉ có Quản trị viên (Admin) mới có quyền cấu hình tọa độ khuôn viên trường.', null, 403);
     }
     const { name, lat, lng, radiusMeters } = req.body;
