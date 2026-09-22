@@ -6,6 +6,12 @@ const userSchema = new mongoose.Schema(
       type: String,
       required: [true, 'Họ tên hiển thị là bắt buộc'],
       trim: true,
+      minlength: [2, 'Họ tên phải có độ dài tối thiểu 2 ký tự'],
+      maxlength: [100, 'Họ tên không được vượt quá 100 ký tự'],
+      validate: {
+        validator: (v) => typeof v === 'string' && v.trim().length >= 2,
+        message: 'Họ tên không được để trống hoặc chỉ chứa khoảng trắng',
+      },
     },
     email: {
       type: String,
@@ -13,6 +19,7 @@ const userSchema = new mongoose.Schema(
       unique: true,
       lowercase: true,
       trim: true,
+      match: [/^[^\s@]+@[^\s@]+\.[^\s@]+$/, 'Định dạng email không hợp lệ'],
     },
     passwordHash: {
       type: String,
@@ -73,6 +80,8 @@ const userSchema = new mongoose.Schema(
     annualLeaveQuota: {
       type: Number,
       default: 12,
+      min: [0, 'Số ngày phép năm không thể là số âm'],
+      max: [60, 'Số ngày phép năm không thể vượt quá 60 ngày'],
     },
     avatar: {
       type: String,

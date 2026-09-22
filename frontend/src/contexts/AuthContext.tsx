@@ -1,4 +1,5 @@
 import React, { createContext, useContext, useEffect, useState, useCallback } from 'react';
+import toast from 'react-hot-toast';
 import { Role, User } from '../types';
 import { tokenStorage } from '../utils';
 import { authService } from '../services/authService';
@@ -19,6 +20,18 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [user, setUser] = useState<User | null>(() => tokenStorage.getUser());
   const [isLoading, setIsLoading] = useState<boolean>(true);
+
+  // Xử lý đăng xuất (thu hồi token và dọn dẹp storage)
+  const logout = useCallback(async () => {
+    try {
+      await authService.logout();
+    } catch (error) {
+      console.warn('[AuthContext] Lỗi khi gọi API logout:', error);
+    } finally {
+      tokenStorage.clear();
+      setUser(null);
+    }
+  }, []);
 
   // Hàm tải lại thông tin người dùng từ server
   const refreshUser = useCallback(async () => {
@@ -43,6 +56,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   // Khởi tạo phiên đăng nhập khi tải ứng dụng
   useEffect(() => {
     const initAuth = async () => {
+      // Nếu phiên làm việc đã hết hạn do không hoạt động quá lâu
+      if (tokenStorage.isSessionExpired()) {
+        tokenStorage.clear();
+        setUser(null);
+        setIsLoading(false);
+        return;
+      }
+
       const token = tokenStorage.getAccessToken();
       if (token) {
         await refreshUser();
@@ -55,23 +76,64 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     initAuth();
   }, [refreshUser]);
 
+  // Giám sát hoạt động người dùng để phát hiện phiên không hoạt động quá lâu (Inactivity Timeout)
+  useEffect(() => {
+    if (!user) return;
+
+    let throttleTimer: ReturnType<typeof setTimeout> | null = null;
+    const handleUserActivity = () => {
+      if (throttleTimer) return;
+      throttleTimer = setTimeout(() => {
+        tokenStorage.updateActivity();
+        throttleTimer = null;
+      }, 10000); // Throttle 10s một lần
+    };
+
+    const checkInactivity = () => {
+      if (tokenStorage.isSessionExpired()) {
+        console.warn('[AuthContext] Phiên làm việc đã hết hạn do không hoạt động quá lâu.');
+        logout();
+        toast.error('Phiên làm việc đã hết hạn do không hoạt động. Vui lòng đăng nhập lại.', {
+          id: 'inactivity-timeout',
+          duration: 5000,
+        });
+      }
+    };
+
+    const events = ['mousemove', 'mousedown', 'keydown', 'touchstart', 'scroll'];
+    events.forEach((evt) => window.addEventListener(evt, handleUserActivity, { passive: true }));
+
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        checkInactivity();
+      }
+    };
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    window.addEventListener('focus', checkInactivity);
+
+    // Kiểm tra định kỳ mỗi 30 giây
+    const intervalId = setInterval(checkInactivity, 30000);
+
+    return () => {
+      events.forEach((evt) => window.removeEventListener(evt, handleUserActivity));
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+      window.removeEventListener('focus', checkInactivity);
+      clearInterval(intervalId);
+      if (throttleTimer) clearTimeout(throttleTimer);
+    };
+  }, [user, logout]);
+
   // Xử lý khi đăng nhập thành công
   const login = (token: string, newUser: User, _refreshToken?: string) => {
     tokenStorage.clear();
     tokenStorage.setAccessToken(token);
     tokenStorage.setUser(newUser);
+    tokenStorage.updateActivity();
     setUser(newUser);
-  };
 
-  // Xử lý đăng xuất
-  const logout = async () => {
-    try {
-      await authService.logout();
-    } catch (error) {
-      console.warn('[AuthContext] Lỗi khi gọi API logout:', error);
-    } finally {
-      tokenStorage.clear();
-      setUser(null);
+    // Đồng bộ ngay thông tin hồ sơ chi tiết (avatar, department populated) nếu thiếu
+    if (!newUser.avatar) {
+      refreshUser();
     }
   };
 

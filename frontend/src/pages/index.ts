@@ -1,6 +1,5 @@
 export * from './auth/LoginPage';
 export * from './dashboard/DashboardPage';
-export * from './common/PlaceholderPage';
 export * from './admin/DepartmentsPage';
 export * from './admin/ShiftsPage';
 export * from './admin/UsersPage';

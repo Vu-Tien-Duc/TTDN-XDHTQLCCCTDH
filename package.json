@@ -14,7 +14,8 @@
     "build": "npm run build --prefix frontend",
     "seed": "node src/utils/seeder.js",
     "test:ai": "node src/tests/aiAssistant.test.js",
-    "test": "node test_demo_all_weeks.js"
+    "test": "node test_demo_all_weeks.js",
+    "test:ai": "node src/tests/aiAssistant.test.js"
   },
   "repository": {
     "type": "git",
@@ -33,6 +34,7 @@
     "cors": "^2.8.6",
     "dotenv": "^17.4.2",
     "express": "^5.2.1",
+    "express-rate-limit": "^7.5.0",
     "helmet": "^8.3.0",
     "jsonwebtoken": "^9.0.3",
     "mongoose": "^9.9.4",

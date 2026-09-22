@@ -1,11 +1,16 @@
 const jwt = require('jsonwebtoken');
 const bcrypt = require('bcryptjs');
 const crypto = require('crypto');
+const path = require('path');
+const fs = require('fs');
 const User = require('../models/user.model');
 const RefreshToken = require('../models/refreshToken.model');
 const TokenBlacklist = require('../models/tokenBlacklist.model');
+const AuditLog = require('../models/auditLog.model');
 const { sendSuccess, sendError } = require('../utils/responseHandler');
+const { getBaseUrl } = require('../utils/responseHandler');
 const { sendOtpEmail, sendRegistrationSuccessEmail } = require('../services/email.service');
+const { uploadDir } = require('../middlewares/upload.middleware');
 
 const OTP_TTL_MS = 10 * 60 * 1000;
 const OTP_RESEND_COOLDOWN_MS = 60 * 1000;
@@ -35,15 +40,50 @@ const login = async (req, res, next) => {
 
     const user = await User.findOne({ email }).select('+passwordHash');
     if (!user) {
+      AuditLog.create({
+        actor: null,
+        actorType: 'SYSTEM',
+        action: 'USER_LOGIN_FAILED',
+        targetId: email,
+        targetType: 'User',
+        ipAddress: req.ip || req.connection?.remoteAddress || null,
+        details: { email, reason: 'Email không tồn tại' },
+      }).catch((err) => console.error('[AuditLog Error] Login failure:', err.message));
       return sendError(res, 'Email hoặc mật khẩu không chính xác.', null, 401);
     }
 
     const isMatch = await bcrypt.compare(password, user.passwordHash);
     if (!isMatch) {
+      try {
+        await AuditLog.create({
+          actor: user._id,
+          actorType: 'USER',
+          action: 'USER_LOGIN_FAILED',
+          targetId: user._id.toString(),
+          targetType: 'User',
+          ipAddress: req.ip || req.connection?.remoteAddress || null,
+          details: { email: user.email, reason: 'Sai mật khẩu' },
+        });
+      } catch (err) {
+        console.error('[AuditLog Error] Login failure:', err.message);
+      }
       return sendError(res, 'Email hoặc mật khẩu không chính xác.', null, 401);
     }
 
     if (!user.isActive) {
+      try {
+        await AuditLog.create({
+          actor: user._id,
+          actorType: 'USER',
+          action: 'USER_LOGIN_FAILED',
+          targetId: user._id.toString(),
+          targetType: 'User',
+          ipAddress: req.ip || req.connection?.remoteAddress || null,
+          details: { email: user.email, reason: 'Tài khoản bị vô hiệu hóa' },
+        });
+      } catch (err) {
+        console.error('[AuditLog Error] Login failure:', err.message);
+      }
       return sendError(res, 'Tài khoản của bạn đã bị vô hiệu hóa.', null, 403);
     }
 
@@ -64,12 +104,12 @@ const login = async (req, res, next) => {
       { expiresIn: process.env.JWT_EXPIRES_IN || '15m' }
     );
 
-    // 2. Cấp Refresh Token: Thời hạn 7 ngày
-    const refreshTokenExpiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
+    // 2. Cấp Refresh Token: Thời hạn theo phiên làm việc (4 giờ)
+    const refreshTokenExpiresAt = new Date(Date.now() + 4 * 60 * 60 * 1000);
     const refreshTokenString = jwt.sign(
       { id: user._id },
       process.env.REFRESH_TOKEN_SECRET,
-      { expiresIn: '7d' }
+      { expiresIn: '4h' }
     );
 
     await RefreshToken.create({
@@ -78,13 +118,15 @@ const login = async (req, res, next) => {
       expiresAt: refreshTokenExpiresAt,
     });
 
-    // 3. Lưu Refresh Token vào httpOnly cookie (Bảo mật XSS)
+    // 3. Lưu Refresh Token vào httpOnly session cookie (tự hủy khi tắt trình duyệt, không lưu vĩnh viễn trên máy)
     res.cookie('refreshToken', refreshTokenString, {
       httpOnly: true,
       secure: process.env.NODE_ENV === 'production',
       sameSite: process.env.NODE_ENV === 'production' ? 'strict' : 'lax',
-      maxAge: 7 * 24 * 60 * 60 * 1000,
     });
+
+    // Đồng bộ thông tin khoa trực thuộc
+    await user.populate('departmentId', 'name type location');
 
     const userData = {
       _id: user._id,
@@ -95,7 +137,24 @@ const login = async (req, res, next) => {
       annualLeaveQuota: user.annualLeaveQuota,
       isActive: user.isActive,
       isVerified: user.isVerified,
+      avatar: user.avatar || null,
+      phoneNumber: user.phoneNumber || null,
     };
+
+    // Ghi nhận Audit Log đăng nhập thành công (await để đảm bảo ghi nhận trước khi hoàn tất phiên)
+    try {
+      await AuditLog.create({
+        actor: user._id,
+        actorType: 'USER',
+        action: 'USER_LOGIN_SUCCESS',
+        targetId: user._id.toString(),
+        targetType: 'User',
+        ipAddress: req.ip || req.connection?.remoteAddress || null,
+        details: { email: user.email, fullName: user.fullName, role: user.role },
+      });
+    } catch (err) {
+      console.error('[AuditLog Error] Login success:', err.message);
+    }
 
     return sendSuccess(res, 'Đăng nhập thành công.', {
       token,
@@ -202,12 +261,8 @@ const resetPassword = async (req, res, next) => {
     const normalizedEmail = email.toLowerCase().trim();
     const user = await User.findOne({ email: normalizedEmail }).select('+passwordHash +otpCode +otpExpiresAt +otpType +otpAttempts +otpSentAt');
 
-    if (!user) {
-      return sendError(res, 'Không tìm thấy tài khoản với email này.', null, 404);
-    }
-
-    if (user.otpType !== 'FORGOT_PASSWORD') {
-      return sendError(res, 'Yêu cầu đặt lại mật khẩu không hợp lệ. Vui lòng gửi lại yêu cầu quên mật khẩu.', null, 400);
+    if (!user || user.otpType !== 'FORGOT_PASSWORD') {
+      return sendError(res, 'Yêu cầu đặt lại mật khẩu không hợp lệ hoặc mã OTP không chính xác.', null, 400);
     }
 
     const now = new Date();
@@ -245,6 +300,21 @@ const resetPassword = async (req, res, next) => {
     // Thu hồi toàn bộ Refresh Token cũ để bảo mật
     await RefreshToken.deleteMany({ userId: user._id });
 
+    // Ghi nhận Audit Log đặt lại mật khẩu thành công qua OTP (bắt buộc await để đảm bảo toàn vẹn audit)
+    try {
+      await AuditLog.create({
+        actor: user._id,
+        actorType: 'USER',
+        action: 'RESET_PASSWORD',
+        targetId: user._id.toString(),
+        targetType: 'User',
+        ipAddress: req.ip || req.connection?.remoteAddress || null,
+        details: { email: user.email, method: 'OTP' },
+      });
+    } catch (auditErr) {
+      console.error('[AuditLog Error] Reset password:', auditErr.message);
+    }
+
     return sendSuccess(res, 'Đặt lại mật khẩu thành công! Bạn có thể đăng nhập bằng mật khẩu mới.');
   } catch (error) {
     next(error);
@@ -254,6 +324,7 @@ const resetPassword = async (req, res, next) => {
 /**
  * @desc Cấp mới Access Token từ Refresh Token (Hỗ trợ đọc từ Cookie hoặc Body)
  * @route POST /api/v1/auth/refresh-token hoặc POST /api/v1/auth/refresh
+ * @security Áp dụng atomic findOneAndDelete để ngăn chặn Race Condition (Replay attack)
  */
 const refreshToken = async (req, res, next) => {
   try {
@@ -262,13 +333,14 @@ const refreshToken = async (req, res, next) => {
       return sendError(res, 'Vui lòng cung cấp refreshToken qua Cookie hoặc Request Body.', null, 400);
     }
 
-    const savedToken = await RefreshToken.findOne({ token });
+    // THAO TÁC NGUYÊN TỬ (Atomic): findOneAndDelete đảm bảo nếu 2 request đồng thời gửi cùng 1 token,
+    // chỉ 1 request xóa thành công và nhận được token, request còn lại nhận null và bị chặn ngay.
+    const savedToken = await RefreshToken.findOneAndDelete({ token });
     if (!savedToken) {
-      return sendError(res, 'Refresh token không hợp lệ hoặc đã hết hạn.', null, 403);
+      return sendError(res, 'Refresh token không hợp lệ hoặc đã được sử dụng.', null, 403);
     }
 
     if (savedToken.expiresAt <= new Date()) {
-      await RefreshToken.deleteOne({ _id: savedToken._id });
       return sendError(res, 'Refresh token đã hết hạn.', null, 403);
     }
 
@@ -287,19 +359,19 @@ const refreshToken = async (req, res, next) => {
     const newRefreshTokenString = jwt.sign(
       { id: user._id },
       process.env.REFRESH_TOKEN_SECRET,
-      { expiresIn: '7d' }
+      { expiresIn: '4h' }
     );
-    await RefreshToken.deleteOne({ _id: savedToken._id });
+
     await RefreshToken.create({
       token: newRefreshTokenString,
       userId: user._id,
-      expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
+      expiresAt: new Date(Date.now() + 4 * 60 * 60 * 1000),
     });
+
     res.cookie('refreshToken', newRefreshTokenString, {
       httpOnly: true,
       secure: process.env.NODE_ENV === 'production',
       sameSite: process.env.NODE_ENV === 'production' ? 'strict' : 'lax',
-      maxAge: 7 * 24 * 60 * 60 * 1000,
     });
 
     return sendSuccess(res, 'Cấp mới token thành công.', { token: newAccessToken });
@@ -316,7 +388,7 @@ const logout = async (req, res, next) => {
   try {
     // 1. Đưa Access Token hiện tại vào Blacklist để vô hiệu hóa ngay lập tức
     const authHeader = req.headers.authorization;
-    const accessToken = req.token || (authHeader && authHeader.startsWith('Bearer ') ? authHeader.split(' ')[1] : null);
+    const accessToken = req.token || (authHeader ? authHeader.replace(/^Bearer\s+/i, '').trim() : null);
 
     if (accessToken) {
       try {
@@ -344,6 +416,25 @@ const logout = async (req, res, next) => {
       secure: process.env.NODE_ENV === 'production',
       sameSite: process.env.NODE_ENV === 'production' ? 'strict' : 'lax',
     });
+
+    // 4. Ghi nhận Audit Log đăng xuất
+    const decodedUser = accessToken ? jwt.decode(accessToken) : null;
+    const actorId = decodedUser?.id || req.user?.id || null;
+    if (actorId) {
+      try {
+        await AuditLog.create({
+          actor: actorId,
+          actorType: 'USER',
+          action: 'USER_LOGOUT',
+          targetId: actorId.toString(),
+          targetType: 'User',
+          ipAddress: req.ip || req.connection?.remoteAddress || null,
+          details: { reason: 'Người dùng chủ động đăng xuất' },
+        });
+      } catch (err) {
+        console.error('[AuditLog Error] Logout:', err.message);
+      }
+    }
 
     return sendSuccess(res, 'Đăng xuất thành công. Token đã được thu hồi và đưa vào blacklist.');
   } catch (error) {
@@ -398,7 +489,26 @@ const changePassword = async (req, res, next) => {
 
     // Thu hồi toàn bộ Refresh Token cũ để ép các thiết bị/phiên khác phải đăng nhập lại
     await RefreshToken.deleteMany({ userId: user._id });
-    res.clearCookie('refreshToken');
+    res.clearCookie('refreshToken', {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: process.env.NODE_ENV === 'production' ? 'strict' : 'lax',
+    });
+
+    // Ghi nhận Audit Log đổi mật khẩu thành công (await để đảm bảo toàn vẹn nhật ký)
+    try {
+      await AuditLog.create({
+        actor: user._id,
+        actorType: 'USER',
+        action: 'CHANGE_PASSWORD',
+        targetId: user._id.toString(),
+        targetType: 'User',
+        ipAddress: req.ip || req.connection?.remoteAddress || null,
+        details: { email: user.email },
+      });
+    } catch (err) {
+      console.error('[AuditLog Error] Change password:', err.message);
+    }
 
     return sendSuccess(res, 'Đổi mật khẩu thành công! Vui lòng sử dụng mật khẩu mới cho các lần đăng nhập tiếp theo.');
   } catch (error) {
@@ -408,19 +518,62 @@ const changePassword = async (req, res, next) => {
 
 /**
  * @desc Cập nhật ảnh đại diện / ảnh mẫu Face ID của người dùng
- * @route PUT /api/auth/avatar
+ * @route PUT /api/auth/avatar hoặc POST /api/auth/avatar
  */
 const updateAvatar = async (req, res, next) => {
   try {
-    const { avatar, faceDescriptor } = req.body;
+    let avatar = null;
+    let faceDescriptor = req.body?.faceDescriptor;
+
+    // 1. Kiểm tra nếu client tải file ảnh trực tiếp (multipart/form-data)
+    const uploadedFile = req.file || (req.files && req.files.length > 0 ? req.files[0] : null);
+    if (uploadedFile) {
+      avatar = `/uploads/${uploadedFile.filename}`;
+    } else if (req.body?.avatar) {
+      avatar = req.body.avatar;
+    } else if (req.body?.image) {
+      avatar = req.body.image;
+    } else if (req.body?.fileUrl) {
+      avatar = req.body.fileUrl;
+    } else if (req.body?.file) {
+      avatar = req.body.file;
+    }
+
+    // 2. Hỗ trợ Mobile App gửi chuỗi Base64
+    if (typeof avatar === 'string' && avatar.startsWith('data:image/')) {
+      const matches = avatar.match(/^data:([A-Za-z-+\/]+);base64,(.+)$/);
+      if (matches && matches.length === 3) {
+        const mimeType = matches[1];
+        const base64Data = matches[2];
+        const ext = mimeType.split('/')[1]?.replace('jpeg', 'jpg') || 'jpg';
+        const filename = `avatar-${Date.now()}-${Math.round(Math.random() * 1e9)}.${ext}`;
+        const filePath = path.join(uploadDir, filename);
+        fs.writeFileSync(filePath, Buffer.from(base64Data, 'base64'));
+        avatar = `/uploads/${filename}`;
+      }
+    }
+
     if (!avatar) {
-      return sendError(res, 'Vui lòng cung cấp đường dẫn ảnh đại diện.', null, 400);
+      return sendError(res, 'Vui lòng cung cấp file ảnh hoặc đường dẫn ảnh đại diện.', null, 400);
+    }
+
+    if (typeof faceDescriptor === 'string') {
+      try {
+        faceDescriptor = JSON.parse(faceDescriptor);
+      } catch (e) {
+        // bỏ qua nếu không parse được
+      }
     }
 
     const updateData = { avatar };
     if (Array.isArray(faceDescriptor) && faceDescriptor.length === 128) {
       updateData.faceDescriptor = faceDescriptor;
     }
+
+    // Luôn lưu URL tuyệt đối vào CSDL để hoạt động đúng trên mọi môi trường (VPS/Nginx)
+    const baseUrl = getBaseUrl(req);
+    const fullAvatarUrl = avatar.startsWith('http') ? avatar : `${baseUrl}${avatar}`;
+    updateData.avatar = fullAvatarUrl;
 
     const user = await User.findByIdAndUpdate(
       req.user.id,
@@ -432,7 +585,22 @@ const updateAvatar = async (req, res, next) => {
       return sendError(res, 'Không tìm thấy thông tin người dùng.', null, 404);
     }
 
-    return sendSuccess(res, 'Cập nhật ảnh khuôn mặt / đại diện thành công.', user);
+    // Ghi nhận Audit Log cập nhật ảnh đại diện / khuôn mặt
+    AuditLog.create({
+      actor: user._id,
+      actorType: 'USER',
+      action: 'UPDATE_AVATAR',
+      targetId: user._id.toString(),
+      targetType: 'User',
+      ipAddress: req.ip || req.connection?.remoteAddress || null,
+      details: { hasFaceDescriptor: Array.isArray(faceDescriptor) && faceDescriptor.length === 128 },
+    }).catch((err) => console.error('[AuditLog Error] Update avatar:', err.message));
+
+    return sendSuccess(res, 'Cập nhật ảnh khuôn mặt / đại diện thành công.', {
+      ...user.toObject(),
+      avatar: fullAvatarUrl,
+      avatarUrl: fullAvatarUrl,
+    });
   } catch (error) {
     next(error);
   }

@@ -86,7 +86,14 @@ export const AppRoutes: React.FC = () => {
             <Route path="/schedules" element={<SchedulesPage />} />
             <Route path="/attendance/check-in" element={<AttendanceCheckInPage />} />
             <Route path="/attendance/history" element={<AttendanceHistoryPage />} />
-            <Route path="/attendance" element={<AttendanceDashboardPage />} />
+            <Route
+              path="/attendance"
+              element={
+                <ProtectedRoute allowedRoles={['admin', 'truongkhoa']}>
+                  <AttendanceDashboardPage />
+                </ProtectedRoute>
+              }
+            />
 
             {/* Phân hệ Đơn từ nghỉ phép (Phân hệ C) */}
             <Route

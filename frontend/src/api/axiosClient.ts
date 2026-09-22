@@ -31,6 +31,15 @@ const processQueue = (error: unknown, token: string | null = null) => {
 // 1. Request Interceptor: Tự động gắn Access Token vào Header
 axiosClient.interceptors.request.use(
   (config: InternalAxiosRequestConfig) => {
+    // Nếu phiên làm việc đã hết hạn do không hoạt động quá lâu -> chặn request ngay
+    if (tokenStorage.isSessionExpired()) {
+      tokenStorage.clear();
+      if (typeof window !== 'undefined' && window.location.pathname !== '/login') {
+        window.location.href = '/login';
+      }
+      return Promise.reject(new Error('Phiên làm việc đã hết hạn do không hoạt động.'));
+    }
+
     const token = tokenStorage.getAccessToken();
     if (token && config.headers) {
       config.headers.Authorization = `Bearer ${token}`;
@@ -45,6 +54,8 @@ axiosClient.interceptors.request.use(
 // 2. Response Interceptor: Bắt lỗi 401 và tự động gọi /api/auth/refresh
 axiosClient.interceptors.response.use(
   (response) => {
+    // Cập nhật timestamp hoạt động khi có request thành công
+    tokenStorage.updateActivity();
     return response.data; // Trả về data trực tiếp theo chuẩn { success, data, message }
   },
   async (error: AxiosError) => {
@@ -65,6 +76,15 @@ axiosClient.interceptors.response.use(
       return Promise.reject(error);
     }
 
+    // Nếu phiên làm việc đã hết hạn do không hoạt động quá lâu -> không cố refresh mà xóa và redirect login ngay
+    if (tokenStorage.isSessionExpired()) {
+      tokenStorage.clear();
+      if (typeof window !== 'undefined' && window.location.pathname !== '/login') {
+        window.location.href = '/login';
+      }
+      return Promise.reject(error);
+    }
+
     // Nếu người dùng hoàn toàn chưa có token/refreshToken nào thì không cố refresh
     const hasAnyToken = !!tokenStorage.getAccessToken();
     if (!hasAnyToken) {
@@ -74,7 +94,7 @@ axiosClient.interceptors.response.use(
     // Nếu chính request gọi refresh mà bị 401 -> phiên hết hạn hoàn toàn
     if (originalRequest.url?.includes('/auth/refresh')) {
       tokenStorage.clear();
-      if (window.location.pathname !== '/login') {
+      if (typeof window !== 'undefined' && window.location.pathname !== '/login') {
         window.location.href = '/login';
       }
       return Promise.reject(error);

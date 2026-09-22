@@ -51,13 +51,12 @@ export const AttendanceCheckInPage: React.FC = () => {
     try {
       const params = new URLSearchParams(window.location.search);
       const tabParam = params.get('tab');
-      if (tabParam === 'gps' || tabParam === 'qr') {
+      if (tabParam === 'gps' || tabParam === 'qr' || tabParam === 'manual') {
         return tabParam;
       }
-    } catch {}
+    } catch { }
     return 'gps';
   });
-
   // Đồng hồ thời gian thực
   const [currentTime, setCurrentTime] = useState(new Date());
 
@@ -355,7 +354,7 @@ export const AttendanceCheckInPage: React.FC = () => {
                 processQrAttendance(detectedToken);
               }
             }
-          } catch {}
+          } catch { }
         }, 400);
       }
     } catch (err: any) {
@@ -598,11 +597,10 @@ export const AttendanceCheckInPage: React.FC = () => {
       <div className="flex flex-wrap gap-2 p-1.5 bg-slate-100/80 rounded-2xl border border-slate-200/80">
         <button
           onClick={() => setActiveTab('gps')}
-          className={`flex-1 min-w-[150px] flex items-center justify-center gap-2 py-3 px-4 rounded-xl text-xs sm:text-sm font-bold transition-all ${
-            activeTab === 'gps'
+          className={`flex-1 min-w-[150px] flex items-center justify-center gap-2 py-3 px-4 rounded-xl text-xs sm:text-sm font-bold transition-all ${activeTab === 'gps'
               ? 'bg-blue-600 text-white shadow-md shadow-blue-600/20'
               : 'text-slate-600 hover:text-slate-900 hover:bg-white/60'
-          }`}
+            }`}
         >
           <Compass className="w-4 h-4" />
           <span>Định Vị GPS Thực Tế</span>
@@ -611,11 +609,10 @@ export const AttendanceCheckInPage: React.FC = () => {
 
         <button
           onClick={() => setActiveTab('qr')}
-          className={`flex-1 min-w-[150px] flex items-center justify-center gap-2 py-3 px-4 rounded-xl text-xs sm:text-sm font-bold transition-all ${
-            activeTab === 'qr'
+          className={`flex-1 min-w-[150px] flex items-center justify-center gap-2 py-3 px-4 rounded-xl text-xs sm:text-sm font-bold transition-all ${activeTab === 'qr'
               ? 'bg-indigo-600 text-white shadow-md shadow-indigo-600/20'
               : 'text-slate-600 hover:text-slate-900 hover:bg-white/60'
-          }`}
+            }`}
         >
           <QrCode className="w-4 h-4" />
           <span>Quét Camera QR Động</span>
@@ -623,11 +620,10 @@ export const AttendanceCheckInPage: React.FC = () => {
 
         <button
           onClick={() => setActiveTab('manual')}
-          className={`flex-1 min-w-[150px] flex items-center justify-center gap-2 py-3 px-4 rounded-xl text-xs sm:text-sm font-bold transition-all ${
-            activeTab === 'manual'
+          className={`flex-1 min-w-[150px] flex items-center justify-center gap-2 py-3 px-4 rounded-xl text-xs sm:text-sm font-bold transition-all ${activeTab === 'manual'
               ? 'bg-slate-800 text-white shadow-md'
               : 'text-slate-600 hover:text-slate-900 hover:bg-white/60'
-          }`}
+            }`}
         >
           <Clock className="w-4 h-4" />
           <span>Thủ Công (Dự Phòng)</span>
@@ -708,9 +704,8 @@ export const AttendanceCheckInPage: React.FC = () => {
                     title={`Ngưỡng tối đa ${campusConfig.radiusMeters}m`}
                   ></div>
                   <div
-                    className={`h-full transition-all duration-700 rounded-full ${
-                      isGpsValid ? 'bg-gradient-to-r from-emerald-500 to-teal-400' : 'bg-rose-500'
-                    }`}
+                    className={`h-full transition-all duration-700 rounded-full ${isGpsValid ? 'bg-gradient-to-r from-emerald-500 to-teal-400' : 'bg-rose-500'
+                      }`}
                     style={{ width: `${Math.min(100, ((gpsDistance || 0) / 500) * 100)}%` }}
                   ></div>
                 </div>
@@ -729,21 +724,20 @@ export const AttendanceCheckInPage: React.FC = () => {
               <button
                 onClick={handleGpsCheckIn}
                 disabled={isSubmitting || hasCheckedIn || !isGpsValid}
-                className={`w-full py-4 px-6 rounded-2xl font-bold text-base sm:text-lg flex items-center justify-center gap-3 transition-all active:scale-98 shadow-xl ${
-                  hasCheckedIn
+                className={`w-full py-4 px-6 rounded-2xl font-bold text-base sm:text-lg flex items-center justify-center gap-3 transition-all active:scale-98 shadow-xl ${hasCheckedIn
                     ? 'bg-slate-700/60 text-slate-400 cursor-not-allowed border border-white/10'
                     : isGpsValid
-                    ? 'bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-600 hover:to-teal-700 text-white shadow-emerald-500/30 animate-pulse'
-                    : 'bg-slate-800 text-slate-400 border border-slate-700 cursor-not-allowed'
-                }`}
+                      ? 'bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-600 hover:to-teal-700 text-white shadow-emerald-500/30 animate-pulse'
+                      : 'bg-slate-800 text-slate-400 border border-slate-700 cursor-not-allowed'
+                  }`}
               >
                 <MapPin className="w-6 h-6" />
                 <span>
                   {hasCheckedIn
                     ? 'Đã Điểm Danh Ca Này'
                     : isGpsValid
-                    ? 'Xác Nhận Điểm Danh Vị Trí GPS'
-                    : `Cách trường ${gpsDistance || 0}m - Ngoài phạm vi cho phép`}
+                      ? 'Xác Nhận Điểm Danh Vị Trí GPS'
+                      : `Cách trường ${gpsDistance || 0}m - Ngoài phạm vi cho phép`}
                 </span>
               </button>
             </div>
@@ -842,9 +836,8 @@ export const AttendanceCheckInPage: React.FC = () => {
 
                 <button
                   onClick={cameraActive ? stopCameraScanner : startCameraScanner}
-                  className={`px-4 py-1.5 rounded-full text-xs font-bold transition flex items-center gap-2 ${
-                    cameraActive ? 'bg-rose-500 text-white' : 'bg-indigo-600 hover:bg-indigo-700 text-white'
-                  }`}
+                  className={`px-4 py-1.5 rounded-full text-xs font-bold transition flex items-center gap-2 ${cameraActive ? 'bg-rose-500 text-white' : 'bg-indigo-600 hover:bg-indigo-700 text-white'
+                    }`}
                 >
                   <Camera className="w-3.5 h-3.5" />
                   <span>{cameraActive ? 'Tắt Camera' : 'Mở Camera Quét Mã'}</span>
@@ -976,11 +969,10 @@ export const AttendanceCheckInPage: React.FC = () => {
                   {currentCaLog ? (
                     <div className="text-right">
                       <span
-                        className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold ${
-                          currentCaLog.status === 'ON_TIME'
+                        className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold ${currentCaLog.status === 'ON_TIME'
                             ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-400/30'
                             : 'bg-amber-500/20 text-amber-300 border border-amber-400/30'
-                        }`}
+                          }`}
                       >
                         <CheckCircle2 className="w-4 h-4" />
                         <span>{currentCaLog.status === 'ON_TIME' ? 'ĐÚNG GIỜ' : 'ĐI MUỘN'}</span>
@@ -1006,11 +998,10 @@ export const AttendanceCheckInPage: React.FC = () => {
               <button
                 onClick={handleCheckIn}
                 disabled={isSubmitting || hasCheckedIn}
-                className={`flex items-center justify-center gap-3 py-4 px-6 rounded-2xl font-bold text-sm sm:text-base transition-all active:scale-98 shadow-lg ${
-                  hasCheckedIn
+                className={`flex items-center justify-center gap-3 py-4 px-6 rounded-2xl font-bold text-sm sm:text-base transition-all active:scale-98 shadow-lg ${hasCheckedIn
                     ? 'bg-slate-700/50 text-slate-400 border border-white/5 cursor-not-allowed'
                     : 'bg-emerald-500 hover:bg-emerald-600 text-white shadow-emerald-500/25'
-                }`}
+                  }`}
               >
                 <LogIn className="w-5 h-5" />
                 <span>{hasCheckedIn ? 'Đã Check-in Ca Này' : 'Điểm Danh Check-in'}</span>
@@ -1019,11 +1010,10 @@ export const AttendanceCheckInPage: React.FC = () => {
               <button
                 onClick={handleCheckOut}
                 disabled={isSubmitting || !hasCheckedIn || hasCheckedOut}
-                className={`flex items-center justify-center gap-3 py-4 px-6 rounded-2xl font-bold text-sm sm:text-base transition-all active:scale-98 shadow-lg ${
-                  !hasCheckedIn || hasCheckedOut
+                className={`flex items-center justify-center gap-3 py-4 px-6 rounded-2xl font-bold text-sm sm:text-base transition-all active:scale-98 shadow-lg ${!hasCheckedIn || hasCheckedOut
                     ? 'bg-slate-700/50 text-slate-400 border border-white/5 cursor-not-allowed'
                     : 'bg-rose-500 hover:bg-rose-600 text-white shadow-rose-500/25'
-                }`}
+                  }`}
               >
                 <LogOut className="w-5 h-5" />
                 <span>{hasCheckedOut ? 'Đã Check-out Ca Này' : 'Kết Thúc Ca (Check-out)'}</span>
@@ -1128,13 +1118,12 @@ export const AttendanceCheckInPage: React.FC = () => {
                       <td className="py-4 px-6">
                         {log ? (
                           <span
-                            className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full font-bold text-[11px] ${
-                              log.status === 'ON_TIME'
+                            className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full font-bold text-[11px] ${log.status === 'ON_TIME'
                                 ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
                                 : log.status === 'LATE'
-                                ? 'bg-amber-50 text-amber-700 border border-amber-200'
-                                : 'bg-slate-100 text-slate-600'
-                            }`}
+                                  ? 'bg-amber-50 text-amber-700 border border-amber-200'
+                                  : 'bg-slate-100 text-slate-600'
+                              }`}
                           >
                             <CheckCircle2 className="w-3 h-3" />
                             <span>
