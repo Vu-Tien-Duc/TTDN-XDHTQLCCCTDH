@@ -420,23 +420,40 @@ const calculateCheckOutStatus = (checkOutTime, shiftConfig, initialStatus = 'ON_
 const buildAttendanceDateFilter = (startDate, endDate) => {
   if (!startDate && !endDate) return {};
   const cond = {};
+  let startStr = null;
+  let endStr = null;
+
   if (startDate) {
     if (typeof startDate === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(startDate)) {
+      startStr = startDate;
       cond.$gte = new Date(`${startDate}T00:00:00.000+07:00`);
     } else {
-      cond.$gte = new Date(startDate);
+      const d = new Date(startDate);
+      cond.$gte = d;
+      const vnD = new Date(d.getTime() + 7 * 3600 * 1000);
+      startStr = vnD.toISOString().slice(0, 10);
     }
   }
   if (endDate) {
     if (typeof endDate === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(endDate)) {
+      endStr = endDate;
       cond.$lte = new Date(`${endDate}T23:59:59.999+07:00`);
     } else {
-      cond.$lte = new Date(endDate);
+      const d = new Date(endDate);
+      cond.$lte = d;
+      const vnD = new Date(d.getTime() + 7 * 3600 * 1000);
+      endStr = vnD.toISOString().slice(0, 10);
     }
   }
+
+  const workDateCond = {};
+  if (startStr) workDateCond.$gte = startStr;
+  if (endStr) workDateCond.$lte = endStr;
+
   return {
     $or: [
       { checkInTime: cond },
+      { workDate: workDateCond },
       { checkInTime: null, createdAt: cond },
     ],
   };

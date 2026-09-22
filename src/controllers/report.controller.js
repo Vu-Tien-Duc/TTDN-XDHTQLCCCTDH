@@ -93,9 +93,11 @@ const getAttendanceReport = async (req, res, next) => {
     }
     const approvedLeaves = await LeaveRequest.find(leaveQuery);
 
-    // Tính toán xu hướng theo tuần thực tế (Weekly Trend)
-    const year = fromDate ? fromDate.getFullYear() : new Date().getFullYear();
-    const month = fromDate ? fromDate.getMonth() : new Date().getMonth();
+    // Tính toán xu hướng theo tuần thực tế (Weekly Trend) theo múi giờ Việt Nam
+    const { getVietnamTime } = require('../services/attendance.service');
+    const vnFrom = fromDate ? getVietnamTime(fromDate) : getVietnamTime();
+    const year = vnFrom.getFullYear();
+    const month = vnFrom.getMonth();
     const lastDayOfMonth = new Date(year, month + 1, 0).getDate();
 
     const weekRanges = [
@@ -105,18 +107,28 @@ const getAttendanceReport = async (req, res, next) => {
       { label: 'Tuần 4', startDay: 22, endDay: lastDayOfMonth },
     ];
 
+    const mStr = String(month + 1).padStart(2, '0');
     const weeklyTrend = weekRanges.map((w) => {
-      const wStart = new Date(year, month, w.startDay, 0, 0, 0, 0);
-      const wEnd = new Date(year, month, w.endDay, 23, 59, 59, 999);
+      // Sử dụng múi giờ Việt Nam (UTC+7) cho ranh giới tuần
+      const startDayStr = String(w.startDay).padStart(2, '0');
+      const endDayStr = String(w.endDay).padStart(2, '0');
+      const wStart = new Date(`${year}-${mStr}-${startDayStr}T00:00:00.000+07:00`);
+      const wEnd = new Date(`${year}-${mStr}-${endDayStr}T23:59:59.999+07:00`);
 
       const logsInWeek = attendances.filter((a) => {
-        const d = a.checkInTime ? new Date(a.checkInTime) : null;
+        let d = a.checkInTime ? new Date(a.checkInTime) : null;
+        if (!d && a.workDate) {
+          d = new Date(`${a.workDate}T00:00:00.000+07:00`);
+        }
+        if (!d && a.createdAt) {
+          d = new Date(a.createdAt);
+        }
         return d && d >= wStart && d <= wEnd;
       });
 
       const totalInWeek = logsInWeek.length;
       const onTimeInWeek = logsInWeek.filter((a) => a.status === 'ON_TIME').length;
-      const lateInWeek = logsInWeek.filter((a) => a.status === 'LATE').length;
+      const lateInWeek = logsInWeek.filter((a) => a.status === 'LATE' || a.status === 'EARLY_LEAVE').length;
       const excusedInWeek = logsInWeek.filter((a) => a.status === 'EXCUSED_ABSENCE').length;
 
       const validInWeek = onTimeInWeek + excusedInWeek;
@@ -125,7 +137,7 @@ const getAttendanceReport = async (req, res, next) => {
 
       return {
         label: w.label,
-        subLabel: `${String(w.startDay).padStart(2, '0')}/${String(month + 1).padStart(2, '0')} - ${String(w.endDay).padStart(2, '0')}/${String(month + 1).padStart(2, '0')}`,
+        subLabel: `${startDayStr}/${mStr} - ${endDayStr}/${mStr}`,
         rate,
         lateRate,
         total: totalInWeek,

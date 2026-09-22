@@ -8,7 +8,7 @@ const {
   countTeachingSessions,
   countTeachersWithScheduleOnDate,
 } = require('../services/aiAnalytics.service');
-const { generateAiResponse } = require('../services/aiResponse.service');
+const { generateAiResponse, generateDirectAgentResponse } = require('../services/aiResponse.service');
 const { sendSuccess, sendError } = require('../utils/responseHandler');
 
 /**
@@ -26,11 +26,32 @@ const handleAiChat = async (req, res, next) => {
 
     const question = rawInput.trim();
     const currentUser = req.user; // Trích xuất từ JWT token, bảo mật tuyệt đối
+    const agentMode = req.body?.agentMode || 'attendance';
+    const model = req.body?.model || 'gemini-3.5-flash-lite';
+    const apiKey = req.body?.apiKey;
+
+    // 0. Nếu ở chế độ Agent Học thuật hoặc Agent Đa năng: Trả lời trực tiếp qua LLM Google Gemini
+    if (agentMode === 'academic' || agentMode === 'general') {
+      const answer = await generateDirectAgentResponse({
+        question,
+        agentMode,
+        model,
+        apiKey,
+        user: currentUser,
+      });
+
+      return sendSuccess(res, 'Phản hồi từ Trợ lý AI thành công.', {
+        question,
+        answer,
+        agentMode,
+        model,
+        timestamp: new Date().toISOString(),
+      });
+    }
 
     // 1. Phân tích ý định câu hỏi & bóc tách tham số (Intent, DateRange, User, Department)
     const parsed = await parseIntent(question, currentUser);
     const { intent, dateRange, targetUser, department, leaveType, status, isAmbiguousUser, matches } = parsed;
-
 
     // 2. Xử lý trường hợp trùng tên nhiều người (Disambiguation)
     if (isAmbiguousUser) {
@@ -40,6 +61,8 @@ const handleAiChat = async (req, res, next) => {
         dateRange,
         isAmbiguous: true,
         ambiguousMatches: matches,
+        apiKey,
+        model,
       });
 
       return sendSuccess(res, 'Yêu cầu làm rõ danh tính người dùng.', {
@@ -242,6 +265,8 @@ const handleAiChat = async (req, res, next) => {
       department: effectiveDepartment,
       statistics,
       unauthorizedReason,
+      apiKey,
+      model,
     });
 
     return sendSuccess(res, 'Phản hồi từ Trợ lý AI thành công.', {

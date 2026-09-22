@@ -802,10 +802,10 @@ export const AttendanceCheckInPage: React.FC = () => {
               <div>
                 <div className="flex items-center justify-between mb-1.5">
                   <label className="text-xs font-bold text-slate-700">Bán kính (mét):</label>
-                  <div className="flex gap-1">
-                    {['100', '200', '500', '1000'].map((r) => (
+                  <div className="flex flex-wrap gap-1">
+                    {['100', '200', '300', '500', '800', '1000'].map((r) => (
                       <button key={r} type="button" onClick={() => setCustomRadius(r)}
-                        className={`px-2 py-0.5 rounded text-[10px] font-bold cursor-pointer transition ${customRadius === r ? 'bg-blue-600 text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}>
+                        className={`px-2 py-0.5 rounded text-[10px] font-bold cursor-pointer transition ${customRadius === r ? 'bg-blue-600 text-white shadow-2xs' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}>
                         {r}m
                       </button>
                     ))}
@@ -856,147 +856,244 @@ export const AttendanceCheckInPage: React.FC = () => {
               </button>
             </div>
 
-            {/* Bản đồ */}
-            <div className="flex flex-col">
-              <div className="flex items-center justify-between mb-2 text-xs font-bold text-slate-700">
-                <span className="flex items-center gap-1.5">
-                  <Navigation className="w-4 h-4 text-blue-600" />
-                  Bản đồ vệ tinh khuôn viên:
-                </span>
-                <span className="text-slate-400 font-normal">{campusConfig.lat.toFixed(5)}, {campusConfig.lng.toFixed(5)}</span>
-              </div>
-              <div className="flex-1 min-h-64 rounded-2xl overflow-hidden border border-slate-200 shadow-inner">
-                <GpsCampusMap
-                  campusConfig={{
-                    name: campusConfig.name,
-                    lat: campusConfig.lat,
-                    lng: campusConfig.lng,
-                    radiusMeters: parseInt(customRadius, 10) || campusConfig.radiusMeters,
-                  }}
-                  userCoords={userCoords}
-                  gpsAccuracy={gpsAccuracy}
-                  gpsDistance={gpsDistance}
-                  isGpsValid={isGpsValid}
-                  effectiveRadius={effectiveRadius}
-                  isFetchingGps={false}
-                  onRefreshGps={loadTodayData}
-                  isAdmin={true}
-                />
-              </div>
-              <p className="text-[11px] text-slate-400 mt-2 text-center italic">
-                Vòng xanh = bán kính cho phép điểm danh ({customRadius || campusConfig.radiusMeters}m).
-              </p>
+            {/* Bản đồ định vị khuôn viên thực tế */}
+            <div className="flex flex-col h-full">
+              <GpsCampusMap
+                campusConfig={{
+                  name: campusConfig.name,
+                  lat: campusConfig.lat,
+                  lng: campusConfig.lng,
+                  radiusMeters: parseInt(customRadius, 10) || campusConfig.radiusMeters,
+                }}
+                userCoords={userCoords}
+                gpsAccuracy={gpsAccuracy}
+                gpsDistance={gpsDistance}
+                isGpsValid={isGpsValid}
+                effectiveRadius={effectiveRadius}
+                isFetchingGps={false}
+                onRefreshGps={loadTodayData}
+                isAdmin={true}
+                className="h-full flex-1 min-h-[460px]"
+                heightClass="h-[380px] sm:h-[450px] lg:h-full min-h-[380px]"
+              />
             </div>
           </div>
         </div>
 
         {/* Bảng hoạt động chấm công hôm nay */}
-        <div className="bg-white p-6 rounded-3xl border border-slate-200 shadow-xs space-y-4">
+        <div className="bg-white p-4 sm:p-6 rounded-2xl sm:rounded-3xl border border-slate-200 shadow-xs space-y-4">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-slate-100">
             <div>
-              <h2 className="font-bold text-slate-900 flex items-center gap-2">
-                <Activity className="w-4 h-4 text-emerald-600" />
-                Hoạt Động Điểm Danh Toàn Trường Hôm Nay
+              <h2 className="font-bold text-sm sm:text-base text-slate-900 flex items-center gap-2">
+                <Activity className="w-4 h-4 text-emerald-600 shrink-0" />
+                <span>Hoạt Động Điểm Danh Toàn Trường Hôm Nay</span>
               </h2>
-              <p className="text-xs text-slate-500 mt-0.5">Dữ liệu GPS, QR và Kiosk của cán bộ & giảng viên.</p>
+              <p className="text-[11px] sm:text-xs text-slate-500 mt-0.5">Dữ liệu GPS, QR và Kiosk của cán bộ & giảng viên.</p>
             </div>
-            <div className="flex items-center gap-3">
+            <div className="flex items-center justify-between sm:justify-end gap-2.5">
               <span className="text-xs font-mono font-bold text-slate-600 bg-slate-100 px-2.5 py-1 rounded-lg">{todayLogs.length} bản ghi</span>
-              <Link to="/attendance/history" className="text-xs font-bold text-blue-600 hover:underline flex items-center gap-1">
-                Xem tất cả <ArrowRight className="w-3.5 h-3.5" />
+              <Link to="/attendance/history" className="text-xs font-bold text-blue-600 hover:text-blue-700 hover:underline flex items-center gap-1 shrink-0">
+                <span>Xem tất cả</span> <ArrowRight className="w-3.5 h-3.5" />
               </Link>
             </div>
           </div>
 
           {todayLogs.length === 0 ? (
-            <div className="text-center py-12 bg-slate-50 rounded-2xl border border-dashed border-slate-200">
-              <Calendar className="w-10 h-10 text-slate-300 mx-auto mb-3" />
-              <p className="text-sm font-bold text-slate-600">Chưa có lượt điểm danh nào hôm nay</p>
-              <p className="text-xs text-slate-400 mt-1">Dữ liệu sẽ xuất hiện khi các ca dạy bắt đầu điểm danh.</p>
+            <div className="text-center py-10 sm:py-12 bg-slate-50 rounded-2xl border border-dashed border-slate-200">
+              <Calendar className="w-9 h-9 sm:w-10 sm:h-10 text-slate-300 mx-auto mb-2 sm:mb-3" />
+              <p className="text-xs sm:text-sm font-bold text-slate-600">Chưa có lượt điểm danh nào hôm nay</p>
+              <p className="text-[11px] sm:text-xs text-slate-400 mt-1">Dữ liệu sẽ xuất hiện khi các ca dạy bắt đầu điểm danh.</p>
             </div>
           ) : (
-            <div className="overflow-x-auto rounded-2xl border border-slate-200/80">
-              <table className="w-full text-left text-xs">
-                <thead className="bg-slate-50 text-slate-600 font-bold border-b border-slate-200">
-                  <tr>
-                    <th className="py-3 px-4">Cán bộ / Giảng viên</th>
-                    <th className="py-3 px-3">Ca làm việc</th>
-                    <th className="py-3 px-3">Phòng</th>
-                    <th className="py-3 px-3">Check-in → Check-out</th>
-                    <th className="py-3 px-3">Phương thức</th>
-                    <th className="py-3 px-4 text-right">Trạng thái</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100 text-slate-700">
-                  {todayLogs.slice(0, 15).map((log) => {
-                    const u = typeof log.userId === 'object' ? (log.userId as any) : null;
-                    const sh = typeof log.shiftId === 'object' ? (log.shiftId as ShiftConfig) : null;
-                    const sc = typeof log.scheduleId === 'object' ? (log.scheduleId as Schedule) : null;
+            <>
+              {/* MOBILE VIEW: Thẻ danh sách tối ưu cho màn hình điện thoại */}
+              <div className="block md:hidden space-y-3">
+                {todayLogs.slice(0, 15).map((log) => {
+                  const u = typeof log.userId === 'object' ? (log.userId as any) : null;
+                  const sh = typeof log.shiftId === 'object' ? (log.shiftId as ShiftConfig) : null;
+                  const sc = typeof log.scheduleId === 'object' ? (log.scheduleId as Schedule) : null;
 
-                    const statusBadgeClass =
-                      log.status === 'ON_TIME' ? 'bg-emerald-50 text-emerald-700 border-emerald-200' :
-                      log.status === 'LATE' ? 'bg-amber-50 text-amber-700 border-amber-200' :
-                      log.status === 'ABSENT' ? 'bg-rose-50 text-rose-700 border-rose-200' :
-                      log.status === 'EXCUSED_ABSENCE' ? 'bg-blue-50 text-blue-700 border-blue-200' :
-                      log.status === 'EARLY_LEAVE' ? 'bg-orange-50 text-orange-700 border-orange-200' :
-                      'bg-slate-100 text-slate-600 border-slate-200';
+                  const statusBadgeClass =
+                    log.status === 'ON_TIME' ? 'bg-emerald-50 text-emerald-700 border-emerald-200' :
+                    log.status === 'LATE' ? 'bg-amber-50 text-amber-700 border-amber-200' :
+                    log.status === 'ABSENT' ? 'bg-rose-50 text-rose-700 border-rose-200' :
+                    log.status === 'EXCUSED_ABSENCE' ? 'bg-blue-50 text-blue-700 border-blue-200' :
+                    log.status === 'EARLY_LEAVE' ? 'bg-orange-50 text-orange-700 border-orange-200' :
+                    'bg-slate-100 text-slate-600 border-slate-200';
 
-                    const statusLabel =
-                      log.status === 'ON_TIME' ? 'Đúng giờ' :
-                      log.status === 'LATE' ? 'Đi muộn' :
-                      log.status === 'ABSENT' ? 'Vắng mặt' :
-                      log.status === 'EXCUSED_ABSENCE' ? 'Nghỉ có phép' :
-                      log.status === 'EARLY_LEAVE' ? 'Về sớm' : log.status;
+                  const statusLabel =
+                    log.status === 'ON_TIME' ? 'Đúng giờ' :
+                    log.status === 'LATE' ? 'Đi muộn' :
+                    log.status === 'ABSENT' ? 'Vắng mặt' :
+                    log.status === 'EXCUSED_ABSENCE' ? 'Nghỉ có phép' :
+                    log.status === 'EARLY_LEAVE' ? 'Về sớm' : log.status;
 
-                    return (
-                      <tr key={log._id} className="hover:bg-slate-50/60 transition">
-                        <td className="py-3 px-4">
-                          <div className="flex items-center gap-2.5">
-                            <UserAvatar src={u?.avatar} name={u?.fullName || 'CB'} size="sm" />
-                            <div>
-                              <p className="font-bold text-slate-900 truncate max-w-32">{u?.fullName || 'N/A'}</p>
-                              <p className="text-[11px] text-slate-400 truncate max-w-32">{u?.email || ''}</p>
-                            </div>
+                  const rawMethod = String(log.method || '').toLowerCase();
+                  const methodLabel =
+                    log.status === 'ABSENT' || log.status === 'EXCUSED_ABSENCE' || !log.checkInTime || rawMethod === 'system'
+                      ? 'HỆ THỐNG'
+                      : rawMethod === 'manual'
+                      ? 'THỦ CÔNG'
+                      : rawMethod === 'face' || rawMethod === 'face_id'
+                      ? 'FACE ID'
+                      : rawMethod === 'qr' || rawMethod === 'qr_code'
+                      ? 'QR CODE'
+                      : rawMethod === 'gps'
+                      ? 'GPS'
+                      : String(log.method || 'THỦ CÔNG').toUpperCase();
+
+                  return (
+                    <div
+                      key={log._id}
+                      className="p-3.5 rounded-2xl border border-slate-200/90 bg-slate-50/40 hover:bg-white transition-all space-y-2.5 shadow-2xs"
+                    >
+                      {/* Hàng 1: Avatar + Tên cán bộ + Trạng thái */}
+                      <div className="flex items-center justify-between gap-2">
+                        <div className="flex items-center gap-2.5 min-w-0">
+                          <UserAvatar src={u?.avatar} name={u?.fullName || 'CB'} size="sm" />
+                          <div className="min-w-0">
+                            <p className="font-bold text-xs text-slate-900 truncate">
+                              {u?.fullName || 'N/A'}
+                            </p>
+                            <p className="text-[10px] text-slate-400 truncate">
+                              {u?.email || 'Cán bộ'}
+                            </p>
                           </div>
-                        </td>
-                        <td className="py-3 px-3">
-                          <p className="font-bold">{sh?.name || '---'}</p>
-                          <p className="text-[11px] text-slate-400 font-mono">{sh?.startTime} - {sh?.endTime}</p>
-                        </td>
-                        <td className="py-3 px-3">
-                          <span className="font-mono font-bold text-slate-700 bg-slate-100 px-2 py-0.5 rounded text-[11px]">
-                            {(sc as any)?.roomId || '---'}
+                        </div>
+                        <span className={`px-2 py-0.5 rounded-md font-bold text-[10px] border shrink-0 ${statusBadgeClass}`}>
+                          {statusLabel.toUpperCase()}
+                        </span>
+                      </div>
+
+                      {/* Hàng 2: Ca dạy & Phòng */}
+                      <div className="flex items-center justify-between text-xs bg-white p-2 rounded-xl border border-slate-100">
+                        <div className="min-w-0 flex items-center gap-1.5">
+                          <span className="font-semibold text-slate-800 text-[11px] truncate">
+                            {sh?.name || 'Ca làm việc'}
                           </span>
-                        </td>
-                        <td className="py-3 px-3 font-mono text-[11px]">
-                          <span className="font-bold">{formatTime(log.checkInTime)}</span>
-                          <span className="text-slate-400 mx-1">→</span>
-                          <span className={log.checkOutTime ? 'font-bold' : 'text-slate-400 italic'}>
+                          {sh?.startTime && (
+                            <span className="text-[10px] text-slate-400 font-mono">
+                              ({sh.startTime} - {sh.endTime})
+                            </span>
+                          )}
+                        </div>
+                        <span className="font-mono font-bold text-slate-700 bg-slate-100 px-2 py-0.5 rounded text-[10px] shrink-0">
+                          P.{(sc as any)?.roomId || '---'}
+                        </span>
+                      </div>
+
+                      {/* Hàng 3: Thời gian Check-in/Check-out & Phương thức */}
+                      <div className="flex items-center justify-between text-[11px] pt-0.5">
+                        <div className="flex items-center gap-1.5 text-slate-600 font-mono">
+                          <Clock className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                          <span className="font-bold text-slate-800">{formatTime(log.checkInTime)}</span>
+                          <span className="text-slate-400">→</span>
+                          <span className={log.checkOutTime ? 'font-bold text-slate-800' : 'text-slate-400 italic'}>
                             {log.checkOutTime ? formatTime(log.checkOutTime) : 'Đang ca'}
                           </span>
-                        </td>
-                        <td className="py-3 px-3">
-                          <span className="uppercase font-mono font-bold text-[10px] px-2 py-0.5 rounded bg-slate-100 text-slate-600 border border-slate-200">
-                            {log.method === 'system' || log.status === 'ABSENT' || log.status === 'EXCUSED_ABSENCE' || !log.checkInTime
-                              ? 'HỆ THỐNG'
-                              : log.method === 'manual'
-                              ? 'THỦ CÔNG'
-                              : log.method === 'face' || log.method === 'FACE_ID'
-                              ? 'FACE ID'
-                              : (log.method || 'THỦ CÔNG').toUpperCase()}
-                          </span>
-                        </td>
-                        <td className="py-3 px-4 text-right">
-                          <span className={`px-2 py-0.5 rounded-md font-bold text-[10px] border ${statusBadgeClass}`}>
-                            {statusLabel.toUpperCase()}
-                          </span>
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
+                        </div>
+
+                        <span className="uppercase font-mono font-bold text-[9px] px-2 py-0.5 rounded bg-slate-100 text-slate-600 border border-slate-200">
+                          {methodLabel}
+                        </span>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+
+              {/* DESKTOP VIEW: Bảng dữ liệu chuẩn hóa đầy đủ cột */}
+              <div className="hidden md:block overflow-x-auto rounded-2xl border border-slate-200/80">
+                <table className="w-full text-left text-xs">
+                  <thead className="bg-slate-50 text-slate-600 font-bold border-b border-slate-200">
+                    <tr>
+                      <th className="py-3 px-4">Cán bộ / Giảng viên</th>
+                      <th className="py-3 px-3">Ca làm việc</th>
+                      <th className="py-3 px-3">Phòng</th>
+                      <th className="py-3 px-3">Check-in → Check-out</th>
+                      <th className="py-3 px-3">Phương thức</th>
+                      <th className="py-3 px-4 text-right">Trạng thái</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100 text-slate-700">
+                    {todayLogs.slice(0, 15).map((log) => {
+                      const u = typeof log.userId === 'object' ? (log.userId as any) : null;
+                      const sh = typeof log.shiftId === 'object' ? (log.shiftId as ShiftConfig) : null;
+                      const sc = typeof log.scheduleId === 'object' ? (log.scheduleId as Schedule) : null;
+
+                      const statusBadgeClass =
+                        log.status === 'ON_TIME' ? 'bg-emerald-50 text-emerald-700 border-emerald-200' :
+                        log.status === 'LATE' ? 'bg-amber-50 text-amber-700 border-amber-200' :
+                        log.status === 'ABSENT' ? 'bg-rose-50 text-rose-700 border-rose-200' :
+                        log.status === 'EXCUSED_ABSENCE' ? 'bg-blue-50 text-blue-700 border-blue-200' :
+                        log.status === 'EARLY_LEAVE' ? 'bg-orange-50 text-orange-700 border-orange-200' :
+                        'bg-slate-100 text-slate-600 border-slate-200';
+
+                      const statusLabel =
+                        log.status === 'ON_TIME' ? 'Đúng giờ' :
+                        log.status === 'LATE' ? 'Đi muộn' :
+                        log.status === 'ABSENT' ? 'Vắng mặt' :
+                        log.status === 'EXCUSED_ABSENCE' ? 'Nghỉ có phép' :
+                        log.status === 'EARLY_LEAVE' ? 'Về sớm' : log.status;
+
+                      const rawMethod = String(log.method || '').toLowerCase();
+                      const methodLabel =
+                        log.status === 'ABSENT' || log.status === 'EXCUSED_ABSENCE' || !log.checkInTime || rawMethod === 'system'
+                          ? 'HỆ THỐNG'
+                          : rawMethod === 'manual'
+                          ? 'THỦ CÔNG'
+                          : rawMethod === 'face' || rawMethod === 'face_id'
+                          ? 'FACE ID'
+                          : rawMethod === 'qr' || rawMethod === 'qr_code'
+                          ? 'QR CODE'
+                          : rawMethod === 'gps'
+                          ? 'GPS'
+                          : String(log.method || 'THỦ CÔNG').toUpperCase();
+
+                      return (
+                        <tr key={log._id} className="hover:bg-slate-50/60 transition">
+                          <td className="py-3 px-4">
+                            <div className="flex items-center gap-2.5">
+                              <UserAvatar src={u?.avatar} name={u?.fullName || 'CB'} size="sm" />
+                              <div>
+                                <p className="font-bold text-slate-900 truncate max-w-32">{u?.fullName || 'N/A'}</p>
+                                <p className="text-[11px] text-slate-400 truncate max-w-32">{u?.email || ''}</p>
+                              </div>
+                            </div>
+                          </td>
+                          <td className="py-3 px-3">
+                            <p className="font-bold">{sh?.name || '---'}</p>
+                            <p className="text-[11px] text-slate-400 font-mono">{sh?.startTime} - {sh?.endTime}</p>
+                          </td>
+                          <td className="py-3 px-3">
+                            <span className="font-mono font-bold text-slate-700 bg-slate-100 px-2 py-0.5 rounded text-[11px]">
+                              {(sc as any)?.roomId || '---'}
+                            </span>
+                          </td>
+                          <td className="py-3 px-3 font-mono text-[11px]">
+                            <span className="font-bold">{formatTime(log.checkInTime)}</span>
+                            <span className="text-slate-400 mx-1">→</span>
+                            <span className={log.checkOutTime ? 'font-bold' : 'text-slate-400 italic'}>
+                              {log.checkOutTime ? formatTime(log.checkOutTime) : 'Đang ca'}
+                            </span>
+                          </td>
+                          <td className="py-3 px-3">
+                            <span className="uppercase font-mono font-bold text-[10px] px-2 py-0.5 rounded bg-slate-100 text-slate-600 border border-slate-200">
+                              {methodLabel}
+                            </span>
+                          </td>
+                          <td className="py-3 px-4 text-right">
+                            <span className={`px-2 py-0.5 rounded-md font-bold text-[10px] border ${statusBadgeClass}`}>
+                              {statusLabel.toUpperCase()}
+                            </span>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </>
           )}
         </div>
 
@@ -1290,6 +1387,7 @@ export const AttendanceCheckInPage: React.FC = () => {
             onRefreshGps={fetchCurrentLocation}
             isAdmin={user?.role === 'admin'}
             onOpenAdminConfig={() => setShowConfigModal(true)}
+            heightClass="h-[360px] sm:h-[430px]"
           />
 
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">

@@ -27,7 +27,6 @@ try {
 const swaggerSpec = require('./config/swagger');
 const apiRoutes = require('./routes');
 const { errorHandler, notFoundHandler } = require('./middlewares/error.middleware');
-const { verifyToken } = require('./middlewares/auth.middleware');
 const { downloadFile } = require('./controllers/upload.controller');
 
 const app = express();

@@ -29,6 +29,7 @@ export interface MonthlyStaffReportItem {
     email: string;
     role: string;
     departmentId?: string;
+    avatar?: string;
   };
   totalWorkingDays: number;
   onTimeCount: number;

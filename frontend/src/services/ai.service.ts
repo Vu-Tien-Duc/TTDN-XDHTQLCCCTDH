@@ -35,12 +35,26 @@ export interface AiChatResponseData {
   timestamp: string;
 }
 
+export interface AiChatRequestOptions {
+  message: string;
+  agentMode?: 'attendance' | 'academic' | 'general';
+  model?: string;
+  apiKey?: string;
+}
+
 export const aiService = {
   /**
-   * Gửi câu hỏi đến Trợ lý AI Chấm công & Giảng dạy
+   * Gửi câu hỏi đến Trợ lý AI Chấm công & Giảng dạy / Google AI Studio
    */
-  askAiAssistant: async (message: string): Promise<ApiResponse<AiChatResponseData>> => {
-    return (await axiosClient.post('/ai/chat', { message })) as unknown as ApiResponse<AiChatResponseData>;
+  askAiAssistant: async (
+    payload: string | AiChatRequestOptions,
+    options?: Partial<AiChatRequestOptions>
+  ): Promise<ApiResponse<AiChatResponseData>> => {
+    const body: AiChatRequestOptions =
+      typeof payload === 'string'
+        ? { message: payload, ...options }
+        : { ...payload, ...options };
+    return (await axiosClient.post('/ai/chat', body)) as unknown as ApiResponse<AiChatResponseData>;
   },
 };
 

@@ -119,6 +119,7 @@ export const LeaveBalanceCard: React.FC<LeaveBalanceCardProps> = ({
   const quota = balance.annualLeaveQuota || 12;
   const used = balance.daysUsed || 0;
   const pending = balance.pendingDays || 0;
+  const pendingRequestsCount = balance.pendingRequestsCount ?? (pending > 0 ? pending : 0);
   const remaining = balance.remainingDays !== undefined ? balance.remainingDays : Math.max(0, quota - used);
 
   // Tính phần trăm các phân đoạn
@@ -157,10 +158,10 @@ export const LeaveBalanceCard: React.FC<LeaveBalanceCardProps> = ({
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
-          {pending > 0 && (
+          {(pending > 0 || pendingRequestsCount > 0) && (
             <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-indigo-50 text-indigo-700 border border-indigo-200">
               <Hourglass className="w-3 h-3 animate-pulse text-indigo-600" />
-              Đang chờ duyệt: <strong>{pending} ngày</strong>
+              Đang chờ duyệt: <strong>{pendingRequestsCount > 0 ? `${pendingRequestsCount} đơn (${pending} ngày)` : `${pending} ngày`}</strong>
             </span>
           )}
           <span
@@ -266,8 +267,14 @@ export const LeaveBalanceCard: React.FC<LeaveBalanceCardProps> = ({
             <p className="text-[11px] font-semibold text-indigo-800 uppercase tracking-wider">
               Đang Chờ Duyệt
             </p>
-            <p className="text-xl sm:text-2xl font-black text-indigo-700 mt-1">{pending}</p>
-            <p className="text-[11px] text-indigo-600 font-medium">ngày đang xét duyệt</p>
+            <p className="text-xl sm:text-2xl font-black text-indigo-700 mt-1">
+              {pendingRequestsCount > 0 ? pendingRequestsCount : pending}
+            </p>
+            <p className="text-[11px] text-indigo-600 font-medium">
+              {pendingRequestsCount > 0
+                ? `${pendingRequestsCount} đơn (${pending} ngày đang xét)`
+                : `${pending} ngày đang xét duyệt`}
+            </p>
           </div>
           <div className="w-10 h-10 rounded-xl bg-indigo-100 text-indigo-700 flex items-center justify-center shrink-0">
             <Hourglass className="w-5 h-5" />
@@ -278,9 +285,9 @@ export const LeaveBalanceCard: React.FC<LeaveBalanceCardProps> = ({
       {/* Segmented Progress Bar (3 Phân đoạn trực quan) */}
       <div className="space-y-2 relative z-10 pt-1">
         <div className="flex flex-wrap items-center justify-between gap-2 text-xs font-medium text-slate-500">
-          <span>Phân bổ quỹ ngày phép:</span>
-          <span className="font-mono text-[11px]">
-            Đã duyệt {used}d + Chờ {pending}d + Còn {remaining}d = <strong>{quota} ngày</strong>
+          <span>Phân bổ quỹ ngày phép năm {balance.year}:</span>
+          <span className="text-[11px] font-medium text-slate-600">
+            Đã duyệt: <strong className="text-amber-700">{used} ngày</strong> • Đang chờ: <strong className="text-indigo-700">{pending} ngày ({pendingRequestsCount} đơn)</strong> • Khả dụng: <strong className="text-emerald-700">{remaining} ngày</strong>
           </span>
         </div>
 
@@ -320,7 +327,7 @@ export const LeaveBalanceCard: React.FC<LeaveBalanceCardProps> = ({
           </div>
           <div className="flex items-center gap-1.5">
             <span className="w-2.5 h-2.5 rounded-full bg-indigo-500 shrink-0"></span>
-            <span>Chờ duyệt: <strong>{pending} ngày</strong></span>
+            <span>Chờ duyệt: <strong>{pending} ngày</strong> ({pendingRequestsCount} đơn)</span>
           </div>
           <div className="flex items-center gap-1.5">
             <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 shrink-0"></span>

@@ -66,7 +66,6 @@ const getLeaveStatsByYear = async (userId, year) => {
     {
       $match: {
         userId: new mongoose.Types.ObjectId(userId),
-        type: 'nghi_phep',
         status: { $in: ['APPROVED', 'PENDING'] },
         startDate: { $lte: yearEnd },
         endDate: { $gte: yearStart },
@@ -74,6 +73,7 @@ const getLeaveStatsByYear = async (userId, year) => {
     },
     {
       $project: {
+        type: 1,
         status: 1,
         effectiveStart: { $max: ['$startDate', yearStart] },
         effectiveEnd: { $min: ['$endDate', yearEnd] },
@@ -81,6 +81,7 @@ const getLeaveStatsByYear = async (userId, year) => {
     },
     {
       $project: {
+        type: 1,
         status: 1,
         leaveDays: {
           $add: [
@@ -103,11 +104,37 @@ const getLeaveStatsByYear = async (userId, year) => {
     {
       $group: {
         _id: null,
+        // Chỉ tính nghỉ phép thường đã duyệt vào ngày phép năm đã sử dụng
         daysUsed: {
-          $sum: { $cond: [{ $eq: ['$status', 'APPROVED'] }, '$leaveDays', 0] },
+          $sum: {
+            $cond: [
+              { $and: [{ $eq: ['$status', 'APPROVED'] }, { $eq: ['$type', 'nghi_phep'] }] },
+              '$leaveDays',
+              0,
+            ],
+          },
         },
+        // Tổng số ngày của tất cả các đơn đang chờ duyệt (nghi_phep, day_bu, doi_ca)
         pendingDays: {
-          $sum: { $cond: [{ $eq: ['$status', 'PENDING'] }, '$leaveDays', 0] },
+          $sum: {
+            $cond: [{ $eq: ['$status', 'PENDING'] }, '$leaveDays', 0],
+          },
+        },
+        // Số ngày nghỉ phép thường đang chờ duyệt (để tính hạn mức trừ vào 12 ngày phép năm)
+        pendingAnnualLeaveDays: {
+          $sum: {
+            $cond: [
+              { $and: [{ $eq: ['$status', 'PENDING'] }, { $eq: ['$type', 'nghi_phep'] }] },
+              '$leaveDays',
+              0,
+            ],
+          },
+        },
+        // Tổng số lượng đơn đang chờ duyệt
+        pendingRequestsCount: {
+          $sum: {
+            $cond: [{ $eq: ['$status', 'PENDING'] }, 1, 0],
+          },
         },
       },
     },
@@ -116,6 +143,8 @@ const getLeaveStatsByYear = async (userId, year) => {
   return {
     daysUsed: stats?.daysUsed || 0,
     pendingDays: stats?.pendingDays || 0,
+    pendingAnnualLeaveDays: stats?.pendingAnnualLeaveDays || 0,
+    pendingRequestsCount: stats?.pendingRequestsCount || 0,
   };
 };
 
@@ -222,9 +251,9 @@ const createLeaveRequest = async (req, res, next) => {
       const user = await User.findById(req.user.id);
       const quota = user?.annualLeaveQuota !== undefined ? user.annualLeaveQuota : 12;
 
-      // FLAW-02: Tối ưu Aggregation Pipeline - tính tổng ngày phép chiếm dụng (APPROVED + PENDING)
-      const { daysUsed, pendingDays } = await getLeaveStatsByYear(req.user.id, currentYear);
-      const daysOccupied = daysUsed + pendingDays;
+      // FLAW-02: Tối ưu Aggregation Pipeline - tính tổng ngày phép chiếm dụng (APPROVED + PENDING của loại nghi_phep)
+      const { daysUsed, pendingAnnualLeaveDays } = await getLeaveStatsByYear(req.user.id, currentYear);
+      const daysOccupied = daysUsed + pendingAnnualLeaveDays;
 
       const availableDays = Math.max(0, quota - daysOccupied);
       if (availableDays <= 0) {
@@ -319,8 +348,8 @@ const getLeaveRequests = async (req, res, next) => {
     }
 
     const requests = await LeaveRequest.find(query)
-      .populate('userId', 'fullName email role departmentId')
-      .populate('approvedBy', 'fullName email role')
+      .populate('userId', 'fullName email role departmentId avatar')
+      .populate('approvedBy', 'fullName email role avatar')
       .sort({ createdAt: -1 });
 
     return sendSuccess(res, 'Lấy danh sách đơn thành công.', requests);
@@ -341,8 +370,8 @@ const getLeaveRequestById = async (req, res, next) => {
     }
 
     const request = await LeaveRequest.findById(req.params.id)
-      .populate('userId', 'fullName email role departmentId')
-      .populate('approvedBy', 'fullName email role');
+      .populate('userId', 'fullName email role departmentId avatar')
+      .populate('approvedBy', 'fullName email role avatar');
 
     if (!request) {
       return sendError(res, 'Không tìm thấy đơn xin.', null, 404);
@@ -411,16 +440,21 @@ const getLeaveBalance = async (req, res, next) => {
         annualLeaveQuota: 0,
         daysUsed: 0,
         pendingDays: 0,
+        pendingAnnualLeaveDays: 0,
+        pendingRequestsCount: 0,
         remainingDays: 0,
+        availableDays: 0,
         isAdmin: true,
       });
     }
 
     const quota = user.annualLeaveQuota !== undefined ? user.annualLeaveQuota : 12;
 
-    // Tối ưu hóa Database: Sử dụng Aggregation Pipeline duy nhất để tính song song daysUsed và pendingDays
-    const { daysUsed, pendingDays } = await getLeaveStatsByYear(targetUserId, currentYear);
+    // Tối ưu hóa Database: Sử dụng Aggregation Pipeline duy nhất để tính song song daysUsed, pendingDays, pendingRequestsCount
+    const { daysUsed, pendingDays, pendingAnnualLeaveDays, pendingRequestsCount } =
+      await getLeaveStatsByYear(targetUserId, currentYear);
     const remainingDays = Math.max(0, quota - daysUsed);
+    const availableDays = Math.max(0, quota - daysUsed - pendingAnnualLeaveDays);
 
     return sendSuccess(res, 'Tính số dư ngày phép thành công.', {
       userId: targetUserId,
@@ -428,7 +462,10 @@ const getLeaveBalance = async (req, res, next) => {
       annualLeaveQuota: quota,
       daysUsed,
       pendingDays,
+      pendingAnnualLeaveDays,
+      pendingRequestsCount,
       remainingDays,
+      availableDays,
       isAdmin: false,
     });
   } catch (error) {
