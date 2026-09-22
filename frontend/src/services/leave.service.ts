@@ -15,7 +15,10 @@ export interface LeaveBalanceData {
   annualLeaveQuota: number;
   daysUsed: number;
   pendingDays?: number;
+  pendingAnnualLeaveDays?: number;
+  pendingRequestsCount?: number;
   remainingDays: number;
+  availableDays?: number;
   isAdmin?: boolean;
 }
 

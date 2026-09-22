@@ -147,7 +147,7 @@ const generateMonthlyReport = async (month, year, departmentId = null, options =
 
   const totalUsers = await User.countDocuments(userFilter);
 
-  let userQuery = User.find(userFilter).select('_id fullName email role departmentId');
+  let userQuery = User.find(userFilter).select('_id fullName email role departmentId avatar');
 
   const { page, limit } = options;
   if (page && limit) {
@@ -167,7 +167,7 @@ const generateMonthlyReport = async (month, year, departmentId = null, options =
     userId: { $in: userIds },
     ...dateFilter,
   })
-    .select('userId status checkInTime createdAt')
+    .select('userId status checkInTime createdAt workDate')
     .lean();
 
   const reportData = users.map((user) => {
@@ -179,6 +179,7 @@ const generateMonthlyReport = async (month, year, departmentId = null, options =
         email: user.email,
         role: user.role,
         departmentId: user.departmentId,
+        avatar: user.avatar,
       },
       totalWorkingDays: userAttendances.length,
       onTimeCount: userAttendances.filter((a) => a.status === 'ON_TIME').length,
@@ -199,11 +200,20 @@ const generateMonthlyReport = async (month, year, departmentId = null, options =
   ];
 
   const weeklyTrend = weekRanges.map(({ label, start, end }) => {
-    const wStart = new Date(year, month - 1, start, 0, 0, 0, 0);
-    const wEnd = new Date(year, month - 1, end, 23, 59, 59, 999);
+    // Sử dụng múi giờ Việt Nam (UTC+7) cho ranh giới tuần
+    const startDayStr = String(start).padStart(2, '0');
+    const endDayStr = String(end).padStart(2, '0');
+    const wStart = new Date(`${year}-${mStr}-${startDayStr}T00:00:00.000+07:00`);
+    const wEnd = new Date(`${year}-${mStr}-${endDayStr}T23:59:59.999+07:00`);
 
     const weekLogs = attendances.filter((a) => {
-      const t = a.checkInTime ? new Date(a.checkInTime) : (a.createdAt ? new Date(a.createdAt) : null);
+      let t = a.checkInTime ? new Date(a.checkInTime) : null;
+      if (!t && a.workDate) {
+        t = new Date(`${a.workDate}T00:00:00.000+07:00`);
+      }
+      if (!t && a.createdAt) {
+        t = new Date(a.createdAt);
+      }
       return t && t >= wStart && t <= wEnd;
     });
 

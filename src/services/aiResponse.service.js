@@ -200,48 +200,212 @@ const generateFallbackResponse = ({ intent, question, dateRange, targetUser, dep
 };
 
 /**
- * Gọi Google Gemini API để tạo phản hồi tự nhiên hơn
- * (Chỉ kích hoạt khi có GEMINI_API_KEY)
+ * Gọi Google Gemini API từ Google AI Studio
+ * Hỗ trợ đa dạng model (gemini-2.0-flash, gemini-1.5-flash, gemini-1.5-pro)
+ * Nhận API Key từ client hoặc từ biến môi trường
  */
 const generateGeminiResponse = async (payload) => {
-  const apiKey = process.env.GEMINI_API_KEY;
+  let apiKey = (payload?.apiKey || process.env.GEMINI_API_KEY || '').trim();
+  if (!apiKey) {
+    try {
+      require('dotenv').config();
+      apiKey = (process.env.GEMINI_API_KEY || '').trim();
+    } catch (e) {}
+  }
   if (!apiKey) return null;
 
+  const model = payload?.model || 'gemini-3.5-flash-lite';
+
   try {
-    const prompt = `Bạn là Trợ lý AI Quản lý Chấm công & Lịch Giảng dạy của Trường Đại học.
-Dưới đây là KẾT QUẢ ĐÃ TÍNH TOÁN CHÍNH XÁC từ cơ sở dữ liệu MongoDB:
-- Câu hỏi của người dùng: "${payload.question}"
+    const prompt = `YÊU CẦU: Trả lời câu hỏi người dùng DỰA TRÊN SỐ LIỆU MONGODB DƯỚI ĐÂY:
+- Câu hỏi: "${payload.question}"
 - Khoảng thời gian: ${payload.dateRange?.label || 'N/A'}
 - Ý định: ${payload.intent}
-- Đối tượng người dùng (nếu có): ${payload.targetUser?.fullName || 'N/A'}
+- Đối tượng: ${payload.targetUser?.fullName || 'N/A'}
 - Đơn vị / Khoa: ${payload.department?.name || 'N/A'}
-- Dữ liệu số liệu thống kê thực tế: ${JSON.stringify(payload.statistics || {})}
-- Lỗi / Từ chối quyền (nếu có): ${payload.unauthorizedReason || 'Không có'}
+- Số liệu thống kê: ${JSON.stringify(payload.statistics || {})}
+- Quyền hạn: ${payload.unauthorizedReason || 'Hợp lệ'}
 
-QUY TẮC BẮT BUỘC:
-1. Bạn KHÔNG ĐƯỢC TỰ ĐOÁN HOẶC BỊA SỐ LIỆU. Chỉ sử dụng đúng các con số đã được cung cấp ở trên.
-2. Trả lời bằng tiếng Việt, văn phong sư phạm chuẩn mực, rõ ràng, trực diện, định dạng Markdown đẹp.
-3. Nếu dữ liệu bằng 0 hoặc không có, nêu rõ ràng là không có bản ghi nào trong khoảng thời gian đó.
-4. Nếu có lỗi từ chối quyền hạn, nêu rõ lý do bảo mật và từ chối cung cấp dữ liệu.`;
+QUY TẮC CỐT LÕI (TRẢ LỜI TRỰC DIỆN - KHÔNG LAN MAN):
+1. CẤM mở bài, CẤM chào hỏi (Tuyệt đối không viết "Chào bạn", "Tôi là trợ lý AI...", "Căn cứ theo...", "Dưới đây là...").
+2. VÀO THẲNG CÂU TRẢ LỜI NGAY DÒNG ĐẦU TIÊN với các con số cụ thể.
+3. Trình bày ngắn gọn bằng 2-4 gạch đầu dòng, in đậm các con số quan trọng.
+4. CẤM kết bài sáo rỗng hoặc lời chúc cuối câu.
+5. Tuyệt đối không bịa số liệu. Chỉ dùng đúng các con số được cung cấp.`;
+
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 2500); // 2.5s timeout
+
+    const genConfig = {
+      maxOutputTokens: 350,
+      temperature: 0.2, // Tập trung cao độ, không lan man
+    };
+    if (model.includes('3.6-flash')) {
+      genConfig.thinkingConfig = { thinkingBudget: 0 };
+    }
 
     const res = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`,
+      `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`,
       {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          'x-goog-api-key': apiKey,
+        },
         body: JSON.stringify({
           contents: [{ parts: [{ text: prompt }] }],
+          generationConfig: genConfig,
         }),
+        signal: controller.signal,
       }
     );
+    clearTimeout(timeoutId);
 
     const data = await res.json();
     const text = data?.candidates?.[0]?.content?.parts?.[0]?.text;
-    return text || null;
+    if (text) return text;
+
+    return null;
   } catch (err) {
-    console.warn('[AI Response] Lỗi gọi Gemini API, chuyển sang Fallback Generator:', err.message);
+    // Quá thời gian chờ hoặc lỗi mạng: lập tức dùng bộ tổng hợp CSDL MongoDB siêu tốc (0.05s)
     return null;
   }
+};
+
+/**
+ * Trực tiếp trả lời bằng Google AI Studio Gemini cho các AI Agent chuyên biệt (Học thuật, Đa năng)
+ */
+const generateDirectAgentResponse = async ({ question, agentMode, model = 'gemini-3.5-flash-lite', apiKey, user }) => {
+  let activeKey = (apiKey || process.env.GEMINI_API_KEY || '').trim();
+  if (!activeKey) {
+    try {
+      require('dotenv').config();
+      activeKey = (process.env.GEMINI_API_KEY || '').trim();
+    } catch (e) {}
+  }
+
+  const roleTitle = user?.role === 'admin' ? 'Quản trị viên' : user?.role === 'truongkhoa' ? 'Trưởng khoa' : 'Giảng viên/Cán bộ';
+  const userName = user?.fullName || 'Thầy/Cô';
+
+  let systemPrompt = '';
+  if (agentMode === 'academic') {
+    systemPrompt = `Bạn là Trợ lý Học thuật & Sư phạm Đại học.
+QUY TẮC BẮT BUỘC (TRẢ LỜI TRỰC DIỆN - KHÔNG LAN MAN DÀI DÒNG):
+1. ĐÚNG TRỌNG TÂM 100%: Đi thẳng vào nội dung câu hỏi, không nói vòng vo.
+2. CẤM chào hỏi xã giao, CẤM mở bài dài dòng (Tuyệt đối không viết "Kính chào Thầy/Cô", "Tôi rất vui...", "Dưới đây là gợi ý...").
+3. VÀO THẲNG NỘI DUNG YÊU CẦU:
+   - Nếu hỏi trắc nghiệm: Xuất ngay từng câu hỏi kèm 4 đáp án A, B, C, D, chỉ rõ đáp án đúng và giải thích ngắn 1 dòng.
+   - Nếu hỏi soạn giáo án/đề cương: Xuất ngay các mục chính dạng gạch đầu dòng cô đọng.
+   - Nếu hỏi quy chế: Nêu ngay điều khoản, công thức tính và quy định cụ thể.
+4. CẤM kết bài sáo rỗng (CẤM viết: "Hy vọng câu trả lời này giúp ích...", "Nếu cần thêm...").
+5. Ngắn gọn, súc tích, cấu trúc rõ ràng bằng Markdown.`;
+  } else {
+    // general
+    systemPrompt = `Bạn là Trợ Lý AI Đa Năng.
+QUY TẮC BẮT BUỘC (TRẢ LỜI TRỰC DIỆN - KHÔNG LAN MAN DÀI DÒNG):
+1. VÀO THẲNG VẤN ĐỀ, trả lời trực diện ngay dòng đầu tiên.
+2. CẤM chào hỏi mở đầu, CẤM giới thiệu bản thân, CẤM kết bài sáo rỗng.
+3. Cung cấp câu trả lời ngắn gọn, chuẩn xác, định dạng Markdown sạch sẽ.`;
+  }
+
+  let apiErrorMessage = null;
+
+  if (activeKey) {
+    try {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 6000); // 6s timeout
+
+      const genConfig = {
+        maxOutputTokens: 600,
+        temperature: 0.2, // Nhiệt độ thấp giúp câu trả lời chuẩn xác, không lan man
+      };
+      if (model.includes('3.6-flash')) {
+        genConfig.thinkingConfig = { thinkingBudget: 0 };
+      }
+
+      const res = await fetch(
+        `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${activeKey}`,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'x-goog-api-key': activeKey,
+          },
+          body: JSON.stringify({
+            systemInstruction: { parts: [{ text: systemPrompt }] },
+            contents: [{ parts: [{ text: question }] }],
+            generationConfig: genConfig,
+          }),
+          signal: controller.signal,
+        }
+      );
+      clearTimeout(timeoutId);
+
+      const data = await res.json();
+      if (data?.error) {
+        apiErrorMessage = data.error.message || JSON.stringify(data.error);
+        console.warn(`[Direct Gemini - ${model}] API Response:`, apiErrorMessage);
+
+        // Fallback sang 3.6-flash với thinkingBudget 0 nếu model lite gặp lỗi
+        if (model === 'gemini-3.5-flash-lite') {
+          const fallbackRes = await fetch(
+            `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.6-flash:generateContent?key=${activeKey}`,
+            {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                'x-goog-api-key': activeKey,
+              },
+              body: JSON.stringify({
+                systemInstruction: { parts: [{ text: systemPrompt }] },
+                contents: [{ parts: [{ text: question }] }],
+                generationConfig: {
+                  thinkingConfig: { thinkingBudget: 0 },
+                  maxOutputTokens: 800,
+                },
+              }),
+            }
+          );
+          const fallbackData = await fallbackRes.json();
+          const fallbackText = fallbackData?.candidates?.[0]?.content?.parts?.[0]?.text;
+          if (fallbackText) return fallbackText;
+        }
+      }
+      const text = data?.candidates?.[0]?.content?.parts?.[0]?.text;
+      if (text) return text;
+    } catch (err) {
+      if (err.name === 'AbortError') {
+        apiErrorMessage = 'Yêu cầu phản hồi quá thời gian cho phép (6s). Vui lòng thử lại với câu hỏi ngắn gọn hơn.';
+      } else {
+        apiErrorMessage = err.message;
+      }
+      console.warn('[Direct Gemini] Lỗi gọi Gemini:', apiErrorMessage);
+    }
+  }
+
+  // Trường hợp đã có Key trong .env nhưng Google báo lỗi (ví dụ sai định dạng hoặc hết hạn)
+  if (activeKey && apiErrorMessage) {
+    return `### ⚠️ Không thể kết nối Google AI Studio (Gemini)\n\n` +
+      `Hệ thống đã đọc \`GEMINI_API_KEY\` từ file \`.env\`, tuy nhiên Google AI Studio trả về thông báo lỗi:\n\n` +
+      `> ❌ **Nguyên nhân:** \`${apiErrorMessage}\`\n\n` +
+      `**Hướng dẫn xử lý:**\n` +
+      `- Khóa chuẩn của Google AI Studio (Gemini) bắt đầu bằng \`AIzaSy...\` (khoảng 39 ký tự).\n` +
+      `- Vui lòng truy cập **[aistudio.google.com/app/apikey](https://aistudio.google.com/app/apikey)**, bấm **"Create API key"** hoặc copy lại đúng mã khóa.\n` +
+      `- Dán vào biến \`GEMINI_API_KEY=\` trong file \`.env\` ở thư mục gốc của dự án.`;
+  }
+
+  // Fallback khi chưa cấu hình Key trong .env
+  if (agentMode === 'academic') {
+    return `### 🎓 Trợ Lý Học Thuật & Giáo Dục Đại Học\n\nTôi đã ghi nhận yêu cầu: **"${question}"**.\n\n` +
+      `⚠️ **Chưa cấu hình API Key trong file .env**\n\n` +
+      `Để kích hoạt toàn bộ sức mạnh AI của **Google AI Studio (Gemini 2.0 Flash)** cho tác vụ soạn giáo án, câu hỏi trắc nghiệm và nghiên cứu, vui lòng dán khóa API vào file \`.env\` của hệ thống:\n\n` +
+      `\`\`\`env\nGEMINI_API_KEY=AIzaSy...\n\`\`\`\n\n` +
+      `*Mẹo: Bạn có thể lấy khóa API miễn phí từ Google AI Studio tại: [aistudio.google.com/app/apikey](https://aistudio.google.com/app/apikey).*`;
+  }
+
+  return `### ⚡ Trợ Lý AI Đa Năng (Google AI Studio)\n\nTôi đã nhận câu hỏi: **"${question}"**.\n\n` +
+    `⚠️ **Chưa cấu hình API Key trong file .env**\n\n` +
+    `Vui lòng dán khóa Google AI Studio API Key vào biến \`GEMINI_API_KEY\` trong file \`.env\` của máy chủ để bắt đầu trò chuyện trực tiếp với mô hình **Gemini 2.0 Flash**!`;
 };
 
 /**
@@ -263,4 +427,5 @@ const generateAiResponse = async (context) => {
 module.exports = {
   generateAiResponse,
   generateFallbackResponse,
+  generateDirectAgentResponse,
 };

@@ -1,5 +1,6 @@
 import React, { useState, useRef, useEffect, useMemo } from 'react';
-import { Bot, Send, X, Sparkles, User, RefreshCw, ChevronDown, ChevronRight, ChevronLeft, Minimize2 } from 'lucide-react';
+import { useLocation } from 'react-router-dom';
+import { Send, X, Sparkles, User, RefreshCw, ChevronRight, ChevronLeft, Minimize2, ShieldCheck, BookOpen, Cpu } from 'lucide-react';
 import aiService from '../../services/ai.service';
 import { formatTime } from '../../utils';
 import { useAuth } from '../../contexts/AuthContext';
@@ -171,10 +172,12 @@ const renderFormattedAiText = (content: string, isUser: boolean) => {
 };
 
 export const AiChatWidget: React.FC = () => {
+  const location = useLocation();
   const { user } = useAuth();
   const [isOpen, setIsOpen] = useState(false);
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const [activeAgent, setActiveAgent] = useState<'attendance' | 'academic' | 'general'>('attendance');
 
   // Vị trí 2D (X, Y) tự do trên toàn bộ màn hình (Mặc định ở góc dưới bên phải, có thể kéo đi bất cứ đâu)
   const [position, setPosition] = useState<{ x: number; y: number }>(() => {
@@ -281,13 +284,16 @@ export const AiChatWidget: React.FC = () => {
   // Cấu hình linh hoạt theo từng chức vụ (Role)
   const roleConfig = useMemo(() => {
     const role = user?.role;
-    const name = user?.fullName ? ` ${user.fullName}` : '';
+    const rawName = user?.fullName || '';
 
     if (role === 'giangvien') {
+      const gvGreeting = rawName.toLowerCase().startsWith('giảng viên') || rawName.toLowerCase().startsWith('thầy') || rawName.toLowerCase().startsWith('cô')
+        ? rawName
+        : `Thầy/Cô ${rawName}`;
       return {
         headerTitle: 'Trợ Lý Giảng Viên AI',
         headerSubtitle: 'Lịch dạy & Chấm công cá nhân',
-        welcomeText: `Xin chào Thầy/Cô${name}! Tôi là **Trợ lý AI Giảng viên**. Thầy/Cô có thể hỏi nhanh về lịch giảng dạy hôm nay/ngày mai, số lần đi trễ, hoặc trạng thái các đơn xin nghỉ phép/dạy bù.`,
+        welcomeText: `Xin chào ${gvGreeting.trim()}! Tôi là **Trợ lý AI Giảng viên**. Thầy/Cô có thể hỏi nhanh về lịch giảng dạy hôm nay/ngày mai, số lần đi trễ, hoặc trạng thái các đơn xin nghỉ phép/dạy bù.`,
         placeholder: 'Hỏi về lịch dạy, chấm công cá nhân, đơn nghỉ...',
         prompts: [
           'Lịch giảng dạy của tôi hôm nay?',
@@ -299,10 +305,11 @@ export const AiChatWidget: React.FC = () => {
     }
 
     if (role === 'truongkhoa') {
+      const tkGreeting = rawName.toLowerCase().startsWith('trưởng khoa') ? rawName : `Trưởng khoa ${rawName}`;
       return {
         headerTitle: 'Trợ Lý Quản Lý Khoa AI',
         headerSubtitle: 'Giám sát giảng dạy & Chấm công khoa',
-        welcomeText: `Kính chào Thầy/Cô Trưởng khoa${name}! Tôi là **Trợ lý AI Quản lý Khoa**. Thầy/Cô có thể hỏi về danh sách giảng viên trong khoa có lịch dạy hôm nay, tình hình đi muộn và các đơn xin nghỉ đang chờ duyệt.`,
+        welcomeText: `Kính chào ${tkGreeting.trim()}! Tôi là **Trợ lý AI Quản lý Khoa**. Thầy/Cô có thể hỏi về danh sách giảng viên trong khoa có lịch dạy hôm nay, tình hình đi muộn và các đơn xin nghỉ đang chờ duyệt.`,
         placeholder: 'Hỏi về giảng viên khoa, tình hình đi muộn, đơn nghỉ...',
         prompts: [
           'Hôm nay khoa có bao nhiêu giảng viên dạy?',
@@ -317,7 +324,7 @@ export const AiChatWidget: React.FC = () => {
       return {
         headerTitle: 'Trợ Lý Nhân Viên AI',
         headerSubtitle: 'Chấm công & Ca làm việc cá nhân',
-        welcomeText: `Xin chào${name}! Tôi là **Trợ lý AI Chấm công & Ca làm việc**. Bạn có thể hỏi tôi về kết quả chấm công hôm nay, số lần đi trễ trong tuần/tháng hoặc kiểm tra trạng thái đơn xin nghỉ.`,
+        welcomeText: `Xin chào ${rawName || 'Cán bộ/Nhân viên'}! Tôi là **Trợ lý AI Chấm công & Ca làm việc**. Bạn có thể hỏi tôi về kết quả chấm công hôm nay, số lần đi trễ trong tuần/tháng hoặc kiểm tra trạng thái đơn xin nghỉ.`,
         placeholder: 'Hỏi về ca làm, chấm công, đơn nghỉ của bạn...',
         prompts: [
           'Tôi hôm nay chấm công thế nào?',
@@ -329,10 +336,11 @@ export const AiChatWidget: React.FC = () => {
     }
 
     // Mặc định: admin / thanh tra
+    const adminGreeting = rawName.toLowerCase().startsWith('quản trị') ? rawName : `Quản trị viên ${rawName}`;
     return {
       headerTitle: 'Trợ Lý Thanh Tra AI',
       headerSubtitle: 'Dữ liệu thời gian thực toàn trường',
-      welcomeText: `Xin chào Quản trị viên${name}! Tôi là **Trợ lý AI Thanh tra Đào tạo & Quản lý Chấm công**. Bạn có thể hỏi tôi về tình hình đi muộn, vắng mặt toàn trường, đơn xin nghỉ hoặc tóm tắt báo cáo chấm công.`,
+      welcomeText: `Xin chào ${adminGreeting.trim()}! Tôi là **Trợ lý AI Thanh tra Đào tạo & Quản lý Chấm công**. Bạn có thể hỏi tôi về tình hình đi muộn, vắng mặt toàn trường, đơn xin nghỉ hoặc tóm tắt báo cáo chấm công.`,
       placeholder: 'Nhập câu hỏi tra cứu thanh tra toàn trường...',
       prompts: [
         'Hôm nay có bao nhiêu người đi làm?',
@@ -386,7 +394,10 @@ export const AiChatWidget: React.FC = () => {
     setIsLoading(true);
 
     try {
-      const res = await aiService.askAiAssistant(q);
+      const res = await aiService.askAiAssistant(q, {
+        agentMode: activeAgent,
+        model: 'gemini-3.5-flash-lite',
+      });
       const aiText = res.data?.answer || 'Hệ thống đã ghi nhận nhưng chưa nhận được câu trả lời từ máy chủ.';
       const aiMsg: Message = {
         id: (Date.now() + 1).toString(),
@@ -408,16 +419,33 @@ export const AiChatWidget: React.FC = () => {
     }
   };
 
-  const handleResetChat = () => {
+  const handleResetChat = (agent = activeAgent) => {
+    let welcome = roleConfig.welcomeText;
+    if (agent === 'academic') {
+      welcome = `Chào bạn! Tôi là **Trợ lý Học thuật & Sư phạm (Gemini)**. Hãy yêu cầu tôi soạn giáo án, câu hỏi trắc nghiệm, chuẩn đầu ra học phần hoặc giải đáp quy chế đào tạo tín chỉ.`;
+    } else if (agent === 'general') {
+      welcome = `Chào bạn! Tôi là **Trợ lý AI Đa Năng (Google Gemini)**. Bạn có thể hỏi tôi bất kỳ câu hỏi nào về kiến thức, văn bản hành chính hay công nghệ.`;
+    }
     setMessages([
       {
         id: Date.now().toString(),
         sender: 'ai',
-        text: roleConfig.welcomeText,
+        text: welcome,
         time: formatTime(new Date()),
       },
     ]);
   };
+
+  const handleSwitchAgentInWidget = (agent: 'attendance' | 'academic' | 'general') => {
+    setActiveAgent(agent);
+    handleResetChat(agent);
+  };
+
+  // Nếu đang ở trang /ai-assistant thì ẩn widget nổi để không bị đè lên nút gửi hoặc xung đột giao diện
+  if (location.pathname === '/ai-assistant') {
+    return null;
+  }
+
   return (
     <>
       {/* ========================================================= */}
@@ -461,12 +489,15 @@ export const AiChatWidget: React.FC = () => {
       )}
 
       {/* ========================================================= */}
-      {/* 1.2. BONG BÓNG CHAT GEMINI NỔI (Kéo Thả Tự Do 360° Khắp Màn Hình) */}
+      {/* 1.2. NÚT TRÒN NỔI KÉO THẢ TỰ DO (Floating Draggable Bubble) */}
       {/* ========================================================= */}
       {!isDocked && !isOpen && (
         <div
-          style={{ left: `${position.x}px`, top: `${position.y}px` }}
-          className="fixed z-[9999] flex items-center select-none touch-none"
+          style={{
+            transform: `translate3d(${position.x}px, ${position.y}px, 0)`,
+            transition: isDraggingRef.current ? 'none' : 'transform 0.15s ease-out',
+          }}
+          className="fixed top-0 left-0 z-[9999] select-none"
         >
           <div className="relative flex items-center group/bubble">
             {/* Nút thu gọn nhanh vào mép màn hình */}
@@ -491,8 +522,8 @@ export const AiChatWidget: React.FC = () => {
               aria-label={roleConfig.headerTitle}
             >
               {/* Lớp nền tròn trắng ngọc trai */}
-              <div className="w-12 h-12 sm:w-13 sm:h-13 rounded-full bg-white flex items-center justify-center relative overflow-hidden transition-colors hover:bg-slate-50 pointer-events-none">
-                <GeminiLogo className="w-6 h-6 sm:w-7 sm:h-7 transition-transform duration-300 hover:rotate-6 hover:scale-105" />
+              <div className="w-11 h-11 sm:w-13 sm:h-13 rounded-full bg-white flex items-center justify-center relative overflow-hidden transition-colors hover:bg-slate-50 pointer-events-none">
+                <GeminiLogo className="w-5.5 h-5.5 sm:w-7 sm:h-7 transition-transform duration-300 hover:rotate-6 hover:scale-105" />
                 <div className="absolute inset-0 bg-gradient-to-b from-white/60 via-transparent to-transparent pointer-events-none rounded-full" />
               </div>
 
@@ -520,120 +551,179 @@ export const AiChatWidget: React.FC = () => {
       )}
 
       {/* ========================================================= */}
-      {/* 2. HỘP THOẠI AI CHAT BOX (AI Box Window) */}
+      {/* 2. HỘP THOẠI AI CHAT BOX (Nhỏ gọn, tinh tế trên Mobile) */}
       {/* ========================================================= */}
       {isOpen && (
         <div
-          className={`fixed bottom-4 sm:bottom-6 z-[9999] w-[calc(100vw-2rem)] sm:w-[380px] h-[530px] max-h-[84vh] bg-white rounded-3xl shadow-[0_20px_60px_-15px_rgba(15,23,42,0.35)] border border-slate-200/90 flex flex-col overflow-hidden transition-all animate-in fade-in zoom-in-95 duration-200 ${
-            isLeft ? 'left-4 sm:left-6' : 'right-4 sm:right-6'
+          className={`fixed bottom-3 sm:bottom-6 z-[9999] w-[calc(100vw-1.5rem)] max-w-[290px] sm:max-w-none sm:w-[380px] h-[340px] max-h-[50vh] sm:h-[540px] sm:max-h-[80vh] bg-white rounded-2xl sm:rounded-3xl shadow-[0_12px_36px_-6px_rgba(15,23,42,0.3)] border border-slate-200/90 flex flex-col overflow-hidden transition-all animate-in fade-in zoom-in-95 duration-200 ${
+            isLeft ? 'left-3 sm:left-6' : 'right-3 sm:right-6'
           }`}
         >
-          {/* Header - Phong cách Google Gemini hiện đại */}
-          <div className="px-4 py-3 bg-gradient-to-r from-slate-900 via-indigo-950 to-slate-900 text-white flex items-center justify-between shrink-0 shadow-xs">
-            <div className="flex items-center gap-2.5">
-              {/* Avatar Gemini */}
-              <div className="w-8 h-8 rounded-xl bg-white/10 backdrop-blur-md border border-white/20 flex items-center justify-center p-1 shadow-inner">
-                <GeminiStar className="w-5 h-5" />
+          {/* Header - Nhỏ gọn, phong cách Google Gemini */}
+          <div className="px-2.5 py-1.5 sm:px-3.5 sm:py-2 bg-gradient-to-r from-slate-900 via-indigo-950 to-slate-900 text-white shrink-0 shadow-xs space-y-1">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-1.5 min-w-0">
+                {/* Avatar Gemini */}
+                <div className="w-5 h-5 sm:w-6.5 sm:h-6.5 rounded-md bg-white/10 backdrop-blur-md border border-white/20 flex items-center justify-center p-0.5 shadow-inner shrink-0">
+                  <GeminiStar className="w-3 h-3 sm:w-4 sm:h-4" />
+                </div>
+                <div className="min-w-0">
+                  <div className="flex items-center gap-1 truncate">
+                    <h4 className="text-[10px] sm:text-xs font-bold text-white tracking-wide truncate">
+                      {activeAgent === 'academic'
+                        ? 'Trợ Lý Học Thuật'
+                        : activeAgent === 'general'
+                        ? 'Trợ Lý Đa Năng'
+                        : roleConfig.headerTitle}
+                    </h4>
+                    <span className="px-1 py-0.2 rounded bg-blue-500/30 border border-blue-400/40 text-[7.5px] sm:text-[9px] font-semibold text-blue-200 shrink-0">
+                      Gemini
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-1 text-[8.5px] sm:text-[10px] text-slate-300 font-medium truncate">
+                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse shrink-0"></span>
+                    <span className="truncate">
+                      {activeAgent === 'academic'
+                        ? 'Soạn đề & giáo án'
+                        : activeAgent === 'general'
+                        ? 'Tri thức mở Gemini'
+                        : roleConfig.headerSubtitle}
+                    </span>
+                  </div>
+                </div>
               </div>
-              <div>
-                <div className="flex items-center gap-1.5">
-                  <h4 className="text-xs font-bold text-white tracking-wide">{roleConfig.headerTitle}</h4>
-                  <span className="px-1.5 py-0.2 rounded-full bg-gradient-to-r from-blue-500/30 to-purple-500/30 border border-blue-400/40 text-[9px] font-semibold text-blue-200">
-                    Gemini ✨
-                  </span>
-                </div>
-                <div className="flex items-center gap-1 text-[10px] text-slate-300 font-medium">
-                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
-                  <span>{roleConfig.headerSubtitle}</span>
-                </div>
+
+              {/* Các nút thao tác Header */}
+              <div className="flex items-center gap-0.5 shrink-0">
+                <button
+                  type="button"
+                  onClick={() => handleResetChat()}
+                  className="w-5.5 h-5.5 sm:w-6.5 sm:h-6.5 rounded-full bg-white/10 hover:bg-white/20 text-slate-300 hover:text-white flex items-center justify-center transition-colors cursor-pointer"
+                  title="Làm mới hội thoại"
+                >
+                  <RefreshCw className="w-2.5 h-2.5 sm:w-3 sm:h-3" />
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsOpen(false);
+                    setIsDocked(true);
+                    try {
+                      localStorage.setItem('gemini_ai_docked', 'true');
+                    } catch {}
+                  }}
+                  className="hidden sm:flex w-6.5 h-6.5 rounded-full bg-white/10 hover:bg-white/20 text-slate-300 hover:text-white items-center justify-center transition-colors cursor-pointer"
+                  title="Gập gọn vào mép màn hình"
+                >
+                  <Minimize2 className="w-3 h-3" />
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setIsOpen(false)}
+                  className="w-5.5 h-5.5 sm:w-6.5 sm:h-6.5 rounded-full bg-white/10 hover:bg-red-500/40 text-slate-300 hover:text-white flex items-center justify-center transition-colors cursor-pointer ml-0.5"
+                  title="Đóng chat box"
+                >
+                  <X className="w-3 h-3 sm:w-3.5 sm:h-3.5" />
+                </button>
               </div>
             </div>
 
-            {/* Các nút thao tác Header */}
-            <div className="flex items-center gap-1">
+            {/* Thanh chuyển chế độ 3 Agent nhỏ gọn */}
+            <div className="flex items-center gap-0.5 bg-black/35 p-0.5 rounded-md border border-white/10">
               <button
                 type="button"
-                onClick={handleResetChat}
-                className="w-7 h-7 rounded-full bg-white/10 hover:bg-white/20 text-slate-300 hover:text-white flex items-center justify-center transition-colors cursor-pointer"
-                title="Làm mới hội thoại"
+                onClick={() => handleSwitchAgentInWidget('attendance')}
+                className={`flex-1 py-0.5 px-1 rounded text-[8.5px] sm:text-[10px] font-bold transition flex items-center justify-center gap-0.5 cursor-pointer truncate ${
+                  activeAgent === 'attendance'
+                    ? 'bg-blue-600 text-white shadow-xs'
+                    : 'text-slate-300 hover:text-white hover:bg-white/10'
+                }`}
               >
-                <RefreshCw className="w-3.5 h-3.5" />
+                <ShieldCheck className="w-2 h-2 sm:w-2.5 sm:h-2.5 shrink-0" />
+                <span className="truncate">Chấm công</span>
               </button>
               <button
                 type="button"
-                onClick={() => {
-                  setIsOpen(false);
-                  setIsDocked(true);
-                  try {
-                    localStorage.setItem('gemini_ai_docked', 'true');
-                  } catch {}
-                }}
-                className="w-7 h-7 rounded-full bg-white/10 hover:bg-white/20 text-slate-300 hover:text-white flex items-center justify-center transition-colors cursor-pointer"
-                title="Gập gọn vào mép màn hình"
+                onClick={() => handleSwitchAgentInWidget('academic')}
+                className={`flex-1 py-0.5 px-1 rounded text-[8.5px] sm:text-[10px] font-bold transition flex items-center justify-center gap-0.5 cursor-pointer truncate ${
+                  activeAgent === 'academic'
+                    ? 'bg-indigo-600 text-white shadow-xs'
+                    : 'text-slate-300 hover:text-white hover:bg-white/10'
+                }`}
               >
-                <Minimize2 className="w-3.5 h-3.5" />
+                <BookOpen className="w-2 h-2 sm:w-2.5 sm:h-2.5 shrink-0" />
+                <span className="truncate">Học thuật</span>
               </button>
               <button
                 type="button"
-                onClick={() => setIsOpen(false)}
-                className="w-7 h-7 rounded-full bg-white/10 hover:bg-white/20 text-slate-300 hover:text-white flex items-center justify-center transition-colors cursor-pointer ml-0.5"
-                title="Thu nhỏ chat box"
+                onClick={() => handleSwitchAgentInWidget('general')}
+                className={`flex-1 py-0.5 px-1 rounded text-[8.5px] sm:text-[10px] font-bold transition flex items-center justify-center gap-0.5 cursor-pointer truncate ${
+                  activeAgent === 'general'
+                    ? 'bg-purple-600 text-white shadow-xs'
+                    : 'text-slate-300 hover:text-white hover:bg-white/10'
+                }`}
               >
-                <ChevronDown className="w-4 h-4" />
-              </button>
-              <button
-                type="button"
-                onClick={() => setIsOpen(false)}
-                className="w-7 h-7 rounded-full bg-white/10 hover:bg-red-500/40 text-slate-300 hover:text-white flex items-center justify-center transition-colors cursor-pointer ml-0.5"
-                title="Đóng"
-              >
-                <X className="w-3.5 h-3.5" />
+                <Cpu className="w-2 h-2 sm:w-2.5 sm:h-2.5 text-amber-300 shrink-0" />
+                <span className="truncate">Đa năng</span>
               </button>
             </div>
           </div>
 
           {/* Thanh Gợi Ý Thao Tác Nhanh (Quick Prompts Bar) */}
-          <div className="px-3 py-2 bg-slate-50 border-b border-slate-200/70 flex items-center gap-1.5 overflow-x-auto text-[11px] no-scrollbar shrink-0">
-            <span className="text-slate-400 text-[10px] uppercase font-bold shrink-0 ml-1">
+          <div className="px-2 py-1 sm:px-3 sm:py-1.5 bg-slate-50/90 border-b border-slate-100 flex items-center gap-1 overflow-x-auto text-[9.5px] no-scrollbar shrink-0">
+            <span className="text-slate-400 text-[8px] sm:text-[9.5px] uppercase font-bold shrink-0 ml-0.5">
               Gợi ý:
             </span>
-            {roleConfig.prompts.map((prompt, i) => (
+            {(activeAgent === 'academic'
+              ? [
+                  '3 câu trắc nghiệm Lập trình Web',
+                  'Mục tiêu chuẩn đầu ra CLO',
+                  'Quy chế tính điểm tín chỉ',
+                ]
+              : activeAgent === 'general'
+              ? [
+                  'Thông báo nghỉ học',
+                  'Công thức Excel tính điểm',
+                  'Dịch tóm tắt bài báo',
+                ]
+              : roleConfig.prompts
+            ).map((prompt, i) => (
               <button
                 key={i}
                 onClick={() => handleSend(prompt)}
-                className="px-2.5 py-1 bg-white hover:bg-indigo-50 hover:text-indigo-600 hover:border-indigo-200 text-slate-700 rounded-full border border-slate-200/90 shrink-0 transition-all text-xs flex items-center gap-1 shadow-xs active:scale-95 cursor-pointer whitespace-nowrap"
+                className="px-1.5 py-0.5 sm:px-2.5 sm:py-1 bg-white hover:bg-indigo-50 hover:text-indigo-600 hover:border-indigo-200 text-slate-700 rounded-full border border-slate-200/90 shrink-0 transition-all text-[8.5px] sm:text-xs flex items-center gap-0.5 shadow-2xs active:scale-95 cursor-pointer whitespace-nowrap"
               >
                 <span>💡</span>
-                <span>{prompt}</span>
+                <span className="truncate max-w-[130px] sm:max-w-[150px]">{prompt}</span>
               </button>
             ))}
           </div>
 
           {/* Thân Hội Thoại (Messages Body) */}
-          <div className="flex-1 p-3.5 overflow-y-auto space-y-3.5 bg-gradient-to-b from-slate-50/60 to-slate-100/40">
+          <div className="flex-1 p-2 sm:p-3 overflow-y-auto space-y-1.5 sm:space-y-3 bg-gradient-to-b from-slate-50/60 to-slate-100/40 sidebar-scrollbar">
             {messages.map((msg) => (
               <div
                 key={msg.id}
-                className={`flex gap-2 ${msg.sender === 'user' ? 'justify-end' : 'justify-start'}`}
+                className={`flex gap-1.5 ${msg.sender === 'user' ? 'justify-end' : 'justify-start'}`}
               >
                 {/* Avatar AI */}
                 {msg.sender === 'ai' && (
-                  <div className="w-7 h-7 rounded-xl bg-gradient-to-tr from-slate-900 to-indigo-950 text-white flex items-center justify-center shrink-0 mt-0.5 shadow-xs p-1">
-                    <GeminiStar className="w-4 h-4" />
+                  <div className="w-5 h-5 sm:w-6.5 sm:h-6.5 rounded-md sm:rounded-lg bg-gradient-to-tr from-slate-900 to-indigo-950 text-white flex items-center justify-center shrink-0 mt-0.5 shadow-xs p-0.5 sm:p-1">
+                    <GeminiStar className="w-3 h-3 sm:w-3.5 sm:h-3.5" />
                   </div>
                 )}
 
                 {/* Bong bóng tin nhắn */}
                 <div
-                  className={`max-w-[84%] rounded-2xl p-3 text-xs leading-relaxed transition-all ${
+                  className={`max-w-[90%] sm:max-w-[84%] rounded-xl sm:rounded-2xl p-2 sm:p-3 text-[10.5px] sm:text-xs leading-relaxed transition-all ${
                     msg.sender === 'user'
-                      ? 'bg-gradient-to-r from-blue-600 to-indigo-600 text-white rounded-tr-xs shadow-sm shadow-blue-500/20'
-                      : 'bg-white text-slate-800 border border-slate-200/80 rounded-tl-xs shadow-xs'
+                      ? 'bg-gradient-to-r from-blue-600 to-indigo-600 text-white rounded-tr-xs shadow-xs'
+                      : 'bg-white text-slate-800 border border-slate-200/80 rounded-tl-xs shadow-2xs'
                   }`}
                 >
                   {renderFormattedAiText(msg.text, msg.sender === 'user')}
                   <div
-                    className={`mt-1.5 text-[9px] text-right flex items-center justify-end gap-1 ${
+                    className={`mt-0.5 sm:mt-1 text-[7.5px] sm:text-[9px] text-right flex items-center justify-end gap-1 ${
                       msg.sender === 'user' ? 'text-blue-200' : 'text-slate-400'
                     }`}
                   >
@@ -643,8 +733,8 @@ export const AiChatWidget: React.FC = () => {
 
                 {/* Avatar Người dùng */}
                 {msg.sender === 'user' && (
-                  <div className="w-7 h-7 rounded-xl bg-slate-200 text-slate-700 flex items-center justify-center shrink-0 mt-0.5 shadow-xs">
-                    <User className="w-3.5 h-3.5" />
+                  <div className="w-5 h-5 sm:w-6.5 sm:h-6.5 rounded-md sm:rounded-lg bg-slate-200 text-slate-700 flex items-center justify-center shrink-0 mt-0.5 shadow-xs">
+                    <User className="w-2.5 h-2.5 sm:w-3 sm:h-3" />
                   </div>
                 )}
               </div>
@@ -652,16 +742,16 @@ export const AiChatWidget: React.FC = () => {
 
             {/* Trạng thái Gemini đang phản hồi */}
             {isLoading && (
-              <div className="flex gap-2 justify-start items-center">
-                <div className="w-7 h-7 rounded-xl bg-gradient-to-tr from-slate-900 to-indigo-950 text-white flex items-center justify-center shrink-0 shadow-xs p-1">
-                  <GeminiStar className="w-4 h-4 animate-spin" style={{ animationDuration: '4s' }} />
+              <div className="flex gap-1.5 justify-start items-center">
+                <div className="w-5 h-5 sm:w-6.5 sm:h-6.5 rounded-md sm:rounded-lg bg-gradient-to-tr from-slate-900 to-indigo-950 text-white flex items-center justify-center shrink-0 shadow-xs p-0.5 sm:p-1">
+                  <GeminiStar className="w-3 h-3 sm:w-3.5 sm:h-3.5 animate-spin" style={{ animationDuration: '3s' }} />
                 </div>
-                <div className="bg-white border border-slate-200/80 rounded-2xl rounded-tl-xs px-3.5 py-2.5 text-xs text-slate-500 shadow-xs flex items-center gap-2">
-                  <span className="w-2 h-2 rounded-full bg-[#1BA1E3] animate-bounce"></span>
-                  <span className="w-2 h-2 rounded-full bg-[#9164E8] animate-bounce [animation-delay:150ms]"></span>
-                  <span className="w-2 h-2 rounded-full bg-[#DE628B] animate-bounce [animation-delay:300ms]"></span>
-                  <span className="text-[11px] font-medium text-slate-600 ml-1">
-                    Gemini đang tra cứu dữ liệu...
+                <div className="bg-white border border-slate-200/80 rounded-xl px-2 py-1 sm:px-2.5 sm:py-1.5 text-[9.5px] sm:text-xs text-slate-500 shadow-2xs flex items-center gap-1 sm:gap-1.5">
+                  <span className="w-1.5 h-1.5 rounded-full bg-[#1BA1E3] animate-bounce"></span>
+                  <span className="w-1.5 h-1.5 rounded-full bg-[#9164E8] animate-bounce [animation-delay:150ms]"></span>
+                  <span className="w-1.5 h-1.5 rounded-full bg-[#DE628B] animate-bounce [animation-delay:300ms]"></span>
+                  <span className="text-[9.5px] sm:text-[10px] font-medium text-slate-600 ml-0.5">
+                    Gemini đang trả lời...
                   </span>
                 </div>
               </div>
@@ -670,13 +760,13 @@ export const AiChatWidget: React.FC = () => {
           </div>
 
           {/* Ô Nhập Liệu (Input Footer) */}
-          <div className="p-2.5 bg-white border-t border-slate-100 shrink-0">
+          <div className="p-1 sm:p-2 bg-white border-t border-slate-100 shrink-0">
             <form
               onSubmit={(e) => {
                 e.preventDefault();
                 handleSend();
               }}
-              className="flex items-center gap-2"
+              className="flex items-center gap-1 sm:gap-1.5"
             >
               <div className="relative flex-1">
                 <input
@@ -684,14 +774,20 @@ export const AiChatWidget: React.FC = () => {
                   type="text"
                   value={input}
                   onChange={(e) => setInput(e.target.value)}
-                  placeholder={roleConfig.placeholder}
-                  className="w-full pl-3.5 pr-7 py-2 bg-slate-100/90 focus:bg-white text-slate-800 placeholder-slate-400 border border-slate-200 rounded-2xl text-xs focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all shadow-inner"
+                  placeholder={
+                    activeAgent === 'academic'
+                      ? 'Soạn đề, giáo án...'
+                      : activeAgent === 'general'
+                      ? 'Hỏi bất kỳ điều gì...'
+                      : 'Hỏi chấm công, lịch dạy...'
+                  }
+                  className="w-full pl-2 sm:pl-3 pr-6 py-1.5 sm:py-2 bg-slate-100/90 focus:bg-white text-slate-800 placeholder-slate-400 border border-slate-200 rounded-lg sm:rounded-xl text-[10.5px] sm:text-xs focus:outline-none focus:ring-1 focus:ring-indigo-500/30 focus:border-indigo-500 transition-all shadow-inner"
                 />
                 {input && (
                   <button
                     type="button"
                     onClick={() => setInput('')}
-                    className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 text-xs cursor-pointer"
+                    className="absolute right-1.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 text-[10px] cursor-pointer p-0.5"
                   >
                     ✕
                   </button>
@@ -700,19 +796,12 @@ export const AiChatWidget: React.FC = () => {
               <button
                 type="submit"
                 disabled={isLoading || !input.trim()}
-                className="w-8.5 h-8.5 rounded-2xl bg-gradient-to-tr from-blue-600 via-indigo-600 to-violet-600 hover:from-blue-700 hover:to-violet-700 active:scale-95 disabled:opacity-40 disabled:pointer-events-none text-white flex items-center justify-center transition-all shadow-md shadow-indigo-500/20 shrink-0 cursor-pointer"
+                className="w-6.5 h-6.5 sm:w-8 sm:h-8 rounded-lg sm:rounded-xl bg-gradient-to-tr from-blue-600 via-indigo-600 to-violet-600 hover:from-blue-700 hover:to-violet-700 active:scale-95 disabled:opacity-40 disabled:pointer-events-none text-white flex items-center justify-center transition-all shadow-xs shrink-0 cursor-pointer"
                 title="Gửi câu hỏi"
               >
-                <Send className="w-3.5 h-3.5" />
+                <Send className="w-2.5 h-2.5 sm:w-3.5 sm:h-3.5" />
               </button>
             </form>
-            <div className="mt-1 flex items-center justify-between px-2 text-[9px] text-slate-400">
-              <span>Enter để gửi • Thao tác nhanh</span>
-              <span className="flex items-center gap-1">
-                <span>Trợ lý</span>
-                <strong className="text-indigo-600 font-semibold">Gemini AI</strong>
-              </span>
-            </div>
           </div>
         </div>
       )}

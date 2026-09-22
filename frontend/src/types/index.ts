@@ -115,6 +115,7 @@ export type AttendanceMethod =
   | 'MANUAL'
   | 'GPS'
   | 'QR'
+  | 'QR_CODE'
   | 'SYSTEM';
 
 export interface AttendanceLog {

@@ -29,6 +29,7 @@ import DonutChart, { DonutSegment } from '../../components/charts/DonutChart';
 import LineTrendChart, { TrendPoint } from '../../components/charts/LineTrendChart';
 import { exportAttendanceToExcel, triggerPrintPdf } from '../../utils/exportUtils';
 import { formatDate } from '../../utils';
+import { UserAvatar } from '../../components/common/UserAvatar';
 
 export const AttendanceDashboardPage: React.FC = () => {
   const { user } = useAuth();
@@ -41,9 +42,7 @@ export const AttendanceDashboardPage: React.FC = () => {
   const [showGuide, setShowGuide] = useState<boolean>(true);
   const [searchTerm, setSearchTerm] = useState<string>('');
   const [currentPage, setCurrentPage] = useState<number>(1);
-  const [totalServerUsers, setTotalServerUsers] = useState<number>(0);
-  const [serverTotalPages, setServerTotalPages] = useState<number>(1);
-  const pageSize = 10;
+  const [pageSize, setPageSize] = useState<number>(25);
 
   const [summary, setSummary] = useState<AttendanceReportData | null>(null);
   const [staffList, setStaffList] = useState<MonthlyStaffReportItem[]>([]);
@@ -64,20 +63,23 @@ export const AttendanceDashboardPage: React.FC = () => {
   const fetchDashboardData = async () => {
     setLoading(true);
     try {
-      const firstDayOfMonth = new Date(selectedYear, selectedMonth - 1, 1).toISOString();
-      const lastDayOfMonth = new Date(selectedYear, selectedMonth, 0, 23, 59, 59, 999).toISOString();
+      const mStr = String(selectedMonth).padStart(2, '0');
+      const lastDay = new Date(selectedYear, selectedMonth, 0).getDate();
+      const lastDayStr = String(lastDay).padStart(2, '0');
+      const fromStr = `${selectedYear}-${mStr}-01`;
+      const toStr = `${selectedYear}-${mStr}-${lastDayStr}`;
 
       // 1. Lấy dữ liệu tổng hợp theo tháng, năm và đơn vị đã chọn
       const summaryRes = await reportService.getAttendanceReport({
-        from: firstDayOfMonth,
-        to: lastDayOfMonth,
+        from: fromStr,
+        to: toStr,
         departmentId: selectedDepartment || undefined,
       });
       if (summaryRes.success && summaryRes.data) {
         setSummary(summaryRes.data);
       }
 
-      // 2. Lấy danh sách chi tiết theo tháng có phân trang server-side
+      // 2. Lấy danh sách chi tiết theo tháng
       const monthlyRes = await reportService.getMonthlyReport({
         month: selectedMonth,
         year: selectedYear,
@@ -86,13 +88,6 @@ export const AttendanceDashboardPage: React.FC = () => {
       if (monthlyRes.success && monthlyRes.data) {
         if (monthlyRes.data.report) {
           setStaffList(monthlyRes.data.report);
-        }
-        if (monthlyRes.data.pagination) {
-          setServerTotalPages(monthlyRes.data.pagination.totalPages || 1);
-          setTotalServerUsers(monthlyRes.data.pagination.totalUsers || monthlyRes.data.totalUsers);
-        } else if (monthlyRes.data.totalUsers) {
-          setTotalServerUsers(monthlyRes.data.totalUsers);
-          setServerTotalPages(Math.ceil(monthlyRes.data.totalUsers / pageSize) || 1);
         }
         if (monthlyRes.data.weeklyTrend && monthlyRes.data.weeklyTrend.length > 0) {
           setWeeklyTrend(monthlyRes.data.weeklyTrend);
@@ -137,16 +132,13 @@ export const AttendanceDashboardPage: React.FC = () => {
     );
   }, [staffList, searchTerm]);
 
-  const effectiveTotalPages = searchTerm.trim()
-    ? Math.ceil(filteredStaffList.length / pageSize) || 1
-    : serverTotalPages;
+  const effectiveTotalPages = Math.ceil(filteredStaffList.length / pageSize) || 1;
 
   const paginatedStaffList = useMemo(() => {
-    // Nếu backend đã phân trang và trả về danh sách trong giới hạn pageSize
-    if (staffList.length <= pageSize) return filteredStaffList;
+    if (filteredStaffList.length <= pageSize) return filteredStaffList;
     const start = (currentPage - 1) * pageSize;
     return filteredStaffList.slice(start, start + pageSize);
-  }, [filteredStaffList, staffList.length, currentPage]);
+  }, [filteredStaffList, pageSize, currentPage]);
 
   // Chuẩn bị dữ liệu cho 3 Biểu đồ
   // 1. Biểu đồ tròn (Donut)
@@ -158,27 +150,33 @@ export const AttendanceDashboardPage: React.FC = () => {
     { label: 'Vắng có phép', value: excusedShifts, color: '#3b82f6' },
   ];
 
-  // 2. Biểu đồ cột (Bar)
-  const barData: BarDataPoint[] = filteredStaffList.slice(0, 5).map((item) => ({
-    label: item.user.fullName.split(' ').slice(-2).join(' '),
-    onTime: item.onTimeCount,
-    late: item.lateCount,
-    absent: item.absentCount,
-    excused: item.excusedCount,
-  }));
+  // 2. Biểu đồ cột (Bar) — Hiển thị top nhân sự có nhiều vấn đề nhất
+  const barData: BarDataPoint[] = useMemo(() => {
+    const sorted = [...filteredStaffList]
+      .sort((a, b) => (b.lateCount + b.absentCount + b.earlyLeaveCount) - (a.lateCount + a.absentCount + a.earlyLeaveCount))
+      .slice(0, 10);
+    return sorted.map((item) => ({
+      label: item.user.fullName.split(' ').slice(-2).join(' '),
+      onTime: item.onTimeCount,
+      late: item.lateCount + item.earlyLeaveCount,
+      absent: item.absentCount,
+      excused: item.excusedCount,
+    }));
+  }, [filteredStaffList]);
 
   // 3. Biểu đồ đường (Line Trend) - Dữ liệu thực từ MongoDB qua API
   const trendData: TrendPoint[] = useMemo(() => {
     if (weeklyTrend && weeklyTrend.length > 0) {
       return weeklyTrend;
     }
+    // Fallback: Hiển thị 4 tuần rỗng khi chưa có dữ liệu thực
     return [
-      { label: 'Tuần 1', rate: overallAttendanceRate, lateRate: Math.max(0, 100 - (overallAttendanceRate ?? 0)) },
-      { label: 'Tuần 2', rate: overallAttendanceRate, lateRate: Math.max(0, 100 - (overallAttendanceRate ?? 0)) },
-      { label: 'Tuần 3', rate: overallAttendanceRate, lateRate: Math.max(0, 100 - (overallAttendanceRate ?? 0)) },
-      { label: 'Tuần 4', rate: overallAttendanceRate, lateRate: Math.max(0, 100 - (overallAttendanceRate ?? 0)) },
+      { label: 'Tuần 1', rate: 0, lateRate: 0 },
+      { label: 'Tuần 2', rate: 0, lateRate: 0 },
+      { label: 'Tuần 3', rate: 0, lateRate: 0 },
+      { label: 'Tuần 4', rate: 0, lateRate: 0 },
     ];
-  }, [weeklyTrend, overallAttendanceRate]);
+  }, [weeklyTrend]);
 
   // Xuất Excel 5 sheets chuẩn với dữ liệu thực từ MongoDB
   const handleExportExcel = async () => {
@@ -625,7 +623,7 @@ export const AttendanceDashboardPage: React.FC = () => {
               Bảng Tổng Hợp Công Tác Chi Tiết Theo Cán Bộ / Giảng Viên (Tháng {selectedMonth}/{selectedYear})
             </h3>
             <p className="text-[11px] text-slate-500 mt-0.5">
-              Hiển thị {filteredStaffList.length} / {staffList.length} nhân sự
+              Hiển thị {paginatedStaffList.length} / {filteredStaffList.length} nhân sự
             </p>
           </div>
 
@@ -663,9 +661,17 @@ export const AttendanceDashboardPage: React.FC = () => {
               return (
                 <div key={item.user.id} className="p-4 space-y-3 hover:bg-slate-50/60 transition">
                   <div className="flex items-start justify-between gap-2">
-                    <div>
-                      <h4 className="font-bold text-sm text-slate-900">{item.user.fullName}</h4>
-                      <p className="text-[11px] text-slate-500 font-mono mt-0.5">{item.user.email}</p>
+                    <div className="flex items-center gap-2.5 min-w-0">
+                      <UserAvatar
+                        user={item.user}
+                        src={item.user.avatar}
+                        name={item.user.fullName}
+                        size="sm"
+                      />
+                      <div className="min-w-0">
+                        <h4 className="font-bold text-sm text-slate-900 truncate">{item.user.fullName}</h4>
+                        <p className="text-[11px] text-slate-500 font-mono truncate">{item.user.email}</p>
+                      </div>
                     </div>
                     <span
                       className={`font-mono font-bold px-2 py-0.5 rounded text-[11px] shrink-0 ${
@@ -756,7 +762,17 @@ export const AttendanceDashboardPage: React.FC = () => {
                   return (
                     <tr key={item.user.id} className="hover:bg-slate-50 transition-colors">
                       <td className="px-4 py-3 text-slate-400 font-mono">{(currentPage - 1) * pageSize + idx + 1}</td>
-                      <td className="px-4 py-3 font-bold text-slate-900">{item.user.fullName}</td>
+                      <td className="px-4 py-3 font-bold text-slate-900">
+                        <div className="flex items-center gap-2.5">
+                          <UserAvatar
+                            user={item.user}
+                            src={item.user.avatar}
+                            name={item.user.fullName}
+                            size="xs"
+                          />
+                          <span className="truncate">{item.user.fullName}</span>
+                        </div>
+                      </td>
                       <td className="px-4 py-3 text-slate-500 font-mono">{item.user.email}</td>
                       <td className="px-4 py-3 capitalize text-slate-700">{item.user.role}</td>
                       <td className="px-4 py-3 text-center font-bold text-slate-800">
@@ -801,11 +817,29 @@ export const AttendanceDashboardPage: React.FC = () => {
         </div>
 
         {/* Phân trang danh sách nhân sự */}
-        {(effectiveTotalPages > 1 || totalServerUsers > pageSize) && (
-          <div className="px-4 py-3 border-t border-slate-200/80 bg-slate-50/60 flex flex-col sm:flex-row items-center justify-between gap-2 text-xs text-slate-500 print:hidden">
-            <div>
-              Hiển thị trang <span className="font-semibold text-slate-700 font-mono">{currentPage}</span> / <span className="font-semibold text-slate-700 font-mono">{effectiveTotalPages}</span> (Tổng số <span className="font-semibold text-slate-700 font-mono">{totalServerUsers || filteredStaffList.length}</span> nhân sự)
+        <div className="px-4 py-3 border-t border-slate-200/80 bg-slate-50/60 flex flex-col sm:flex-row items-center justify-between gap-2 text-xs text-slate-500 print:hidden">
+          <div className="flex items-center gap-3">
+            <span>
+              Hiển thị <span className="font-semibold text-slate-700 font-mono">{paginatedStaffList.length}</span> / <span className="font-semibold text-slate-700 font-mono">{filteredStaffList.length}</span> nhân sự
+            </span>
+            <div className="flex items-center gap-1.5 text-slate-500">
+              <span className="text-[11px]">Số dòng:</span>
+              <select
+                value={pageSize}
+                onChange={(e) => {
+                  setPageSize(Number(e.target.value));
+                  setCurrentPage(1);
+                }}
+                className="px-2 py-0.5 bg-white border border-slate-200 rounded-lg text-xs font-semibold text-slate-700 focus:outline-none"
+              >
+                <option value={10}>10</option>
+                <option value={25}>25</option>
+                <option value={50}>50</option>
+                <option value={100}>100</option>
+              </select>
             </div>
+          </div>
+          {effectiveTotalPages > 1 && (
             <div className="flex items-center gap-2">
               <button
                 type="button"
@@ -829,8 +863,8 @@ export const AttendanceDashboardPage: React.FC = () => {
                 <ChevronRight className="w-3.5 h-3.5" />
               </button>
             </div>
-          </div>
-        )}
+          )}
+        </div>
       </div>
 
       {/* Chữ ký nghiệm thu dành riêng cho bản in PDF */}
