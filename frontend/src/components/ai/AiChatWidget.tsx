@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect, useMemo } from 'react';
-import { Bot, Send, X, Sparkles, User, RefreshCw, ChevronDown } from 'lucide-react';
+import { Bot, Send, X, Sparkles, User, RefreshCw, ChevronDown, ChevronRight, ChevronLeft, Minimize2 } from 'lucide-react';
 import aiService from '../../services/ai.service';
 import { formatTime } from '../../utils';
 import { useAuth } from '../../contexts/AuthContext';
@@ -175,6 +175,109 @@ export const AiChatWidget: React.FC = () => {
   const [isOpen, setIsOpen] = useState(false);
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+
+  // Vị trí 2D (X, Y) tự do trên toàn bộ màn hình (Mặc định ở góc dưới bên phải, có thể kéo đi bất cứ đâu)
+  const [position, setPosition] = useState<{ x: number; y: number }>(() => {
+    const defaultX = typeof window !== 'undefined' ? Math.max(16, window.innerWidth - 76) : 500;
+    const defaultY = typeof window !== 'undefined' ? Math.max(16, window.innerHeight - 150) : 500;
+    try {
+      const savedX = localStorage.getItem('gemini_ai_pos_x');
+      const savedY = localStorage.getItem('gemini_ai_pos_y');
+      if (savedX && savedY) {
+        const px = parseInt(savedX, 10);
+        const py = parseInt(savedY, 10);
+        const winW = typeof window !== 'undefined' ? window.innerWidth : 1024;
+        const winH = typeof window !== 'undefined' ? window.innerHeight : 768;
+        if (!isNaN(px) && !isNaN(py)) {
+          return {
+            x: Math.max(16, Math.min(winW - 72, px)),
+            y: Math.max(16, Math.min(winH - 72, py)),
+          };
+        }
+      }
+    } catch {}
+    return { x: defaultX, y: defaultY };
+  });
+
+  // Tự động giữ icon trong khung nhìn khi người dùng thu phóng / đổi kích thước màn hình
+  useEffect(() => {
+    const handleResize = () => {
+      setPosition((prev) => ({
+        x: Math.max(16, Math.min(window.innerWidth - 72, prev.x)),
+        y: Math.max(16, Math.min(window.innerHeight - 72, prev.y)),
+      }));
+    };
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
+
+  // Chế độ thu gọn vào mép màn hình (Dock to side edge)
+  const [isDocked, setIsDocked] = useState<boolean>(() => {
+    try {
+      return localStorage.getItem('gemini_ai_docked') === 'true';
+    } catch {}
+    return false;
+  });
+
+  // Xác định bong bóng đang ở nửa trái hay nửa phải màn hình
+  const isLeft = typeof window !== 'undefined' ? position.x < window.innerWidth / 2 : false;
+
+  const isDraggingRef = useRef(false);
+  const dragStartPosRef = useRef({ x: 0, y: 0 });
+  const startWidgetPosRef = useRef({ x: 0, y: 0 });
+  const hasMovedRef = useRef(false);
+
+  const handlePointerDown = (e: React.PointerEvent) => {
+    isDraggingRef.current = true;
+    dragStartPosRef.current = { x: e.clientX, y: e.clientY };
+    startWidgetPosRef.current = { ...position };
+    hasMovedRef.current = false;
+    try {
+      (e.target as HTMLElement).setPointerCapture?.(e.pointerId);
+    } catch {}
+  };
+
+  const handlePointerMove = (e: React.PointerEvent) => {
+    if (!isDraggingRef.current) return;
+    const deltaX = e.clientX - dragStartPosRef.current.x;
+    const deltaY = e.clientY - dragStartPosRef.current.y;
+    if (Math.hypot(deltaX, deltaY) > 5) {
+      hasMovedRef.current = true;
+    }
+    const minX = 16;
+    const maxX = window.innerWidth - 72;
+    const minY = 16;
+    const maxY = window.innerHeight - 72;
+
+    const nextX = Math.max(minX, Math.min(maxX, startWidgetPosRef.current.x + deltaX));
+    const nextY = Math.max(minY, Math.min(maxY, startWidgetPosRef.current.y + deltaY));
+    setPosition({ x: nextX, y: nextY });
+  };
+
+  const handlePointerUp = (e: React.PointerEvent) => {
+    if (!isDraggingRef.current) return;
+    isDraggingRef.current = false;
+    try {
+      (e.target as HTMLElement).releasePointerCapture?.(e.pointerId);
+    } catch {}
+    try {
+      localStorage.setItem('gemini_ai_pos_x', String(position.x));
+      localStorage.setItem('gemini_ai_pos_y', String(position.y));
+    } catch {}
+    if (!hasMovedRef.current) {
+      setIsOpen(true);
+    }
+  };
+
+  const toggleDock = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    const next = !isDocked;
+    setIsDocked(next);
+    try {
+      localStorage.setItem('gemini_ai_docked', String(next));
+    } catch {}
+  };
+
   // Cấu hình linh hoạt theo từng chức vụ (Role)
   const roleConfig = useMemo(() => {
     const role = user?.role;
@@ -318,47 +421,113 @@ export const AiChatWidget: React.FC = () => {
   return (
     <>
       {/* ========================================================= */}
-      {/* 1. BONG BÓNG CHAT GEMINI NỔI (Floating Chat Bubble) */}
-      {/* Luôn cố định góc dưới bên phải màn hình khi cuộn trang */}
+      {/* 1.1. CHẾ ĐỘ THU GỌN VÀO MÉP MÀN HÌNH (Docked to Side Edge) */}
       {/* ========================================================= */}
-      {!isOpen && (
-        <div className="fixed bottom-6 right-6 z-[9999] flex items-center justify-end">
+      {isDocked && !isOpen && (
+        <div
+          style={{ top: `${position.y}px` }}
+          className={`fixed z-[9999] flex items-center select-none animate-in duration-200 ${
+            isLeft ? 'left-0 slide-in-from-left' : 'right-0 slide-in-from-right'
+          }`}
+        >
           <button
-            onClick={() => setIsOpen(true)}
-            className="relative group p-[2.5px] rounded-full bg-gradient-to-tr from-[#1BA1E3] via-[#9164E8] to-[#DE628B] shadow-[0_8px_25px_rgba(145,100,232,0.45)] hover:shadow-[0_12px_32px_rgba(145,100,232,0.65)] hover:scale-110 active:scale-95 transition-all duration-300 focus:outline-none cursor-pointer"
-            title={roleConfig.headerTitle}
-            aria-label={roleConfig.headerTitle}
+            type="button"
+            onClick={() => {
+              setIsDocked(false);
+              try {
+                localStorage.setItem('gemini_ai_docked', 'false');
+              } catch {}
+            }}
+            className={`flex items-center gap-1.5 py-2 px-2.5 sm:px-3 bg-gradient-to-r from-[#1BA1E3] via-[#9164E8] to-[#DE628B] text-white shadow-xl hover:scale-105 transition-all text-xs font-bold border-y border-white/30 group cursor-pointer ${
+              isLeft ? 'rounded-r-2xl border-r pl-2.5 hover:pr-4' : 'rounded-l-2xl border-l pr-2.5 hover:pl-4'
+            }`}
+            title="Nhấn để mở Trợ lý AI"
           >
-            {/* Lớp nền tròn trắng ngọc trai bo tròn xinh xắn */}
-            <div className="w-13 h-13 sm:w-14 sm:h-14 rounded-full bg-white flex items-center justify-center relative overflow-hidden transition-colors group-hover:bg-slate-50">
-              {/* Logo Google Gemini Star rực rỡ và sắc nét */}
-              <GeminiLogo className="w-7 h-7 sm:w-8 sm:h-8 transition-transform duration-300 group-hover:rotate-6 group-hover:scale-105" />
-
-              {/* Lớp bóng gương nhẹ tăng độ bóng bẩy */}
-              <div className="absolute inset-0 bg-gradient-to-b from-white/60 via-transparent to-transparent pointer-events-none rounded-full" />
-            </div>
-
-            {/* Chấm tròn xanh báo trạng thái sẵn sàng (Online indicator) */}
-            <span className="absolute top-0 right-0 flex h-3.5 w-3.5">
-              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-              <span className="relative inline-flex rounded-full h-3.5 w-3.5 bg-emerald-500 border-2 border-white shadow-xs"></span>
-            </span>
-
-            {/* Tooltip nhỏ gọn hiện khi hover trên màn hình máy tính */}
-            <div className="hidden sm:flex items-center gap-1.5 absolute right-full mr-3 px-3 py-1.5 rounded-full bg-slate-900/95 text-white text-xs font-medium shadow-xl opacity-0 group-hover:opacity-100 translate-x-2 group-hover:translate-x-0 transition-all duration-200 pointer-events-none whitespace-nowrap border border-white/10 backdrop-blur-sm">
-              <span>{roleConfig.headerTitle}</span>
-              <Sparkles className="w-3.5 h-3.5 text-amber-300 animate-pulse" />
-            </div>
+            {isLeft ? (
+              <>
+                <ChevronRight className="w-3.5 h-3.5 group-hover:translate-x-0.5 transition-transform" />
+                <span className="text-[11px] font-extrabold tracking-wide drop-shadow-xs">Trợ lý AI</span>
+                <GeminiStar className="w-4 h-4 animate-pulse" />
+              </>
+            ) : (
+              <>
+                <GeminiStar className="w-4 h-4 animate-pulse" />
+                <span className="text-[11px] font-extrabold tracking-wide drop-shadow-xs">Trợ lý AI</span>
+                <ChevronLeft className="w-3.5 h-3.5 group-hover:-translate-x-0.5 transition-transform" />
+              </>
+            )}
           </button>
         </div>
       )}
 
       {/* ========================================================= */}
+      {/* 1.2. BONG BÓNG CHAT GEMINI NỔI (Kéo Thả Tự Do 360° Khắp Màn Hình) */}
+      {/* ========================================================= */}
+      {!isDocked && !isOpen && (
+        <div
+          style={{ left: `${position.x}px`, top: `${position.y}px` }}
+          className="fixed z-[9999] flex items-center select-none touch-none"
+        >
+          <div className="relative flex items-center group/bubble">
+            {/* Nút thu gọn nhanh vào mép màn hình */}
+            <button
+              type="button"
+              onClick={toggleDock}
+              className={`absolute -top-1.5 z-10 w-5 h-5 rounded-full bg-slate-800/90 hover:bg-slate-900 text-slate-300 hover:text-white flex items-center justify-center text-[10px] shadow-md border border-white/20 transition-all hover:scale-110 cursor-pointer opacity-75 group-hover/bubble:opacity-100 ${
+                isLeft ? '-left-1' : '-right-1'
+              }`}
+              title={isLeft ? 'Gập gọn vào mép trái màn hình' : 'Gập gọn vào mép phải màn hình'}
+            >
+              {isLeft ? <ChevronLeft className="w-3 h-3" /> : <ChevronRight className="w-3 h-3" />}
+            </button>
+
+            <button
+              type="button"
+              onPointerDown={handlePointerDown}
+              onPointerMove={handlePointerMove}
+              onPointerUp={handlePointerUp}
+              className="relative p-[2.5px] rounded-full bg-gradient-to-tr from-[#1BA1E3] via-[#9164E8] to-[#DE628B] shadow-[0_8px_25px_rgba(145,100,232,0.45)] hover:shadow-[0_12px_32px_rgba(145,100,232,0.65)] active:scale-95 transition-shadow duration-300 focus:outline-none cursor-grab active:cursor-grabbing touch-none select-none"
+              title={`${roleConfig.headerTitle} (Kéo thả tự do xung quanh màn hình)`}
+              aria-label={roleConfig.headerTitle}
+            >
+              {/* Lớp nền tròn trắng ngọc trai */}
+              <div className="w-12 h-12 sm:w-13 sm:h-13 rounded-full bg-white flex items-center justify-center relative overflow-hidden transition-colors hover:bg-slate-50 pointer-events-none">
+                <GeminiLogo className="w-6 h-6 sm:w-7 sm:h-7 transition-transform duration-300 hover:rotate-6 hover:scale-105" />
+                <div className="absolute inset-0 bg-gradient-to-b from-white/60 via-transparent to-transparent pointer-events-none rounded-full" />
+              </div>
+
+              {/* Chấm tròn xanh báo trạng thái sẵn sàng */}
+              <span className="absolute top-0 right-0 flex h-3 w-3 pointer-events-none">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                <span className="relative inline-flex rounded-full h-3 w-3 bg-emerald-500 border-2 border-white shadow-xs"></span>
+              </span>
+
+              {/* Tooltip hướng dẫn khi hover */}
+              <div
+                className={`hidden sm:flex items-center gap-1.5 absolute ${
+                  isLeft
+                    ? 'left-full ml-3 -translate-x-2 group-hover/bubble:translate-x-0'
+                    : 'right-full mr-3 translate-x-2 group-hover/bubble:translate-x-0'
+                } px-3 py-1.5 rounded-full bg-slate-900/95 text-white text-xs font-medium shadow-xl opacity-0 group-hover/bubble:opacity-100 transition-all duration-200 pointer-events-none whitespace-nowrap border border-white/10 backdrop-blur-sm`}
+              >
+                <span>{roleConfig.headerTitle}</span>
+                <span className="text-[10px] text-slate-400 font-mono">(kéo di chuyển khắp màn hình)</span>
+                <Sparkles className="w-3.5 h-3.5 text-amber-300 animate-pulse" />
+              </div>
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* ========================================================= */}
       {/* 2. HỘP THOẠI AI CHAT BOX (AI Box Window) */}
-      {/* Nhỏ gọn, xinh xắn, nổi bật và cực kỳ dễ thao tác */}
       {/* ========================================================= */}
       {isOpen && (
-        <div className="fixed bottom-4 right-4 sm:bottom-6 sm:right-6 z-[9999] w-[calc(100vw-2rem)] sm:w-[380px] h-[530px] max-h-[84vh] bg-white rounded-3xl shadow-[0_20px_60px_-15px_rgba(15,23,42,0.35)] border border-slate-200/90 flex flex-col overflow-hidden transition-all animate-in fade-in zoom-in-95 duration-200">
+        <div
+          className={`fixed bottom-4 sm:bottom-6 z-[9999] w-[calc(100vw-2rem)] sm:w-[380px] h-[530px] max-h-[84vh] bg-white rounded-3xl shadow-[0_20px_60px_-15px_rgba(15,23,42,0.35)] border border-slate-200/90 flex flex-col overflow-hidden transition-all animate-in fade-in zoom-in-95 duration-200 ${
+            isLeft ? 'left-4 sm:left-6' : 'right-4 sm:right-6'
+          }`}
+        >
           {/* Header - Phong cách Google Gemini hiện đại */}
           <div className="px-4 py-3 bg-gradient-to-r from-slate-900 via-indigo-950 to-slate-900 text-white flex items-center justify-between shrink-0 shadow-xs">
             <div className="flex items-center gap-2.5">
@@ -383,6 +552,7 @@ export const AiChatWidget: React.FC = () => {
             {/* Các nút thao tác Header */}
             <div className="flex items-center gap-1">
               <button
+                type="button"
                 onClick={handleResetChat}
                 className="w-7 h-7 rounded-full bg-white/10 hover:bg-white/20 text-slate-300 hover:text-white flex items-center justify-center transition-colors cursor-pointer"
                 title="Làm mới hội thoại"
@@ -390,6 +560,21 @@ export const AiChatWidget: React.FC = () => {
                 <RefreshCw className="w-3.5 h-3.5" />
               </button>
               <button
+                type="button"
+                onClick={() => {
+                  setIsOpen(false);
+                  setIsDocked(true);
+                  try {
+                    localStorage.setItem('gemini_ai_docked', 'true');
+                  } catch {}
+                }}
+                className="w-7 h-7 rounded-full bg-white/10 hover:bg-white/20 text-slate-300 hover:text-white flex items-center justify-center transition-colors cursor-pointer"
+                title="Gập gọn vào mép màn hình"
+              >
+                <Minimize2 className="w-3.5 h-3.5" />
+              </button>
+              <button
+                type="button"
                 onClick={() => setIsOpen(false)}
                 className="w-7 h-7 rounded-full bg-white/10 hover:bg-white/20 text-slate-300 hover:text-white flex items-center justify-center transition-colors cursor-pointer ml-0.5"
                 title="Thu nhỏ chat box"
@@ -397,6 +582,7 @@ export const AiChatWidget: React.FC = () => {
                 <ChevronDown className="w-4 h-4" />
               </button>
               <button
+                type="button"
                 onClick={() => setIsOpen(false)}
                 className="w-7 h-7 rounded-full bg-white/10 hover:bg-red-500/40 text-slate-300 hover:text-white flex items-center justify-center transition-colors cursor-pointer ml-0.5"
                 title="Đóng"

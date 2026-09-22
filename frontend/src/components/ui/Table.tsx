@@ -1,6 +1,6 @@
 import { ReactNode } from 'react';
 import { Inbox } from 'lucide-react';
-import { cn } from '../utils';
+import { cn } from '../../utils';
 
 export interface Column<T> {
   header: string;

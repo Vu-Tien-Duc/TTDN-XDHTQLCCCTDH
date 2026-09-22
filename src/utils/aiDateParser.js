@@ -265,10 +265,7 @@ const parseVietnameseDateRange = (text = '', referenceDate = new Date()) => {
 };
 
 module.exports = {
-  TIMEZONE,
-  getVietnamDateString,
   createVietnamDate,
   getVietnamParts,
-  getDaysInMonth,
   parseVietnameseDateRange,
 };

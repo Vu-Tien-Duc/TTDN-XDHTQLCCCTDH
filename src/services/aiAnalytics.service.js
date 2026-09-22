@@ -402,22 +402,6 @@ const getAttendanceSummary = async ({ userId, departmentId, fromDate, toDate, cu
   };
 };
 
-/**
- * Đếm số người / lượt theo trạng thái cụ thể
- */
-const countAttendanceByStatus = async ({ status, userId, departmentId, fromDate, toDate, currentUser }) => {
-  const summary = await getAttendanceSummary({ userId, departmentId, fromDate, toDate, currentUser });
-  if (summary.unauthorized) return summary;
-
-  if (status === 'ON_TIME') return { count: summary.onTime, total: summary.total };
-  if (status === 'LATE') return { count: summary.late, total: summary.total };
-  if (status === 'EARLY_LEAVE') return { count: summary.earlyLeave, total: summary.total };
-  if (status === 'ABSENT') return { count: summary.absent, total: summary.total };
-  if (status === 'EXCUSED_ABSENCE') return { count: summary.excusedAbsent, total: summary.total };
-  if (status === 'PRESENT') return { count: summary.presentUserCount, total: summary.total };
-
-  return { count: summary.total, total: summary.total };
-};
 
 /**
  * Thống kê ai đi trễ nhiều nhất trong khoảng thời gian
@@ -754,14 +738,11 @@ module.exports = {
   // Authorization
   checkUserPermission,
   checkDepartmentPermission,
-  getDepartmentScopeIds,
   // Entity Resolution
-  normalizeVietnameseString,
   resolveUser,
   resolveDepartment,
   // Attendance
   getAttendanceSummary,
-  countAttendanceByStatus,
   getTopLateUsers,
   // Leave Request
   getLeaveRequestSummary,

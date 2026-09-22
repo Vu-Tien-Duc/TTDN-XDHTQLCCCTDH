@@ -165,15 +165,17 @@ const getNotifications = async (req, res, next) => {
       }
     }
 
-    // 3. Thông báo lịch dạy hôm nay
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    const tomorrow = new Date(today);
-    tomorrow.setDate(tomorrow.getDate() + 1);
+    // 3. Thông báo lịch phân công hôm nay của người dùng
+    const { getVietnamTime, getVietnamDayRange } = require('../services/attendance.service');
+    const nowVN = getVietnamTime();
+    const currentWeekday = nowVN.getDay();
+    const { startOfDay, endOfDay } = getVietnamDayRange(nowVN);
 
     const todaySchedules = await Schedule.find({
-      teacherId: user._id,
-      date: { $gte: today, $lt: tomorrow },
+      userId: user._id,
+      weekday: currentWeekday,
+      startDate: { $lte: endOfDay },
+      endDate: { $gte: startOfDay },
     })
       .populate('shiftId', 'name startTime endTime')
       .lean();
@@ -181,33 +183,32 @@ const getNotifications = async (req, res, next) => {
     if (todaySchedules.length > 0) {
       notifications.push({
         id: `schedule-today`,
-        title: `Lịch công tác hôm nay (${todaySchedules.length} ca)`,
-        message: `Hôm nay bạn có lịch tại phòng ${todaySchedules.map((s) => s.room).join(', ')}. Vui lòng chấm công đúng khung giờ ca dạy.`,
+        title: `Lịch giảng dạy hôm nay (${todaySchedules.length} ca)`,
+        message: `Hôm nay bạn có lịch: ${todaySchedules.map((s) => `${s.shiftId?.name || 'Ca dạy'} (${s.startTime || s.shiftId?.startTime || ''} - ${s.endTime || s.shiftId?.endTime || ''})`).join(', ')}. Vui lòng thực hiện điểm danh đúng khung giờ.`,
         type: 'schedule',
         status: 'info',
-        timestamp: today,
+        timestamp: startOfDay,
         link: '/schedules',
       });
     }
 
-    // 4. Thông báo tự động từ Báo cáo tổng kết Email cuối ngày
-    notifications.push({
-      id: `report-summary-daily`,
-      title: 'Báo cáo tổng kết chấm công tự động',
-      message: `Hệ thống tiến trình nền tự động gửi báo cáo công tác & chuyên cần lúc 23:59 hàng ngày đến hòm thư: ${user.email}.`,
-      type: 'report',
-      status: 'info',
-      timestamp: new Date(Date.now() - 2 * 3600 * 1000), // Mốc 2 giờ trước
-      link: '/reports',
-    });
-
     // Sắp xếp các thông báo theo thứ tự thời gian mới nhất lên đầu
     notifications.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
 
+    // Tính số thông báo chưa đọc dựa theo mốc client gửi lên (lastReadAt)
+    const lastReadAtStr = req.query.lastReadAt;
+    const lastReadAt = lastReadAtStr ? new Date(lastReadAtStr) : null;
+    let calculatedUnread = 0;
+    if (lastReadAt && !isNaN(lastReadAt.getTime())) {
+      calculatedUnread = notifications.filter((n) => new Date(n.timestamp).getTime() > lastReadAt.getTime()).length;
+    } else {
+      calculatedUnread = notifications.length > 0 ? 1 : 0;
+    }
+
     return sendSuccess(res, 'Lấy danh sách thông báo thành công.', {
       total: notifications.length,
-      unreadCount: Math.min(notifications.length, 3),
-      notifications: notifications.slice(0, 8),
+      unreadCount: calculatedUnread,
+      notifications: notifications.slice(0, 10),
     });
   } catch (error) {
     next(error);

@@ -848,6 +848,5 @@ module.exports = {
   sendCheckInNotificationEmail,
   sendCheckOutNotificationEmail,
   sendDailyAttendanceSummaryEmail,
-  formatDate,
 };
 

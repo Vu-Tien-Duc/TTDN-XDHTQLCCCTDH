@@ -18,11 +18,19 @@ import {
   Award,
   ChevronLeft,
   ChevronRight,
+  Camera,
+  X,
+  RotateCcw,
+  Sparkles,
+  GraduationCap,
+  Shield,
+  Briefcase,
 } from 'lucide-react';
 import { Department, Role, User as UserType } from '../../types';
 import { userService, CreateUserPayload, UpdateUserPayload } from '../../services/userService';
 import { departmentService } from '../../services/departmentService';
 import { useAuth } from '../../contexts/AuthContext';
+import { UserAvatar } from '../../components';
 
 export const UsersPage: React.FC = () => {
   const { user: currentUser } = useAuth();
@@ -270,29 +278,41 @@ export const UsersPage: React.FC = () => {
     }
   };
 
+  // Thống kê nhanh từ danh sách
+  const activeFilterCount = (search.trim() ? 1 : 0) + (selectedRole !== 'all' ? 1 : 0) + (selectedDept !== 'all' ? 1 : 0);
+  const lecturerCount = users.filter((u) => u.role === 'giangvien').length;
+  const activeCount = users.filter((u) => u.isActive !== false).length;
+  const faceRegisteredCount = users.filter((u) => u.faceRegistered || (u as any).faceDataRegistered).length;
+
+  const handleResetFilters = () => {
+    setSearch('');
+    setSelectedRole('all');
+    setSelectedDept('all');
+  };
+
   return (
-    <div className="space-y-6">
+    <div className="space-y-4 sm:space-y-6">
       {/* Header Bar */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-white p-6 rounded-3xl border border-slate-200 shadow-xs">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-white p-4 sm:p-6 rounded-2xl sm:rounded-3xl border border-slate-200 shadow-xs">
         <div>
           <div className="flex items-center gap-2 text-xs font-bold text-blue-600 uppercase tracking-wider mb-1">
             <Users className="w-4 h-4" />
             <span>Nhân Sự & Giảng Viên</span>
           </div>
-          <h1 className="text-2xl font-extrabold text-slate-900 tracking-tight">
+          <h1 className="text-xl sm:text-2xl font-extrabold text-slate-900 tracking-tight">
             Quản Lý Cán Bộ & Người Dùng
           </h1>
           <p className="text-xs sm:text-sm text-slate-500 mt-1">
             {isAdmin
-              ? 'Toàn quyền quản trị danh sách nhân sự toàn trường, phân quyền và khóa tài khoản.'
+              ? 'Toàn quyền quản trị danh sách nhân sự, cấu hình vai trò và quản lý hồ sơ Face ID.'
               : 'Danh sách nhân sự thuộc quyền quản lý của Khoa trực thuộc.'}
           </p>
         </div>
 
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2.5 self-end sm:self-auto shrink-0">
           <button
             onClick={fetchUsers}
-            className="p-2.5 rounded-xl border border-slate-200 hover:bg-slate-50 text-slate-600 transition"
+            className="p-2 sm:p-2.5 rounded-xl border border-slate-200 hover:bg-slate-50 text-slate-600 transition"
             title="Tải lại danh sách"
           >
             <RefreshCw className={`w-4 h-4 ${isLoading ? 'animate-spin' : ''}`} />
@@ -302,126 +322,299 @@ export const UsersPage: React.FC = () => {
           {isAdmin && (
             <button
               onClick={handleOpenCreateModal}
-              className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold shadow-md shadow-blue-500/20 transition active:scale-98"
+              className="flex items-center gap-2 px-3.5 sm:px-4 py-2 sm:py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold shadow-md shadow-blue-500/20 transition active:scale-98"
             >
               <Plus className="w-4 h-4" />
-              <span>Thêm Cán Bộ / Giảng Viên</span>
+              <span>Thêm Cán Bộ</span>
             </button>
           )}
         </div>
       </div>
 
-      {/* Thanh Bộ Lọc & Tìm Kiếm */}
-      <div className="bg-white p-4 rounded-3xl border border-slate-200 shadow-xs flex flex-col md:flex-row gap-3 items-center justify-between">
-        {/* Tìm kiếm */}
-        <div className="relative w-full md:w-80">
-          <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
-          <input
-            type="text"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            placeholder="Tìm theo họ tên hoặc email..."
-            className="w-full pl-10 pr-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500"
-          />
+      {/* 4 Thẻ Thống Kê Nhanh (Responsive Grid) */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-2.5 sm:gap-4">
+        <div className="bg-white rounded-2xl border border-slate-200 p-3 sm:p-4 flex items-center gap-3 shadow-xs">
+          <div className="w-10 h-10 rounded-xl bg-blue-50 border border-blue-200 text-blue-600 flex items-center justify-center shrink-0">
+            <Users className="w-5 h-5" />
+          </div>
+          <div className="min-w-0">
+            <div className="text-[11px] font-bold uppercase tracking-wider text-slate-400 truncate">Tổng Cán Bộ</div>
+            <div className="text-lg sm:text-2xl font-black text-slate-900 font-mono mt-0.5">{totalUsers}</div>
+          </div>
         </div>
 
-        {/* Lọc theo Role & Khoa */}
-        <div className="flex flex-wrap items-center gap-2.5 w-full md:w-auto">
-          <div className="flex items-center gap-1.5 text-xs text-slate-500">
-            <Filter className="w-3.5 h-3.5" />
-            <span>Bộ lọc:</span>
+        <div className="bg-white rounded-2xl border border-slate-200 p-3 sm:p-4 flex items-center gap-3 shadow-xs">
+          <div className="w-10 h-10 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-600 flex items-center justify-center shrink-0">
+            <Award className="w-5 h-5" />
+          </div>
+          <div className="min-w-0">
+            <div className="text-[11px] font-bold uppercase tracking-wider text-slate-400 truncate">Giảng Viên</div>
+            <div className="text-lg sm:text-2xl font-black text-emerald-700 font-mono mt-0.5">
+              {users.length > 0 ? `${lecturerCount}` : '-'}
+            </div>
+          </div>
+        </div>
+
+        <div className="bg-white rounded-2xl border border-slate-200 p-3 sm:p-4 flex items-center gap-3 shadow-xs">
+          <div className="w-10 h-10 rounded-xl bg-indigo-50 border border-indigo-200 text-indigo-600 flex items-center justify-center shrink-0">
+            <UserCheck className="w-5 h-5" />
+          </div>
+          <div className="min-w-0">
+            <div className="text-[11px] font-bold uppercase tracking-wider text-slate-400 truncate">Hoạt Động</div>
+            <div className="text-lg sm:text-2xl font-black text-indigo-700 font-mono mt-0.5">
+              {users.length > 0 ? `${activeCount}` : '-'}
+            </div>
+          </div>
+        </div>
+
+        <div className="bg-white rounded-2xl border border-slate-200 p-3 sm:p-4 flex items-center gap-3 shadow-xs">
+          <div className="w-10 h-10 rounded-xl bg-violet-50 border border-violet-200 text-violet-600 flex items-center justify-center shrink-0">
+            <Camera className="w-5 h-5" />
+          </div>
+          <div className="min-w-0">
+            <div className="text-[11px] font-bold uppercase tracking-wider text-slate-400 truncate">Đã Đăng Ký FaceID</div>
+            <div className="text-lg sm:text-2xl font-black text-violet-700 font-mono mt-0.5">
+              {users.length > 0 ? `${faceRegisteredCount}` : '-'}
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Thanh Bộ Lọc & Tìm Kiếm */}
+      <div className="bg-white p-3.5 sm:p-4 rounded-2xl sm:rounded-3xl border border-slate-200 shadow-xs space-y-3">
+        <div className="flex flex-col md:flex-row gap-3 items-stretch md:items-center justify-between">
+          {/* Tìm kiếm */}
+          <div className="relative flex-1 max-w-full md:max-w-md">
+            <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+            <input
+              type="text"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Tìm theo họ tên hoặc email cán bộ..."
+              className="w-full pl-10 pr-9 py-2 sm:py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:bg-white transition"
+            />
+            {search && (
+              <button
+                onClick={() => setSearch('')}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 p-0.5 rounded-full"
+                title="Xóa tìm kiếm"
+              >
+                <X className="w-3.5 h-3.5" />
+              </button>
+            )}
           </div>
 
-          <select
-            value={selectedRole}
-            onChange={(e) => setSelectedRole(e.target.value)}
-            className="px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500"
-          >
-            <option value="all">Tất cả vai trò</option>
-            <option value="admin">Quản trị viên (Admin)</option>
-            <option value="truongkhoa">Trưởng khoa</option>
-            <option value="giangvien">Giảng viên</option>
-            <option value="nhanvien">Chuyên viên / Nhân viên</option>
-          </select>
+          {/* Lọc theo Khoa & Nút đặt lại */}
+          <div className="flex flex-wrap items-center gap-2">
+            {isAdmin && (
+              <div className="flex items-center gap-1.5 flex-1 sm:flex-none">
+                <Building2 className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                <select
+                  value={selectedDept}
+                  onChange={(e) => setSelectedDept(e.target.value)}
+                  className="w-full sm:w-auto px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-700 font-medium focus:outline-none focus:ring-2 focus:ring-blue-500 max-w-[220px] truncate"
+                >
+                  <option value="all">Tất cả Khoa / Phòng ban</option>
+                  {departments.map((d) => (
+                    <option key={d._id} value={d._id}>
+                      {d.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
 
-          {isAdmin && (
-            <select
-              value={selectedDept}
-              onChange={(e) => setSelectedDept(e.target.value)}
-              className="px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500 max-w-[200px] truncate"
-            >
-              <option value="all">Tất cả Khoa / Phòng ban</option>
-              {departments.map((d) => (
-                <option key={d._id} value={d._id}>
-                  {d.name}
-                </option>
-              ))}
-            </select>
-          )}
+            {activeFilterCount > 0 && (
+              <button
+                onClick={handleResetFilters}
+                className="flex items-center gap-1 px-2.5 py-2 text-xs font-semibold text-rose-600 bg-rose-50 hover:bg-rose-100 rounded-xl border border-rose-200 transition"
+                title="Xóa tất cả bộ lọc"
+              >
+                <RotateCcw className="w-3 h-3" />
+                <span className="hidden sm:inline">Đặt lại</span>
+              </button>
+            )}
+          </div>
+        </div>
+
+        {/* Quick Role Filter Tabs */}
+        <div className="flex items-center gap-1.5 overflow-x-auto pb-1 pt-1 border-t border-slate-100">
+          <button
+            onClick={() => setSelectedRole('all')}
+            className={`px-3 py-1.5 rounded-xl text-xs font-bold transition whitespace-nowrap ${
+              selectedRole === 'all'
+                ? 'bg-slate-900 text-white shadow-xs'
+                : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+            }`}
+          >
+            Tất cả ({totalUsers || users.length})
+          </button>
+          <button
+            onClick={() => setSelectedRole('giangvien')}
+            className={`flex items-center gap-1 px-3 py-1.5 rounded-xl text-xs font-bold transition whitespace-nowrap ${
+              selectedRole === 'giangvien'
+                ? 'bg-emerald-600 text-white shadow-xs'
+                : 'bg-emerald-50 text-emerald-700 hover:bg-emerald-100 border border-emerald-200/60'
+            }`}
+          >
+            <GraduationCap className="w-3 h-3" />
+            <span>Giảng viên</span>
+          </button>
+          <button
+            onClick={() => setSelectedRole('truongkhoa')}
+            className={`flex items-center gap-1 px-3 py-1.5 rounded-xl text-xs font-bold transition whitespace-nowrap ${
+              selectedRole === 'truongkhoa'
+                ? 'bg-blue-600 text-white shadow-xs'
+                : 'bg-blue-50 text-blue-700 hover:bg-blue-100 border border-blue-200/60'
+            }`}
+          >
+            <Building2 className="w-3 h-3" />
+            <span>Trưởng khoa</span>
+          </button>
+          <button
+            onClick={() => setSelectedRole('nhanvien')}
+            className={`flex items-center gap-1 px-3 py-1.5 rounded-xl text-xs font-bold transition whitespace-nowrap ${
+              selectedRole === 'nhanvien'
+                ? 'bg-amber-600 text-white shadow-xs'
+                : 'bg-amber-50 text-amber-700 hover:bg-amber-100 border border-amber-200/60'
+            }`}
+          >
+            <Briefcase className="w-3 h-3" />
+            <span>Chuyên viên</span>
+          </button>
+          <button
+            onClick={() => setSelectedRole('admin')}
+            className={`flex items-center gap-1 px-3 py-1.5 rounded-xl text-xs font-bold transition whitespace-nowrap ${
+              selectedRole === 'admin'
+                ? 'bg-purple-600 text-white shadow-xs'
+                : 'bg-purple-50 text-purple-700 hover:bg-purple-100 border border-purple-200/60'
+            }`}
+          >
+            <Shield className="w-3 h-3" />
+            <span>Admin</span>
+          </button>
         </div>
       </div>
 
       {/* Bảng Danh Sách Người Dùng */}
-      <div className="bg-white rounded-3xl border border-slate-200 overflow-hidden shadow-xs">
+      <div className="bg-white rounded-2xl sm:rounded-3xl border border-slate-200 overflow-hidden shadow-xs">
         {isLoading ? (
           <div className="p-12 flex flex-col items-center justify-center gap-3">
             <Loader2 className="w-8 h-8 text-blue-600 animate-spin" />
-            <p className="text-sm text-slate-500">Đang tải danh sách người dùng...</p>
+            <p className="text-sm text-slate-500 font-medium">Đang tải danh sách người dùng...</p>
           </div>
         ) : users.length === 0 ? (
-          <div className="text-center py-12 text-slate-400 text-sm">
-            Không tìm thấy người dùng nào phù hợp với điều kiện tìm kiếm.
+          <div className="text-center py-12 px-4">
+            <div className="w-12 h-12 rounded-full bg-slate-100 text-slate-400 flex items-center justify-center mx-auto mb-3">
+              <Users className="w-6 h-6" />
+            </div>
+            <p className="text-sm font-semibold text-slate-700">Không tìm thấy người dùng phù hợp</p>
+            <p className="text-xs text-slate-400 mt-1 max-w-sm mx-auto">
+              Hãy thử thay đổi từ khóa tìm kiếm hoặc bấm đặt lại bộ lọc để xem toàn bộ danh sách.
+            </p>
+            {activeFilterCount > 0 && (
+              <button
+                onClick={handleResetFilters}
+                className="mt-3 inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold text-blue-600 bg-blue-50 border border-blue-200 hover:bg-blue-100 transition"
+              >
+                <RotateCcw className="w-3.5 h-3.5" />
+                <span>Đặt lại bộ lọc</span>
+              </button>
+            )}
           </div>
         ) : (
           <>
-            {/* Giao diện Thẻ dành riêng cho Mobile */}
-            <div className="md:hidden divide-y divide-slate-100">
+            {/* GIAO DIỆN MOBILE: Card View Tách Biệt Rõ Ràng (md:hidden) */}
+            <div className="md:hidden p-3.5 sm:p-4 bg-slate-50/80 space-y-3.5">
               {users.map((u) => {
                 const deptName =
                   u.departmentId && typeof u.departmentId === 'object'
                     ? u.departmentId.name
                     : '-';
+                const hasFace = Boolean(u.faceRegistered || (u as any).faceDataRegistered);
+                const roleBorder =
+                  u.role === 'admin'
+                    ? 'border-purple-200/90 border-l-[5px] border-l-purple-600'
+                    : u.role === 'truongkhoa'
+                    ? 'border-blue-200/90 border-l-[5px] border-l-blue-600'
+                    : u.role === 'giangvien'
+                    ? 'border-emerald-200/90 border-l-[5px] border-l-emerald-600'
+                    : 'border-amber-200/90 border-l-[5px] border-l-amber-600';
+
                 return (
-                  <div key={u._id} className="p-4 space-y-3">
-                    <div className="flex items-start justify-between gap-2">
+                  <div
+                    key={u._id}
+                    className={`p-4 rounded-2xl bg-white border shadow-xs hover:shadow-md transition-all space-y-3.5 ${roleBorder}`}
+                  >
+                    {/* Hàng 1: Avatar + Tên + Email + Vai trò */}
+                    <div className="flex items-start justify-between gap-3">
                       <div className="flex items-center gap-3 min-w-0">
-                        <div className="w-10 h-10 rounded-xl bg-blue-100 text-blue-700 font-bold text-xs flex items-center justify-center border border-blue-200 shrink-0">
-                          {u.fullName.split(' ').pop()?.substring(0, 2).toUpperCase() || 'U'}
-                        </div>
+                        <UserAvatar
+                          user={u}
+                          size="md"
+                          showStatus
+                          isActive={u.isActive !== false}
+                        />
                         <div className="min-w-0">
-                          <p className="font-bold text-slate-900 text-sm truncate">{u.fullName}</p>
-                          <p className="text-slate-400 text-xs font-mono truncate">{u.email}</p>
+                          <p className="font-extrabold text-slate-900 text-sm truncate leading-tight">
+                            {u.fullName}
+                          </p>
+                          <p className="text-slate-400 text-xs font-mono truncate mt-0.5">
+                            {u.email}
+                          </p>
                         </div>
                       </div>
                       <div className="shrink-0">{getRoleBadge(u.role)}</div>
                     </div>
 
-                    <div className="flex flex-wrap items-center gap-2 text-xs text-slate-600">
-                      <span className="inline-flex items-center gap-1 bg-slate-50 px-2.5 py-1 rounded-lg border border-slate-200">
-                        <Building2 className="w-3.5 h-3.5 text-slate-400" />
-                        <span className="truncate max-w-[140px]">{deptName}</span>
-                      </span>
-                      <span className="inline-flex items-center gap-1 bg-slate-50 px-2.5 py-1 rounded-lg border border-slate-200">
-                        <Award className="w-3.5 h-3.5 text-amber-500" />
-                        <span>{u.annualLeaveQuota || 12} ngày phép</span>
-                      </span>
-                      {u.isActive !== false ? (
-                        <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-emerald-50 text-emerald-700 border border-emerald-200 font-bold">
-                          <UserCheck className="w-3 h-3" />
-                          <span>Hoạt Động</span>
+                    {/* Hàng 2: Khối thông tin Đơn vị & Thông số trạng thái */}
+                    <div className="bg-slate-50/80 p-2.5 rounded-xl border border-slate-200/80 space-y-2 text-xs">
+                      <div className="flex items-center gap-1.5 text-slate-700">
+                        <Building2 className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                        <span className="text-slate-500 font-medium">Đơn vị:</span>
+                        <span className="font-bold text-slate-800 truncate">{deptName}</span>
+                      </div>
+
+                      <div className="flex flex-wrap items-center gap-1.5 pt-1.5 border-t border-slate-200/60 text-[11px]">
+                        {/* FaceID Status */}
+                        {hasFace ? (
+                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-emerald-50 text-emerald-700 border border-emerald-200 font-bold">
+                            <Camera className="w-3 h-3 text-emerald-600" />
+                            <span>Đã Face ID</span>
+                          </span>
+                        ) : (
+                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-white text-slate-500 border border-slate-200 font-medium">
+                            <Camera className="w-3 h-3 text-slate-400" />
+                            <span>Chưa Face ID</span>
+                          </span>
+                        )}
+
+                        {/* Quỹ phép */}
+                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-white text-slate-600 border border-slate-200 font-medium">
+                          <Award className="w-3 h-3 text-amber-500" />
+                          <span>{u.annualLeaveQuota || 12} phép/năm</span>
                         </span>
-                      ) : (
-                        <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-rose-50 text-rose-700 border border-rose-200 font-bold">
-                          <UserX className="w-3 h-3" />
-                          <span>Đã Khóa</span>
-                        </span>
-                      )}
+
+                        {/* Trạng thái hoạt động */}
+                        {u.isActive !== false ? (
+                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-emerald-50 text-emerald-700 border border-emerald-200 font-bold">
+                            <UserCheck className="w-3 h-3" />
+                            <span>Hoạt Động</span>
+                          </span>
+                        ) : (
+                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-rose-50 text-rose-700 border border-rose-200 font-bold">
+                            <UserX className="w-3 h-3" />
+                            <span>Đã Khóa</span>
+                          </span>
+                        )}
+                      </div>
                     </div>
 
-                    <div className="flex items-center justify-end gap-2 pt-1 border-t border-slate-50">
+                    {/* Hàng 3: Nút Thao Tác Mobile */}
+                    <div className="flex items-center justify-end gap-2 pt-1">
                       <button
                         onClick={() => handleOpenEditModal(u)}
-                        className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold text-blue-600 bg-blue-50 border border-blue-100 hover:bg-blue-100 transition"
+                        className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold text-blue-600 bg-blue-50 border border-blue-200 hover:bg-blue-100 transition shadow-2xs"
                       >
                         <Edit2 className="w-3.5 h-3.5" />
                         <span>Chỉnh sửa</span>
@@ -432,10 +625,10 @@ export const UsersPage: React.FC = () => {
                             setUserToDelete(u);
                             setDeleteModalOpen(true);
                           }}
-                          className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold text-rose-600 bg-rose-50 border border-rose-100 hover:bg-rose-100 transition"
+                          className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold text-rose-600 bg-rose-50 border border-rose-200 hover:bg-rose-100 transition shadow-2xs"
                         >
                           <Trash2 className="w-3.5 h-3.5" />
-                          <span>Khóa / Xóa</span>
+                          <span>Khóa</span>
                         </button>
                       )}
                     </div>
@@ -444,145 +637,164 @@ export const UsersPage: React.FC = () => {
               })}
             </div>
 
-            {/* Bảng dữ liệu dành cho Tablet & Desktop */}
+            {/* GIAO DIỆN DESKTOP: Bảng dữ liệu chuẩn (hidden md:block) */}
             <div className="hidden md:block overflow-x-auto">
-            <table className="w-full text-left text-xs text-slate-700">
-              <thead className="bg-slate-50/80 text-slate-500 uppercase tracking-wider font-bold border-b border-slate-200">
-                <tr>
-                  <th className="py-3.5 px-6">Cán Bộ / Giảng Viên</th>
-                  <th className="py-3.5 px-6">Vai Trò</th>
-                  <th className="py-3.5 px-6">Khoa / Đơn Vị</th>
-                  <th className="py-3.5 px-6">Quỹ Phép Năm</th>
-                  <th className="py-3.5 px-6">Trạng Thái</th>
-                  <th className="py-3.5 px-6 text-right">Thao Tác</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100">
-                {users.map((u) => {
-                  const deptName =
-                    u.departmentId && typeof u.departmentId === 'object'
-                      ? u.departmentId.name
-                      : '-';
+              <table className="w-full text-left text-xs text-slate-700">
+                <thead className="bg-slate-50/80 text-slate-500 uppercase tracking-wider font-bold border-b border-slate-200">
+                  <tr>
+                    <th className="py-3.5 px-5">Cán Bộ / Giảng Viên</th>
+                    <th className="py-3.5 px-4">Vai Trò</th>
+                    <th className="py-3.5 px-4">Khoa / Đơn Vị</th>
+                    <th className="py-3.5 px-4">Face ID</th>
+                    <th className="py-3.5 px-4">Quỹ Phép</th>
+                    <th className="py-3.5 px-4">Trạng Thái</th>
+                    <th className="py-3.5 px-5 text-right">Thao Tác</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {users.map((u) => {
+                    const deptName =
+                      u.departmentId && typeof u.departmentId === 'object'
+                        ? u.departmentId.name
+                        : '-';
+                    const hasFace = Boolean(u.faceRegistered || (u as any).faceDataRegistered);
 
-                  return (
-                    <tr key={u._id} className="hover:bg-slate-50/60 transition">
-                      {/* Avatar & Tên */}
-                      <td className="py-4 px-6">
-                        <div className="flex items-center gap-3">
-                          <div className="w-9 h-9 rounded-xl bg-blue-100 text-blue-700 font-bold text-xs flex items-center justify-center border border-blue-200">
-                            {u.fullName.split(' ').pop()?.substring(0, 2).toUpperCase() || 'U'}
+                    return (
+                      <tr key={u._id} className="hover:bg-slate-50/60 transition group">
+                        {/* Avatar & Tên & Email */}
+                        <td className="py-3.5 px-5">
+                          <div className="flex items-center gap-3">
+                            <UserAvatar
+                              user={u}
+                              size="sm"
+                              showStatus
+                              isActive={u.isActive !== false}
+                            />
+                            <div className="min-w-0">
+                              <p className="font-bold text-slate-900 text-sm leading-tight group-hover:text-blue-600 transition-colors">
+                                {u.fullName}
+                              </p>
+                              <p className="text-slate-400 text-[11px] font-mono mt-0.5">{u.email}</p>
+                            </div>
                           </div>
-                          <div>
-                            <p className="font-bold text-slate-900 text-sm leading-tight">{u.fullName}</p>
-                            <p className="text-slate-400 text-[11px] font-mono mt-0.5">{u.email}</p>
+                        </td>
+
+                        {/* Role */}
+                        <td className="py-3.5 px-4">{getRoleBadge(u.role)}</td>
+
+                        {/* Khoa */}
+                        <td className="py-3.5 px-4">
+                          <div className="flex items-center gap-1.5 text-slate-700 font-medium">
+                            <Building2 className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                            <span className="truncate max-w-[150px]">{deptName}</span>
                           </div>
-                        </div>
-                      </td>
+                        </td>
 
-                      {/* Role */}
-                      <td className="py-4 px-6">{getRoleBadge(u.role)}</td>
-
-                      {/* Khoa */}
-                      <td className="py-4 px-6">
-                        <div className="flex items-center gap-1.5 text-slate-700 font-medium">
-                          <Building2 className="w-3.5 h-3.5 text-slate-400" />
-                          <span>{deptName}</span>
-                        </div>
-                      </td>
-
-                      {/* Quỹ ngày phép */}
-                      <td className="py-4 px-6">
-                        <div className="flex items-center gap-1">
-                          <Award className="w-3.5 h-3.5 text-amber-500" />
-                          <span className="font-bold text-slate-800">{u.annualLeaveQuota || 12}</span>
-                          <span className="text-slate-400 text-[11px]">ngày/năm</span>
-                        </div>
-                      </td>
-
-                      {/* Trạng thái hoạt động */}
-                      <td className="py-4 px-6">
-                        {u.isActive !== false ? (
-                          <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200 text-[11px] font-bold">
-                            <UserCheck className="w-3 h-3" />
-                            <span>Hoạt Động</span>
-                          </span>
-                        ) : (
-                          <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-rose-50 text-rose-700 border border-rose-200 text-[11px] font-bold">
-                            <UserX className="w-3 h-3" />
-                            <span>Đã Khóa</span>
-                          </span>
-                        )}
-                      </td>
-
-                      {/* Thao tác */}
-                      <td className="py-4 px-6 text-right">
-                        <div className="inline-flex items-center gap-1">
-                          {/* Nút sửa: Cả Admin và Trưởng khoa đều có */}
-                          <button
-                            onClick={() => handleOpenEditModal(u)}
-                            className="p-2 rounded-xl text-blue-600 hover:bg-blue-50 transition"
-                            title={isDean ? 'Sửa hạn mức phép & họ tên' : 'Chỉnh sửa thông tin'}
-                          >
-                            <Edit2 className="w-4 h-4" />
-                          </button>
-
-                          {/* Nút Xóa/Khóa: CHỈ HIỂN THỊ CHO ADMIN (Trưởng khoa bị ẩn) */}
-                          {isAdmin && (
-                            <button
-                              onClick={() => {
-                                setUserToDelete(u);
-                                setDeleteModalOpen(true);
-                              }}
-                              className="p-2 rounded-xl text-rose-600 hover:bg-rose-50 transition"
-                              title="Vô hiệu hóa tài khoản (Soft delete)"
-                            >
-                              <Trash2 className="w-4 h-4" />
-                            </button>
+                        {/* Face ID Status */}
+                        <td className="py-3.5 px-4">
+                          {hasFace ? (
+                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200 text-[10px] font-bold">
+                              <Camera className="w-3 h-3 text-emerald-600" />
+                              <span>Đã Face ID</span>
+                            </span>
+                          ) : (
+                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-slate-50 text-slate-400 border border-slate-200 text-[10px]">
+                              <span>Chưa cài</span>
+                            </span>
                           )}
-                        </div>
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
+                        </td>
 
-          {/* Thanh Phân Trang Server-side */}
-          <div className="p-4 border-t border-slate-200 bg-slate-50/50 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs text-slate-500">
-            <div>
-              Hiển thị <span className="font-semibold text-slate-800 font-mono">{users.length > 0 ? (currentPage - 1) * pageSize + 1 : 0}</span> - <span className="font-semibold text-slate-800 font-mono">{Math.min(currentPage * pageSize, totalUsers)}</span> trên tổng số <span className="font-semibold text-slate-800 font-mono">{totalUsers}</span> nhân sự
+                        {/* Quỹ ngày phép */}
+                        <td className="py-3.5 px-4">
+                          <div className="flex items-center gap-1">
+                            <Award className="w-3.5 h-3.5 text-amber-500 shrink-0" />
+                            <span className="font-bold text-slate-800 font-mono">{u.annualLeaveQuota || 12}</span>
+                            <span className="text-slate-400 text-[11px]">ngày</span>
+                          </div>
+                        </td>
+
+                        {/* Trạng thái hoạt động */}
+                        <td className="py-3.5 px-4">
+                          {u.isActive !== false ? (
+                            <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200 text-[11px] font-bold">
+                              <UserCheck className="w-3 h-3" />
+                              <span>Hoạt Động</span>
+                            </span>
+                          ) : (
+                            <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-rose-50 text-rose-700 border border-rose-200 text-[11px] font-bold">
+                              <UserX className="w-3 h-3" />
+                              <span>Đã Khóa</span>
+                            </span>
+                          )}
+                        </td>
+
+                        {/* Thao tác */}
+                        <td className="py-3.5 px-5 text-right">
+                          <div className="inline-flex items-center gap-1">
+                            <button
+                              onClick={() => handleOpenEditModal(u)}
+                              className="p-1.5 rounded-xl text-blue-600 hover:bg-blue-50 transition"
+                              title={isDean ? 'Sửa hạn mức phép & họ tên' : 'Chỉnh sửa thông tin'}
+                            >
+                              <Edit2 className="w-4 h-4" />
+                            </button>
+
+                            {isAdmin && (
+                              <button
+                                onClick={() => {
+                                  setUserToDelete(u);
+                                  setDeleteModalOpen(true);
+                                }}
+                                className="p-1.5 rounded-xl text-rose-600 hover:bg-rose-50 transition"
+                                title="Khóa tài khoản (Soft delete)"
+                              >
+                                <Trash2 className="w-4 h-4" />
+                              </button>
+                            )}
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
             </div>
 
-            {totalPages > 1 && (
-              <div className="flex items-center gap-2">
-                <button
-                  type="button"
-                  disabled={currentPage <= 1 || isLoading}
-                  onClick={() => setCurrentPage((prev) => Math.max(1, prev - 1))}
-                  className="flex items-center gap-1 px-3 py-1.5 rounded-xl border border-slate-200 bg-white hover:bg-slate-100 disabled:opacity-40 disabled:cursor-not-allowed font-medium text-slate-700 transition"
-                >
-                  <ChevronLeft className="w-3.5 h-3.5" />
-                  <span>Trước</span>
-                </button>
-
-                <span className="px-3 py-1 rounded-xl bg-white border border-slate-200 font-bold text-slate-800 font-mono">
-                  {currentPage} / {totalPages}
-                </span>
-
-                <button
-                  type="button"
-                  disabled={currentPage >= totalPages || isLoading}
-                  onClick={() => setCurrentPage((prev) => Math.min(totalPages, prev + 1))}
-                  className="flex items-center gap-1 px-3 py-1.5 rounded-xl border border-slate-200 bg-white hover:bg-slate-100 disabled:opacity-40 disabled:cursor-not-allowed font-medium text-slate-700 transition"
-                >
-                  <span>Sau</span>
-                  <ChevronRight className="w-3.5 h-3.5" />
-                </button>
+            {/* Thanh Phân Trang Server-side (Responsive) */}
+            <div className="p-3.5 sm:p-4 border-t border-slate-200 bg-slate-50/60 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs text-slate-500">
+              <div className="text-center sm:text-left">
+                Hiển thị <span className="font-semibold text-slate-800 font-mono">{users.length > 0 ? (currentPage - 1) * pageSize + 1 : 0}</span> - <span className="font-semibold text-slate-800 font-mono">{Math.min(currentPage * pageSize, totalUsers)}</span> / <span className="font-semibold text-slate-800 font-mono">{totalUsers}</span> cán bộ
               </div>
-            )}
-          </div>
-        </>
+
+              {totalPages > 1 && (
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    disabled={currentPage <= 1 || isLoading}
+                    onClick={() => setCurrentPage((prev) => Math.max(1, prev - 1))}
+                    className="flex items-center gap-1 px-3 py-1.5 rounded-xl border border-slate-200 bg-white hover:bg-slate-100 disabled:opacity-40 disabled:cursor-not-allowed font-semibold text-slate-700 transition"
+                  >
+                    <ChevronLeft className="w-3.5 h-3.5" />
+                    <span className="hidden sm:inline">Trước</span>
+                  </button>
+
+                  <span className="px-3 py-1 rounded-xl bg-white border border-slate-200 font-bold text-slate-800 font-mono text-xs">
+                    {currentPage} / {totalPages}
+                  </span>
+
+                  <button
+                    type="button"
+                    disabled={currentPage >= totalPages || isLoading}
+                    onClick={() => setCurrentPage((prev) => Math.min(totalPages, prev + 1))}
+                    className="flex items-center gap-1 px-3 py-1.5 rounded-xl border border-slate-200 bg-white hover:bg-slate-100 disabled:opacity-40 disabled:cursor-not-allowed font-semibold text-slate-700 transition"
+                  >
+                    <span className="hidden sm:inline">Sau</span>
+                    <ChevronRight className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+              )}
+            </div>
+          </>
         )}
       </div>
 
@@ -760,7 +972,17 @@ export const UsersPage: React.FC = () => {
               </button>
             </div>
 
-            <form onSubmit={handleEditSubmit} className="p-6 space-y-4">
+            <form onSubmit={handleEditSubmit} className="p-5 sm:p-6 space-y-4 max-h-[80vh] overflow-y-auto">
+              {/* Preview Avatar & Thông tin cán bộ */}
+              <div className="flex items-center gap-3 p-3 bg-slate-50 rounded-2xl border border-slate-200">
+                <UserAvatar user={editingUser} size="lg" showStatus isActive={editingUser.isActive !== false} />
+                <div className="min-w-0">
+                  <p className="text-sm font-bold text-slate-900 truncate">{editingUser.fullName}</p>
+                  <p className="text-xs text-slate-500 font-mono truncate">{editingUser.email}</p>
+                  <div className="mt-1">{getRoleBadge(editingUser.role)}</div>
+                </div>
+              </div>
+
               <div>
                 <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
                   Họ Và Tên *

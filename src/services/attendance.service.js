@@ -5,13 +5,49 @@ const AuditLog = require('../models/auditLog.model');
 
 /**
  * Chuyển đổi mốc thời gian về múi giờ chuẩn Asia/Ho_Chi_Minh (UTC+7)
- * Khắc phục triệt để lỗi lệch 7 tiếng của server runtime
- * @param {Date} [date=new Date()]
+ * Khắc phục triệt để lỗi lệch 7 tiếng của server runtime trên VPS (UTC) hoặc Local (UTC+7)
+ * Đảm bảo các hàm .getHours(), .getMinutes(), .getDay(), .toISOString().slice(0, 10) luôn trả về giờ VN
+ * @param {Date|string|number} [date=new Date()]
  * @returns {Date}
  */
 const getVietnamTime = (date = new Date()) => {
-  const vnTimeString = date.toLocaleString('en-US', { timeZone: 'Asia/Ho_Chi_Minh' });
-  return new Date(vnTimeString);
+  const d = date instanceof Date ? date : new Date(date);
+  const validDate = isNaN(d.getTime()) ? new Date() : d;
+
+  const formatter = new Intl.DateTimeFormat('en-US', {
+    timeZone: 'Asia/Ho_Chi_Minh',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+    hour12: false,
+  });
+
+  const parts = formatter.formatToParts(validDate);
+  const map = {};
+  for (const p of parts) {
+    map[p.type] = p.value;
+  }
+
+  const year = parseInt(map.year, 10);
+  const month = parseInt(map.month, 10) - 1;
+  const day = parseInt(map.day, 10);
+  const hours = parseInt(map.hour, 10) % 24;
+  const minutes = parseInt(map.minute, 10);
+  const seconds = parseInt(map.second, 10);
+
+  const vnDate = new Date(Date.UTC(year, month, day, hours, minutes, seconds));
+  vnDate.getHours = () => hours;
+  vnDate.getMinutes = () => minutes;
+  vnDate.getSeconds = () => seconds;
+  vnDate.getDay = () => vnDate.getUTCDay();
+  vnDate.getDate = () => day;
+  vnDate.getMonth = () => month;
+  vnDate.getFullYear = () => year;
+
+  return vnDate;
 };
 
 /**
@@ -45,7 +81,7 @@ const timeStringToMinutes = (timeStr) => {
 
 /**
  * Xác định khung giờ check-in hợp lệ cho ca làm việc:
- * - Sớm bao nhiêu cũng được (lên tới 4 tiếng / 240 phút trước ca)
+ * - Sớm tối đa 30 phút trước giờ bắt đầu ca (startMinutes - 30)
  * - Muộn tối đa 15 phút (startMinutes + 15)
  * @param {Object} shift - Bản ghi ca làm việc (chứa startTime, endTime, lateThresholdMinutes)
  * @returns {Object|null} { startMinutes, endMinutes, windowStartMinutes, windowEndMinutes }
@@ -58,7 +94,7 @@ const getTodayScheduleWindow = (shift) => {
   return {
     startMinutes,
     endMinutes,
-    windowStartMinutes: Math.max(0, startMinutes - 240),
+    windowStartMinutes: Math.max(0, startMinutes - 30),
     windowEndMinutes: startMinutes + lateThreshold,
   };
 };
@@ -130,6 +166,7 @@ const evaluateUserScheduleForCheckIn = async (userId, specificShiftId = null) =>
   }
 
   const cancelledSchedules = [];
+  const absentSchedules = [];
   let eligibleSchedule = null;
   let upcomingSchedule = null;
   let alreadyCheckedInLog = null;
@@ -164,7 +201,16 @@ const evaluateUserScheduleForCheckIn = async (userId, specificShiftId = null) =>
 
     if (existingLog) {
       if (existingLog.status === 'ABSENT' || existingLog.status === 'EXCUSED_ABSENCE') {
-        // Ca này đã bị hủy/đánh vắng trước đó -> Bỏ qua, xét ca tiếp theo
+        // Ca này đã bị hủy/đánh vắng trước đó -> Lưu vết để thông báo đúng, không báo nhầm "hoàn thành ca"
+        absentSchedules.push({
+          schedule: sch,
+          shift,
+          shiftStartStr,
+          shiftEndStr,
+          lateThreshold,
+          status: existingLog.status,
+          log: existingLog,
+        });
         continue;
       }
       if (existingLog.checkOutTime) {
@@ -218,22 +264,25 @@ const evaluateUserScheduleForCheckIn = async (userId, specificShiftId = null) =>
       continue;
     }
 
-    // Tình huống B: Chưa đến giờ check-in (quá sớm, cách hơn 4 tiếng / 240 phút trước giờ ca)
-    const earlyLimitMinutes = Math.max(0, startMinutes - 240);
+    // Tình huống B: Chưa đến giờ check-in (chỉ cho phép điểm danh trước giờ bắt đầu tối đa 30 phút)
+    const earlyLimitMinutes = Math.max(0, startMinutes - 30);
     if (currentMinutes < earlyLimitMinutes) {
       if (!upcomingSchedule) {
+        const openH = Math.floor(earlyLimitMinutes / 60).toString().padStart(2, '0');
+        const openM = (earlyLimitMinutes % 60).toString().padStart(2, '0');
         upcomingSchedule = {
           scheduleId: sch._id,
           shiftName: shift.name,
           startTime: shiftStartStr,
           endTime: shiftEndStr,
+          openCheckInTime: `${openH}:${openM}`,
         };
       }
       continue;
     }
 
     // Tình huống C: Hợp lệ để check-in!
-    // Sớm bao nhiêu cũng được (trong vòng 4 tiếng trước ca) hoặc muộn trong ngưỡng cho phép của ca
+    // Trong vòng 30 phút trước ca hoặc muộn trong ngưỡng cho phép của ca
     const status = currentMinutes > startMinutes ? 'LATE' : 'ON_TIME';
     const lateMinutes = status === 'LATE' ? currentMinutes - startMinutes : 0;
 
@@ -275,10 +324,11 @@ const evaluateUserScheduleForCheckIn = async (userId, specificShiftId = null) =>
     const c = cancelledSchedules[0];
     const thresholdText = c.lateThreshold ? `${c.lateThreshold} phút` : '15 phút';
     if (upcomingSchedule) {
+      const openTimeText = upcomingSchedule.openCheckInTime ? ` (Mở điểm danh từ ${upcomingSchedule.openCheckInTime})` : '';
       return {
         canCheckIn: false,
         status: 'SCHEDULE_CANCELLED_LATE',
-        message: `Ca làm việc ${c.shiftName} (${c.startTime}) đã quá hạn check-in (vượt ngưỡng cho phép đi muộn ${thresholdText}) và đã tự động bị hủy lịch / ghi nhận vắng mặt. Ca tiếp theo: ${upcomingSchedule.shiftName} (${upcomingSchedule.startTime}) chưa đến giờ check-in.`,
+        message: `Ca làm việc ${c.shiftName} (${c.startTime}) đã quá hạn check-in (vượt ngưỡng cho phép đi muộn ${thresholdText}) và đã tự động bị hủy lịch / ghi nhận vắng mặt. Ca tiếp theo: ${upcomingSchedule.shiftName} (${upcomingSchedule.startTime})${openTimeText} chưa đến giờ điểm danh.`,
         cancelledSchedules,
         upcomingSchedule,
       };
@@ -293,11 +343,26 @@ const evaluateUserScheduleForCheckIn = async (userId, specificShiftId = null) =>
 
   // Nếu chưa đến giờ ca tiếp theo
   if (upcomingSchedule) {
+    const openTimeText = upcomingSchedule.openCheckInTime ? ` (Mở điểm danh từ ${upcomingSchedule.openCheckInTime})` : '';
     return {
       canCheckIn: false,
       status: 'TOO_EARLY',
-      message: `Chưa đến giờ check-in. Ca làm việc tiếp theo: ${upcomingSchedule.shiftName} bắt đầu lúc ${upcomingSchedule.startTime}.`,
+      message: `Chưa đến giờ điểm danh. Ca làm việc tiếp theo: ${upcomingSchedule.shiftName} (${upcomingSchedule.startTime} - ${upcomingSchedule.endTime})${openTimeText}. Bạn chỉ có thể điểm danh trước giờ bắt đầu tối đa 30 phút.`,
       upcomingSchedule,
+    };
+  }
+
+  // Nếu có ca hôm nay đã bị ghi nhận vắng mặt hoặc nghỉ có phép, thông báo chính xác
+  if (absentSchedules.length > 0) {
+    const lastAbsent = absentSchedules[absentSchedules.length - 1];
+    const shiftName = lastAbsent.shift?.name || 'Ca làm việc';
+    const statusText = lastAbsent.status === 'EXCUSED_ABSENCE' ? 'nghỉ có phép' : 'vắng mặt (do quá hạn điểm danh)';
+    const thresholdText = lastAbsent.lateThreshold ? ` (quá ${lastAbsent.lateThreshold} phút)` : '';
+    return {
+      canCheckIn: false,
+      status: 'SCHEDULE_ABSENT_RECORDED',
+      message: `Ca làm việc ${shiftName} (${lastAbsent.shiftStartStr} - ${lastAbsent.shiftEndStr}) đã quá hạn điểm danh${thresholdText} và đã bị ghi nhận ${statusText}. Bạn không thể thực hiện điểm danh cho ca này nữa.`,
+      absentSchedules,
     };
   }
 
@@ -503,13 +568,44 @@ const findBestFaceMatch = (descriptor, usersWithFace, threshold = FACE_MATCH_THR
 // GEOFENCING & GPS COORDINATE VALIDATION (2FA + Mobile)
 // =======================================================
 const crypto = require('crypto');
+const fs = require('fs');
+const path = require('path');
 
-const CAMPUS_CONFIG = {
-  name: process.env.CAMPUS_NAME || 'Khuôn viên Cơ sở chính - Trường Đại học',
-  lat: parseFloat(process.env.CAMPUS_LAT || '20.965483'),
-  lng: parseFloat(process.env.CAMPUS_LNG || '105.729905'),
-  radiusMeters: parseInt(process.env.CAMPUS_RADIUS_METERS || '500', 10), // Mặc định mở rộng 500m bao quát toàn bộ trường
+const CAMPUS_CONFIG_FILE = path.join(__dirname, '../config/campus_config.json');
+
+const loadPersistedCampusConfig = () => {
+  try {
+    if (fs.existsSync(CAMPUS_CONFIG_FILE)) {
+      const data = JSON.parse(fs.readFileSync(CAMPUS_CONFIG_FILE, 'utf8'));
+      if (data && typeof data === 'object') {
+        return {
+          name: data.name || process.env.CAMPUS_NAME || 'Khuôn viên Cơ sở chính - Trường Đại học',
+          lat: data.lat !== undefined && !isNaN(Number(data.lat)) ? parseFloat(data.lat) : parseFloat(process.env.CAMPUS_LAT || '20.965483'),
+          lng: data.lng !== undefined && !isNaN(Number(data.lng)) ? parseFloat(data.lng) : parseFloat(process.env.CAMPUS_LNG || '105.729905'),
+          radiusMeters: data.radiusMeters !== undefined && !isNaN(Number(data.radiusMeters)) ? parseInt(data.radiusMeters, 10) : parseInt(process.env.CAMPUS_RADIUS_METERS || '500', 10),
+        };
+      }
+    }
+  } catch (err) {
+    console.warn('[AttendanceService] Không thể đọc campus_config.json:', err.message);
+  }
+  return {
+    name: process.env.CAMPUS_NAME || 'Khuôn viên Cơ sở chính - Trường Đại học',
+    lat: parseFloat(process.env.CAMPUS_LAT || '20.965483'),
+    lng: parseFloat(process.env.CAMPUS_LNG || '105.729905'),
+    radiusMeters: parseInt(process.env.CAMPUS_RADIUS_METERS || '500', 10),
+  };
 };
+
+const savePersistedCampusConfig = (cfg) => {
+  try {
+    fs.writeFileSync(CAMPUS_CONFIG_FILE, JSON.stringify(cfg, null, 2), 'utf8');
+  } catch (err) {
+    console.error('[AttendanceService] Không thể lưu campus_config.json:', err.message);
+  }
+};
+
+const CAMPUS_CONFIG = loadPersistedCampusConfig();
 
 /**
  * Tính khoảng cách đường chim bay giữa 2 tọa độ GPS (Công thức Haversine)
@@ -546,42 +642,82 @@ const calculateDistanceMeters = (lat1, lon1, lat2, lon2) => {
  * @returns {{ isInside: boolean, distanceMeters: number, allowedRadius: number, effectiveRadius: number, target: Object }}
  */
 const validateGeofence = (clientLocation, targetLocation = null, maxRadius = null) => {
-  const target = {
-    name: targetLocation?.name || CAMPUS_CONFIG.name,
-    lat: targetLocation?.lat !== undefined && targetLocation?.lat !== null ? targetLocation.lat : CAMPUS_CONFIG.lat,
-    lng: targetLocation?.lng !== undefined && targetLocation?.lng !== null ? targetLocation.lng : CAMPUS_CONFIG.lng,
-  };
-
   const allowedRadius = maxRadius || CAMPUS_CONFIG.radiusMeters;
+  const accuracyTolerance = Math.min(Number(clientLocation?.accuracy) || 0, 100);
+  const effectiveRadius = allowedRadius + accuracyTolerance;
+
+  const campusTarget = {
+    name: CAMPUS_CONFIG.name,
+    lat: CAMPUS_CONFIG.lat,
+    lng: CAMPUS_CONFIG.lng,
+  };
 
   if (!clientLocation || clientLocation.lat === undefined || clientLocation.lng === undefined) {
     return {
       isInside: false,
       distanceMeters: Infinity,
       allowedRadius,
-      effectiveRadius: allowedRadius,
-      target,
+      effectiveRadius,
+      target: campusTarget,
       error: 'Không tìm thấy dữ liệu tọa độ GPS từ thiết bị.',
     };
   }
 
-  const distanceMeters = calculateDistanceMeters(
+  // 1. Kiểm tra khoảng cách tới Tọa độ Khuôn viên trường (Campus Config) - Ưu tiên hàng đầu
+  const campusDistance = calculateDistanceMeters(
     Number(clientLocation.lat),
     Number(clientLocation.lng),
-    Number(target.lat),
-    Number(target.lng)
+    Number(CAMPUS_CONFIG.lat),
+    Number(CAMPUS_CONFIG.lng)
   );
 
-  // Bổ sung dung sai sai số thực tế từ phần cứng (accuracy: ±m, tối đa +100m)
-  const accuracyTolerance = Math.min(Number(clientLocation.accuracy) || 0, 100);
-  const effectiveRadius = allowedRadius + accuracyTolerance;
+  if (campusDistance <= effectiveRadius) {
+    return {
+      isInside: true,
+      distanceMeters: campusDistance,
+      allowedRadius,
+      effectiveRadius,
+      target: campusTarget,
+    };
+  }
 
+  // 2. Nếu targetLocation (khoa/phòng ban) có tọa độ riêng hợp lệ, kiểm tra thêm
+  if (
+    targetLocation &&
+    targetLocation.lat !== undefined &&
+    targetLocation.lat !== null &&
+    targetLocation.lng !== undefined &&
+    targetLocation.lng !== null
+  ) {
+    const deptDistance = calculateDistanceMeters(
+      Number(clientLocation.lat),
+      Number(clientLocation.lng),
+      Number(targetLocation.lat),
+      Number(targetLocation.lng)
+    );
+
+    if (deptDistance <= effectiveRadius) {
+      return {
+        isInside: true,
+        distanceMeters: deptDistance,
+        allowedRadius,
+        effectiveRadius,
+        target: {
+          name: targetLocation.name || CAMPUS_CONFIG.name,
+          lat: targetLocation.lat,
+          lng: targetLocation.lng,
+        },
+      };
+    }
+  }
+
+  // Nếu không nằm trong cả hai, trả về khoảng cách đến khuôn viên trường
   return {
-    isInside: distanceMeters <= effectiveRadius,
-    distanceMeters,
+    isInside: false,
+    distanceMeters: campusDistance,
     allowedRadius,
     effectiveRadius,
-    target,
+    target: campusTarget,
   };
 };
 
@@ -675,6 +811,7 @@ const updateCampusConfig = (newConfig = {}) => {
   if (newConfig.radiusMeters !== undefined && !isNaN(Number(newConfig.radiusMeters))) {
     CAMPUS_CONFIG.radiusMeters = parseInt(newConfig.radiusMeters, 10);
   }
+  savePersistedCampusConfig(CAMPUS_CONFIG);
   return { ...CAMPUS_CONFIG };
 };
 

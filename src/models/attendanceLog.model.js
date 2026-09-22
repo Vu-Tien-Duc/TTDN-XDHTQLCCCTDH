@@ -27,7 +27,7 @@ const attendanceLogSchema = new mongoose.Schema(
     },
     method: {
       type: String,
-      enum: ['manual', 'face', 'qr', 'gps', 'fingerprint', 'admin_override'],
+      enum: ['manual', 'face', 'qr', 'gps', 'fingerprint', 'admin_override', 'system'],
       required: [true, 'Phương thức chấm công (method) là bắt buộc'],
     },
     isManualOverride: {
@@ -85,12 +85,13 @@ const attendanceLogSchema = new mongoose.Schema(
 // Indexes hỗ trợ tra cứu và ngăn trùng lặp (P1 - Item 9)
 attendanceLogSchema.index(
   { userId: 1, scheduleId: 1, workDate: 1 },
-  { unique: true, partialFilterExpression: { scheduleId: { $type: 'objectId' } } }
+  { unique: true, partialFilterExpression: { scheduleId: { $type: 'objectId' }, workDate: { $type: 'string' } } }
 );
 attendanceLogSchema.index({ userId: 1, checkOutTime: 1, checkInTime: -1 });
 attendanceLogSchema.index({ userId: 1, checkInTime: -1 });
 attendanceLogSchema.index({ scheduleId: 1, checkInTime: 1 });
 attendanceLogSchema.index({ userId: 1, createdAt: -1 });
+attendanceLogSchema.index({ leaveRequestId: 1 });
 
 module.exports = mongoose.model('AttendanceLog', attendanceLogSchema, 'attendance_logs');
 

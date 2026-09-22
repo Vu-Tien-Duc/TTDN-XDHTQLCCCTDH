@@ -27,6 +27,7 @@ import {
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { useAuth } from '../../contexts/AuthContext';
+import { UserAvatar } from '../../components';
 import { scheduleService, CreateSchedulePayload, UpdateSchedulePayload } from '../../services/scheduleService';
 import { shiftService } from '../../services/shiftService';
 import { departmentService } from '../../services/departmentService';
@@ -79,6 +80,37 @@ const getMonday = (d: Date) => {
   date.setHours(0, 0, 0, 0);
   date.setDate(diff);
   return date;
+};
+
+// Hàm format đối tượng Date về chuỗi YYYY-MM-DD theo giờ địa phương (tránh lệch múi giờ UTC)
+const formatDateToYMD = (date: Date): string => {
+  const y = date.getFullYear();
+  const m = String(date.getMonth() + 1).padStart(2, '0');
+  const d = String(date.getDate()).padStart(2, '0');
+  return `${y}-${m}-${d}`;
+};
+
+// Chuyển đổi an toàn Date hoặc chuỗi ngày về định dạng YYYY-MM-DD để so sánh ngày chuẩn xác
+const toDateStringYMD = (d: string | Date | null | undefined): string => {
+  if (!d) return '';
+  if (typeof d === 'string') {
+    if (/^\d{4}-\d{2}-\d{2}/.test(d)) {
+      const parsed = new Date(d);
+      if (!isNaN(parsed.getTime())) {
+        const y = parsed.getFullYear();
+        const m = String(parsed.getMonth() + 1).padStart(2, '0');
+        const day = String(parsed.getDate()).padStart(2, '0');
+        return `${y}-${m}-${day}`;
+      }
+      return d.substring(0, 10);
+    }
+  }
+  const dt = new Date(d);
+  if (isNaN(dt.getTime())) return '';
+  const y = dt.getFullYear();
+  const m = String(dt.getMonth() + 1).padStart(2, '0');
+  const day = String(dt.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
 };
 
 export const SchedulesPage: React.FC = () => {
@@ -188,6 +220,13 @@ export const SchedulesPage: React.FC = () => {
 
   // Ngày hiện tại trong tuần (0: Chủ Nhật, 1: Thứ 2, ...)
   const currentWeekday = new Date().getDay();
+
+  // Chế độ hiển thị phụ trên Mobile khi ở viewMode === 'grid': 'timeline' (Xem thẻ từng ngày) hoặc 'grid' (Lưới tuần cuộn ngang)
+  const [mobileGridSubView, setMobileGridSubView] = useState<'timeline' | 'grid'>('timeline');
+  // Thứ đang được chọn trên thanh ngày mobile (0: CN, 1..6: T2..T7)
+  const [mobileSelectedWeekday, setMobileSelectedWeekday] = useState<number>(() => {
+    return new Date().getDay();
+  });
 
   const getDepartmentInfo = (scheduleUser: User | null) => {
     if (!scheduleUser) return { unitName: '', facultyName: '' };
@@ -368,6 +407,61 @@ export const SchedulesPage: React.FC = () => {
     };
   }, [filteredSchedules, currentWeekday]);
 
+  // Tổng hợp danh sách ca dạy theo từng ngày trong tuần cho Mobile Timeline Card View
+  const weekDaysWithSchedules = useMemo(() => {
+    return weekDaysWithDates.map((wd) => {
+      const daySchedules = filteredSchedules
+        .filter((sch) => {
+          const schWd =
+            sch.weekday !== undefined
+              ? Number(sch.weekday)
+              : sch.dayOfWeek !== undefined
+              ? Number(sch.dayOfWeek)
+              : -1;
+          if (schWd !== wd.value) return false;
+
+          const cellDateStr = toDateStringYMD(wd.date);
+          if (sch.startDate) {
+            const schStartStr = toDateStringYMD(sch.startDate);
+            if (cellDateStr < schStartStr) return false;
+          }
+          if (sch.endDate) {
+            const schEndStr = toDateStringYMD(sch.endDate);
+            if (cellDateStr > schEndStr) return false;
+          }
+
+          return true;
+        })
+        .sort((a, b) => {
+          const shiftA =
+            typeof a.shiftId === 'object' && a.shiftId
+              ? (a.shiftId as ShiftConfig)
+              : shifts.find((s) => s._id === a.shiftId);
+          const shiftB =
+            typeof b.shiftId === 'object' && b.shiftId
+              ? (b.shiftId as ShiftConfig)
+              : shifts.find((s) => s._id === b.shiftId);
+          const timeA = a.startTime || shiftA?.startTime || '00:00';
+          const timeB = b.startTime || shiftB?.startTime || '00:00';
+          return timeA.localeCompare(timeB);
+        });
+
+      return {
+        ...wd,
+        schedules: daySchedules,
+        count: daySchedules.length,
+      };
+    });
+  }, [weekDaysWithDates, filteredSchedules, shifts]);
+
+  // Ngày đang được chọn trên Mobile Card View
+  const activeMobileDay = useMemo(() => {
+    return (
+      weekDaysWithSchedules.find((wd) => wd.value === mobileSelectedWeekday) ||
+      weekDaysWithSchedules[0]
+    );
+  }, [weekDaysWithSchedules, mobileSelectedWeekday]);
+
   // Mở Modal Tạo mới (có thể nhận giá trị mặc định từ ô bấm trong Bảng tuần)
   const handleOpenCreateModal = (defaultWeekday?: number, defaultShiftId?: string) => {
     setEditingSchedule(null);
@@ -386,8 +480,8 @@ export const SchedulesPage: React.FC = () => {
     const defaultCanTeach = defaultUserObj?.role === 'giangvien' || defaultUserObj?.role === 'truongkhoa';
 
     const chosenWeekday = defaultWeekday !== undefined ? defaultWeekday : 1;
-    const targetDayObj = weekDaysWithDates.find((w) => w.value === chosenWeekday) || weekDaysWithDates[0];
-    const targetDateStr = targetDayObj.date.toISOString().split('T')[0];
+    const monStr = formatDateToYMD(weekDaysWithDates[0].date);
+    const sunStr = formatDateToYMD(weekDaysWithDates[weekDaysWithDates.length - 1].date);
 
     setFormData({
       userId: defaultUser,
@@ -398,8 +492,8 @@ export const SchedulesPage: React.FC = () => {
       subjectCode: defaultCanTeach ? 'CS201' : '',
       startTime: defaultShift?.startTime || '07:00',
       endTime: defaultShift?.endTime || '11:30',
-      startDate: targetDateStr,
-      endDate: targetDateStr,
+      startDate: monStr,
+      endDate: sunStr,
       isRecurring: false,
     });
     setIsModalOpen(true);
@@ -841,7 +935,496 @@ export const SchedulesPage: React.FC = () => {
 
       {/* 4. Nội dung chính: Chế độ Bảng tuần (Weekly Grid View) */}
       {viewMode === 'grid' ? (
-        <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+        <>
+          {/* ========================================================================= */}
+          {/* GIAO DIỆN MOBILE TỐI ƯU (Hiển thị trên màn hình nhỏ < 768px)               */}
+          {/* ========================================================================= */}
+          <div className="block md:hidden space-y-3">
+            {/* 1. Header Điều hướng tuần & Chọn chế độ hiển thị trên Mobile */}
+            <div className="bg-white rounded-xl border border-gray-200 p-3.5 shadow-sm space-y-3">
+              {/* Cụm Học kỳ & Chuyển chế độ Mobile (Timeline vs Grid cuộn) */}
+              <div className="flex items-center justify-between gap-2">
+                <div className="flex items-center gap-1.5 min-w-0">
+                  <CalendarDays className="w-4 h-4 text-blue-600 shrink-0" />
+                  <select
+                    value={selectedSemester}
+                    onChange={(e) => setSelectedSemester(e.target.value)}
+                    className="px-2 py-1 text-xs bg-slate-50 border border-gray-200 rounded-lg font-bold text-gray-800 focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                  >
+                    {SEMESTERS.map((sem) => (
+                      <option key={sem.id} value={sem.id}>
+                        {sem.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                {/* Nút đổi view mode trên Mobile */}
+                <div className="flex items-center bg-gray-100 p-0.5 rounded-lg border border-gray-200 shrink-0">
+                  <button
+                    onClick={() => setMobileGridSubView('timeline')}
+                    className={`px-2.5 py-1 text-xs font-bold rounded-md transition-all ${
+                      mobileGridSubView === 'timeline'
+                        ? 'bg-blue-600 text-white shadow-xs'
+                        : 'text-gray-600 hover:text-gray-900'
+                    }`}
+                  >
+                    Theo ngày
+                  </button>
+                  <button
+                    onClick={() => setMobileGridSubView('grid')}
+                    className={`px-2.5 py-1 text-xs font-bold rounded-md transition-all ${
+                      mobileGridSubView === 'grid'
+                        ? 'bg-blue-600 text-white shadow-xs'
+                        : 'text-gray-600 hover:text-gray-900'
+                    }`}
+                  >
+                    Lưới tuần
+                  </button>
+                </div>
+              </div>
+
+              {/* Điều hướng tuần (Tuần trước - Tuần này - Tuần sau) */}
+              <div className="flex items-center justify-between gap-2 pt-2 border-t border-gray-100">
+                <button
+                  onClick={() => setCurrentWeekStart((prev) => new Date(prev.getTime() - 7 * 24 * 60 * 60 * 1000))}
+                  className="p-1.5 text-gray-600 hover:bg-gray-100 rounded-lg border border-gray-200 shrink-0 active:scale-95 transition"
+                  title="Tuần trước"
+                >
+                  <ChevronLeft className="w-4 h-4" />
+                </button>
+
+                <div className="text-center min-w-0 flex-1">
+                  <div className="text-xs font-bold text-gray-900 truncate">
+                    Tuần: {weekRangeText}
+                  </div>
+                </div>
+
+                <button
+                  onClick={() => setCurrentWeekStart((prev) => new Date(prev.getTime() + 7 * 24 * 60 * 60 * 1000))}
+                  className="p-1.5 text-gray-600 hover:bg-gray-100 rounded-lg border border-gray-200 shrink-0 active:scale-95 transition"
+                  title="Tuần sau"
+                >
+                  <ChevronRight className="w-4 h-4" />
+                </button>
+
+                <button
+                  onClick={() => {
+                    setCurrentWeekStart(getMonday(new Date()));
+                    setMobileSelectedWeekday(new Date().getDay());
+                  }}
+                  className="px-2 py-1 text-[11px] font-bold text-blue-600 bg-blue-50 hover:bg-blue-100 rounded-lg transition shrink-0"
+                >
+                  Hôm nay
+                </button>
+              </div>
+            </div>
+
+            {/* 2. Trường hợp A: Chế độ Mobile Timeline (Thẻ theo từng ngày) */}
+            {mobileGridSubView === 'timeline' ? (
+              <div className="space-y-3">
+                {/* Thanh trượt chọn thứ trong tuần (Horizontal Day Strip) */}
+                <div className="bg-white rounded-xl border border-gray-200 p-2 shadow-sm">
+                  <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar py-0.5">
+                    {weekDaysWithSchedules.map((wd) => {
+                      const isSelected = mobileSelectedWeekday === wd.value;
+                      const hasSchedules = wd.count > 0;
+
+                      return (
+                        <button
+                          key={wd.value}
+                          onClick={() => setMobileSelectedWeekday(wd.value)}
+                          className={`flex-1 min-w-[44px] py-2 px-1 rounded-xl flex flex-col items-center justify-center transition-all relative ${
+                            isSelected
+                              ? 'bg-gradient-to-b from-blue-600 to-indigo-600 text-white shadow-md font-bold scale-[1.03]'
+                              : wd.isToday
+                              ? 'bg-blue-50/80 text-blue-700 border border-blue-200 font-semibold'
+                              : 'bg-slate-50 text-gray-700 border border-gray-100 hover:bg-gray-100'
+                          }`}
+                        >
+                          {/* Thứ */}
+                          <span className="text-[11px] uppercase tracking-tight">
+                            {wd.code}
+                          </span>
+                          {/* Ngày trong tháng */}
+                          <span className="text-sm font-bold my-0.5">
+                            {wd.date.getDate()}
+                          </span>
+
+                          {/* Dấu chấm/Badge Hôm nay hoặc số ca */}
+                          <div className="flex items-center gap-1 h-3">
+                            {wd.isToday && (
+                              <span
+                                className={`w-1.5 h-1.5 rounded-full ${
+                                  isSelected ? 'bg-amber-300' : 'bg-blue-600'
+                                }`}
+                                title="Hôm nay"
+                              />
+                            )}
+                            {hasSchedules ? (
+                              <span
+                                className={`text-[9px] px-1 rounded-full font-bold leading-tight ${
+                                  isSelected
+                                    ? 'bg-white/30 text-white'
+                                    : 'bg-blue-100 text-blue-700'
+                                }`}
+                              >
+                                {wd.count}
+                              </span>
+                            ) : (
+                              <span className="w-1.5 h-1.5 rounded-full opacity-0" />
+                            )}
+                          </div>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                {/* Thông tin ngày đang chọn & Nút thêm */}
+                <div className="bg-gradient-to-r from-blue-50 to-indigo-50/60 p-3 rounded-xl border border-blue-100 flex items-center justify-between gap-2 shadow-2xs">
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <span className="text-sm font-bold text-gray-900">
+                        {activeMobileDay.label}
+                      </span>
+                      <span className="text-xs text-gray-500 font-medium">
+                        ({activeMobileDay.dateFormatted})
+                      </span>
+                      {activeMobileDay.isToday && (
+                        <span className="px-1.5 py-0.5 bg-blue-600 text-white text-[9px] font-bold rounded-full uppercase">
+                          Hôm nay
+                        </span>
+                      )}
+                    </div>
+                    <p className="text-xs text-blue-700 font-medium mt-0.5">
+                      {activeMobileDay.count > 0
+                        ? `Có ${activeMobileDay.count} ca giảng dạy được xếp`
+                        : 'Không có ca giảng dạy nào'}
+                    </p>
+                  </div>
+
+                  {canManage && (
+                    <button
+                      onClick={() => handleOpenCreateModal(activeMobileDay.value)}
+                      className="flex items-center gap-1 px-2.5 py-1.5 bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold rounded-lg shadow-xs active:scale-95 transition"
+                    >
+                      <Plus className="w-3.5 h-3.5" />
+                      <span>Thêm ca</span>
+                    </button>
+                  )}
+                </div>
+
+                {/* Danh sách thẻ các ca học trong ngày */}
+                {loading ? (
+                  <div className="bg-white rounded-xl border border-gray-200 p-8 text-center shadow-sm">
+                    <RefreshCw className="w-7 h-7 text-blue-500 animate-spin mx-auto mb-2" />
+                    <p className="text-xs text-gray-500">Đang tải lịch giảng dạy...</p>
+                  </div>
+                ) : activeMobileDay.count === 0 ? (
+                  <div className="bg-white rounded-xl border border-dashed border-gray-300 p-8 text-center shadow-sm">
+                    <div className="w-12 h-12 rounded-full bg-slate-100 text-slate-400 flex items-center justify-center mx-auto mb-3">
+                      <CalendarDays className="w-6 h-6" />
+                    </div>
+                    <h3 className="text-sm font-bold text-gray-800">Không có lịch giảng dạy</h3>
+                    <p className="text-xs text-gray-500 mt-1 max-w-xs mx-auto">
+                      {activeMobileDay.label} ({activeMobileDay.dateFormatted}) chưa có ca phân công nào phù hợp với bộ lọc hiện tại.
+                    </p>
+                    {canManage && (
+                      <button
+                        onClick={() => handleOpenCreateModal(activeMobileDay.value)}
+                        className="mt-3.5 inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-blue-600 bg-blue-50 hover:bg-blue-100 rounded-lg border border-blue-200 transition"
+                      >
+                        <Plus className="w-3.5 h-3.5" />
+                        <span>Xếp lịch cho ngày này</span>
+                      </button>
+                    )}
+                  </div>
+                ) : (
+                  <div className="space-y-2.5">
+                    {activeMobileDay.schedules.map((sch) => {
+                      const schShiftId =
+                        typeof sch.shiftId === 'object' && sch.shiftId !== null
+                          ? (sch.shiftId as ShiftConfig)._id
+                          : sch.shiftId;
+                      const shiftObj =
+                        typeof sch.shiftId === 'object' && sch.shiftId !== null
+                          ? (sch.shiftId as ShiftConfig)
+                          : shifts.find((s) => s._id === schShiftId);
+
+                      const schUserId =
+                        typeof sch.userId === 'object' && sch.userId !== null
+                          ? (sch.userId as User)._id
+                          : (sch.userId as string);
+                      const schUser =
+                        typeof sch.userId === 'object' && sch.userId !== null
+                          ? (sch.userId as User)
+                          : usersList.find((u) => u._id === schUserId) || null;
+
+                      const departmentInfo = getDepartmentInfo(schUser);
+                      const theme = getShiftTheme(shiftObj?.name);
+
+                      return (
+                        <div
+                          key={sch._id}
+                          onClick={() => setDetailSchedule(sch)}
+                          className={`bg-white rounded-xl border border-gray-200 p-3.5 shadow-sm transition-all active:scale-[0.99] border-l-4 ${
+                            shiftObj?.name.toLowerCase().includes('sáng')
+                              ? 'border-l-blue-500'
+                              : shiftObj?.name.toLowerCase().includes('chiều')
+                              ? 'border-l-amber-500'
+                              : shiftObj?.name.toLowerCase().includes('tối')
+                              ? 'border-l-purple-500'
+                              : 'border-l-emerald-500'
+                          }`}
+                        >
+                          {/* Hàng 1: Ca học, Thời gian & Badge lặp */}
+                          <div className="flex items-center justify-between gap-2 mb-2">
+                            <div className="flex items-center gap-1.5 flex-wrap">
+                              <span
+                                className={`px-2 py-0.5 rounded text-[11px] font-bold ${theme.badge}`}
+                              >
+                                {shiftObj?.name || 'Ca dạy'}
+                              </span>
+                              <div className="flex items-center gap-1 text-xs font-semibold text-gray-700 bg-slate-100 px-2 py-0.5 rounded">
+                                <Clock className="w-3 h-3 text-gray-500" />
+                                <span>
+                                  {sch.startTime || shiftObj?.startTime || '--:--'} -{' '}
+                                  {sch.endTime || shiftObj?.endTime || '--:--'}
+                                </span>
+                              </div>
+                            </div>
+
+                            <span
+                              className={`text-[10px] font-bold px-2 py-0.5 rounded-full shrink-0 ${
+                                sch.isRecurring
+                                  ? 'bg-blue-100 text-blue-700'
+                                  : 'bg-emerald-100 text-emerald-700'
+                              }`}
+                            >
+                              {sch.isRecurring ? 'Cả kỳ' : 'Tuần này'}
+                            </span>
+                          </div>
+
+                          {/* Hàng 2: Tên môn học & Phòng học */}
+                          <div className="space-y-1 mb-2.5">
+                            <div className="flex items-start justify-between gap-2">
+                              <h4 className="text-sm font-bold text-gray-900 leading-snug">
+                                {sch.subjectName || 'Lịch làm việc / Công tác'}
+                              </h4>
+                              {sch.subjectCode && (
+                                <span className="text-[10px] font-mono font-bold bg-gray-100 text-gray-700 px-1.5 py-0.5 rounded shrink-0">
+                                  {sch.subjectCode}
+                                </span>
+                              )}
+                            </div>
+
+                            <div className="flex items-center gap-1.5 text-xs text-red-600 font-bold">
+                              <MapPin className="w-3.5 h-3.5 text-red-500 shrink-0" />
+                              <span className="bg-red-50 px-2 py-0.5 rounded border border-red-100">
+                                {sch.roomId || sch.room || 'Chưa xếp phòng học'}
+                              </span>
+                            </div>
+                          </div>
+
+                          {/* Hàng 3: Giảng viên & Bộ môn */}
+                          <div className="pt-2.5 border-t border-gray-100 flex items-center justify-between gap-2">
+                            <div className="flex items-center gap-2 min-w-0">
+                              <UserAvatar
+                                src={schUser?.avatar}
+                                name={schUser?.fullName || 'GV'}
+                                size="sm"
+                              />
+                              <div className="min-w-0">
+                                <div className="text-xs font-bold text-gray-900 truncate">
+                                  {schUser?.fullName || 'Cán bộ / Giảng viên'}
+                                </div>
+                                {departmentInfo.unitName && (
+                                  <div className="text-[11px] text-gray-500 truncate flex items-center gap-1">
+                                    <Building2 className="w-3 h-3 text-gray-400 shrink-0" />
+                                    <span className="truncate">{departmentInfo.unitName}</span>
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+
+                            {/* Thao tác Xem / Sửa / Xóa */}
+                            <div
+                              className="flex items-center gap-1 shrink-0"
+                              onClick={(e) => e.stopPropagation()}
+                            >
+                              <button
+                                onClick={() => setDetailSchedule(sch)}
+                                className="p-1.5 text-gray-600 hover:text-blue-600 hover:bg-blue-50 rounded-lg border border-gray-200 transition"
+                                title="Chi tiết"
+                              >
+                                <Eye className="w-3.5 h-3.5" />
+                              </button>
+                              {canManage && (
+                                <>
+                                  <button
+                                    onClick={() => handleOpenEditModal(sch)}
+                                    className="p-1.5 text-gray-600 hover:text-blue-600 hover:bg-blue-50 rounded-lg border border-gray-200 transition"
+                                    title="Sửa"
+                                  >
+                                    <Edit2 className="w-3.5 h-3.5" />
+                                  </button>
+                                  <button
+                                    onClick={() => setDeleteTarget(sch)}
+                                    className="p-1.5 text-gray-600 hover:text-red-600 hover:bg-red-50 rounded-lg border border-gray-200 transition"
+                                    title="Xóa"
+                                  >
+                                    <Trash2 className="w-3.5 h-3.5" />
+                                  </button>
+                                </>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            ) : (
+              /* 3. Trường hợp B: Chế độ Lưới tuần cuộn ngang an toàn trên Mobile */
+              <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+                <div className="p-2.5 bg-blue-50/80 border-b border-blue-100 flex items-center justify-between text-xs text-blue-800">
+                  <span className="font-semibold">👉 Vuốt ngang để xem đủ 7 ngày</span>
+                  <button
+                    onClick={() => setMobileGridSubView('timeline')}
+                    className="font-bold underline text-blue-700"
+                  >
+                    Xem dạng thẻ ngày
+                  </button>
+                </div>
+                <div className="overflow-x-auto scrollbar-thin scrollbar-thumb-slate-300">
+                  <table className="w-full border-collapse min-w-[850px]">
+                    <thead>
+                      <tr className="bg-slate-50 border-b border-gray-200 text-gray-700">
+                        <th className="w-28 py-2.5 px-2 text-left text-xs font-bold uppercase tracking-wider border-r border-gray-200 bg-slate-100/95 sticky left-0 z-20 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.06)]">
+                          Ca Dạy
+                        </th>
+                        {weekDaysWithDates.map((wd) => (
+                          <th
+                            key={wd.value}
+                            className={`py-2 px-1 text-center border-r border-gray-200 last:border-r-0 min-w-[95px] ${
+                              wd.isToday
+                                ? 'bg-blue-50/80 text-blue-700 font-bold ring-1 ring-inset ring-blue-300'
+                                : 'bg-slate-50'
+                            }`}
+                          >
+                            <div className="flex flex-col items-center">
+                              <span className="text-xs font-bold uppercase">{wd.short}</span>
+                              <span className="text-[10px] font-mono text-gray-500 mt-0.5">{wd.dateFormatted}</span>
+                              {wd.isToday && (
+                                <span className="mt-0.5 px-1 py-0.2 bg-blue-600 text-white text-[8px] font-bold rounded-full uppercase">
+                                  Hôm nay
+                                </span>
+                              )}
+                            </div>
+                          </th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-gray-200">
+                      {shifts.map((shift) => {
+                        const theme = getShiftTheme(shift.name);
+                        return (
+                          <tr key={shift._id} className="hover:bg-gray-50/30">
+                            <td className="py-2.5 px-2 align-top border-r border-gray-200 bg-slate-50/95 sticky left-0 z-10 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.06)]">
+                              <div className="font-bold text-xs text-gray-900 leading-tight">{shift.name}</div>
+                              <div className="text-[10px] text-gray-500 font-medium mt-0.5">
+                                {shift.startTime} - {shift.endTime}
+                              </div>
+                            </td>
+                            {weekDaysWithDates.map((wd) => {
+                              const cellSchedules = filteredSchedules.filter((sch) => {
+                                const schShiftId =
+                                  typeof sch.shiftId === 'object' && sch.shiftId !== null
+                                    ? (sch.shiftId as ShiftConfig)._id
+                                    : sch.shiftId;
+                                const schWd =
+                                  sch.weekday !== undefined
+                                    ? Number(sch.weekday)
+                                    : sch.dayOfWeek !== undefined
+                                    ? Number(sch.dayOfWeek)
+                                    : -1;
+                                if (schWd !== wd.value || String(schShiftId) !== String(shift._id)) return false;
+
+                                const cellDateStr = toDateStringYMD(wd.date);
+                                if (sch.startDate) {
+                                  const schStartStr = toDateStringYMD(sch.startDate);
+                                  if (cellDateStr < schStartStr) return false;
+                                }
+                                if (sch.endDate) {
+                                  const schEndStr = toDateStringYMD(sch.endDate);
+                                  if (cellDateStr > schEndStr) return false;
+                                }
+                                return true;
+                              });
+
+                              return (
+                                <td
+                                  key={wd.value}
+                                  className={`p-1.5 align-top border-r border-gray-200 last:border-r-0 min-h-[90px] ${
+                                    wd.isToday ? 'bg-blue-50/20' : ''
+                                  }`}
+                                >
+                                  {cellSchedules.length > 0 ? (
+                                    cellSchedules.map((sch) => {
+                                      const schUserId =
+                                        typeof sch.userId === 'object' && sch.userId !== null
+                                          ? (sch.userId as User)._id
+                                          : (sch.userId as string);
+                                      const schUser =
+                                        typeof sch.userId === 'object' && sch.userId !== null
+                                          ? (sch.userId as User)
+                                          : usersList.find((u) => u._id === schUserId) || null;
+
+                                      return (
+                                        <div
+                                          key={sch._id}
+                                          onClick={() => setDetailSchedule(sch)}
+                                          className={`p-1.5 rounded-lg border text-left shadow-2xs cursor-pointer ${theme.bg} ${theme.border} mb-1`}
+                                        >
+                                          <div className="flex items-center gap-1 text-[10px] font-bold text-gray-900 truncate">
+                                            <MapPin className="w-2.5 h-2.5 text-red-500 shrink-0" />
+                                            <span className="truncate">{sch.roomId || sch.room || 'Phòng học'}</span>
+                                          </div>
+                                          <div className="text-[10px] font-bold text-gray-900 truncate mt-0.5">
+                                            {schUser ? schUser.fullName : 'Giảng viên'}
+                                          </div>
+                                          {sch.subjectName && (
+                                            <div className="text-[9px] text-blue-700 font-semibold truncate">
+                                              {sch.subjectName}
+                                            </div>
+                                          )}
+                                        </div>
+                                      );
+                                    })
+                                  ) : (
+                                    <div className="h-full flex items-center justify-center py-4 text-gray-300">
+                                      <span className="text-[10px] text-gray-400">Trống</span>
+                                    </div>
+                                  )}
+                                </td>
+                              );
+                            })}
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* ========================================================================= */}
+          {/* GIAO DIỆN DESKTOP (Hiển thị trên màn hình từ md: 768px trở lên)           */}
+          {/* ========================================================================= */}
+          <div className="hidden md:block bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
           {/* Thanh Điều Hướng Tuần & Chọn Học Kỳ */}
           <div className="bg-slate-50/90 border-b border-gray-200 px-4 py-2.5 flex flex-wrap items-center justify-between gap-3">
             {/* Cụm Học kỳ & Tuần */}
@@ -1001,7 +1584,7 @@ export const SchedulesPage: React.FC = () => {
               <table
                 className={`w-full border-collapse ${
                   gridFitMode === 'fit' && displayedWeekDays.length > 1
-                    ? 'table-fixed'
+                    ? 'table-fixed min-w-[760px]'
                     : 'min-w-[1100px]'
                 }`}
               >
@@ -1076,19 +1659,14 @@ export const SchedulesPage: React.FC = () => {
                             }
 
                             // Kiểm tra ngày của ô wd.date có nằm trong khoảng hiệu lực của lịch hay không
+                            const cellDateStr = toDateStringYMD(wd.date);
                             if (sch.startDate) {
-                              const schStart = new Date(sch.startDate);
-                              schStart.setHours(0, 0, 0, 0);
-                              const cellDate = new Date(wd.date);
-                              cellDate.setHours(0, 0, 0, 0);
-                              if (cellDate < schStart) return false;
+                              const schStartStr = toDateStringYMD(sch.startDate);
+                              if (cellDateStr < schStartStr) return false;
                             }
                             if (sch.endDate) {
-                              const schEnd = new Date(sch.endDate);
-                              schEnd.setHours(23, 59, 59, 999);
-                              const cellDate = new Date(wd.date);
-                              cellDate.setHours(0, 0, 0, 0);
-                              if (cellDate > schEnd) return false;
+                              const schEndStr = toDateStringYMD(sch.endDate);
+                              if (cellDateStr > schEndStr) return false;
                             }
 
                             return true;
@@ -1114,7 +1692,7 @@ export const SchedulesPage: React.FC = () => {
                                         onClick={() => setDetailSchedule(sch)}
                                         className={`p-2 rounded-lg border text-left shadow-2xs transition-all hover:shadow-md cursor-pointer ${theme.bg} ${theme.border} group/card relative overflow-hidden`}
                                       >
-                                        {/* Phòng học & Badge */}
+                                        {/* PhÃ²ng há»c & Badge */}
                                         <div className="flex items-start justify-between gap-1 mb-1">
                                           <div className="flex items-center gap-1 text-[11px] font-bold text-gray-900 bg-white/90 px-1.5 py-0.5 rounded border border-gray-200/80 shadow-2xs min-w-0 max-w-[85%]">
                                             <MapPin className="w-2.5 h-2.5 text-red-500 shrink-0" />
@@ -1123,7 +1701,10 @@ export const SchedulesPage: React.FC = () => {
 
                                           {/* Thao tác Sửa / Xóa */}
                                           {canManage && (
-                                            <div className="flex items-center gap-0.5 opacity-0 group-hover/card:opacity-100 transition-opacity bg-white/95 rounded border border-gray-200 px-1 py-0.5 shadow-2xs shrink-0">
+                                            <div
+                                              onClick={(e) => e.stopPropagation()}
+                                              className="flex items-center gap-0.5 opacity-0 group-hover/card:opacity-100 transition-opacity bg-white/95 rounded border border-gray-200 px-1 py-0.5 shadow-2xs shrink-0"
+                                            >
                                               <button
                                                 onClick={(event) => {
                                                   event.stopPropagation();
@@ -1145,7 +1726,11 @@ export const SchedulesPage: React.FC = () => {
                                                 <Edit2 className="w-2.5 h-2.5" />
                                               </button>
                                               <button
-                                                onClick={() => setDeleteTarget(sch)}
+                                                onClick={(event) => {
+                                                  event.stopPropagation();
+                                                  setDetailSchedule(null);
+                                                  setDeleteTarget(sch);
+                                                }}
                                                 className="p-0.5 text-gray-500 hover:text-red-600 rounded transition-colors"
                                                 title="Xóa lịch"
                                               >
@@ -1154,8 +1739,6 @@ export const SchedulesPage: React.FC = () => {
                                             </div>
                                           )}
                                         </div>
-
-                                        {/* Giảng viên */}
                                         <div className="text-[11px] font-bold text-gray-900 truncate leading-tight">
                                           {schUser ? schUser.fullName : 'Cán bộ / Giảng viên'}
                                         </div>
@@ -1225,6 +1808,7 @@ export const SchedulesPage: React.FC = () => {
             </div>
           )}
         </div>
+        </>
       ) : (
         /* 5. Nội dung dạng Danh Sách Bảng Chi Tiết (Table View) */
         <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
@@ -1481,18 +2065,7 @@ export const SchedulesPage: React.FC = () => {
                     value={formData.weekday}
                     onChange={(e) => {
                       const newWd = Number(e.target.value);
-                      const targetDay = weekDaysWithDates.find((w) => w.value === newWd);
-                      if (!formData.isRecurring && targetDay) {
-                        const dStr = targetDay.date.toISOString().split('T')[0];
-                        setFormData((prev) => ({
-                          ...prev,
-                          weekday: newWd,
-                          startDate: dStr,
-                          endDate: dStr,
-                        }));
-                      } else {
-                        setFormData((prev) => ({ ...prev, weekday: newWd }));
-                      }
+                      setFormData((prev) => ({ ...prev, weekday: newWd }));
                     }}
                     className="w-full px-3 py-2 text-xs border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-none"
                   >
@@ -1596,13 +2169,13 @@ export const SchedulesPage: React.FC = () => {
                   <button
                     type="button"
                     onClick={() => {
-                      const targetDayObj = weekDaysWithDates.find((w) => w.value === formData.weekday) || weekDaysWithDates[0];
-                      const dStr = targetDayObj.date.toISOString().split('T')[0];
+                      const monStr = formatDateToYMD(weekDaysWithDates[0].date);
+                      const sunStr = formatDateToYMD(weekDaysWithDates[weekDaysWithDates.length - 1].date);
                       setFormData({
                         ...formData,
                         isRecurring: false,
-                        startDate: dStr,
-                        endDate: dStr,
+                        startDate: monStr,
+                        endDate: sunStr,
                       });
                     }}
                     className={`p-2.5 rounded-lg border text-left text-xs transition ${
@@ -1629,8 +2202,8 @@ export const SchedulesPage: React.FC = () => {
                       setFormData({
                         ...formData,
                         isRecurring: true,
-                        startDate: today.toISOString().split('T')[0],
-                        endDate: fourMonthsLater.toISOString().split('T')[0],
+                        startDate: formatDateToYMD(today),
+                        endDate: formatDateToYMD(fourMonthsLater),
                       });
                     }}
                     className={`p-2.5 rounded-lg border text-left text-xs transition ${

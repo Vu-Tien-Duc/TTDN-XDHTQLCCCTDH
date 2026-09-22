@@ -20,11 +20,15 @@ import {
   X,
   GraduationCap,
   ChevronRight,
+  ChevronLeft,
   Sparkles,
   ExternalLink,
   ScanFace,
   History,
   Scan,
+  PanelLeftClose,
+  PanelLeftOpen,
+  Layers,
 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { axiosClient } from '../api/axiosClient';
@@ -32,6 +36,7 @@ import { Role } from '../types';
 import { ROLE_LABELS, cn, getSafeMediaUrl } from '../utils';
 import { toast } from 'react-hot-toast';
 import AiChatWidget from '../components/ai/AiChatWidget';
+import { UserAvatar } from '../components';
 
 interface SidebarMenuItem {
   title: string;
@@ -43,118 +48,156 @@ interface SidebarMenuItem {
   highlight?: boolean;
 }
 
-const MENU_ITEMS: SidebarMenuItem[] = [
+interface SidebarMenuGroup {
+  groupId: string;
+  groupTitle: string;
+  items: SidebarMenuItem[];
+}
+
+const MENU_GROUPS: SidebarMenuGroup[] = [
   {
-    title: 'Bảng Điều Khiển',
-    path: '/dashboard',
-    icon: LayoutDashboard,
-    allowedRoles: ['admin', 'truongkhoa', 'giangvien', 'nhanvien'],
-    description: 'Tổng quan chỉ số & lịch trình',
+    groupId: 'overview',
+    groupTitle: 'Tổng Quan',
+    items: [
+      {
+        title: 'Bảng Điều Khiển',
+        path: '/dashboard',
+        icon: LayoutDashboard,
+        allowedRoles: ['admin', 'truongkhoa', 'giangvien', 'nhanvien'],
+        description: 'Tổng quan chỉ số & lịch trình',
+      },
+    ],
   },
   {
-    title: 'Cơ Cấu Tổ Chức',
-    path: '/departments',
-    icon: Building2,
-    allowedRoles: ['admin'],
-    description: 'Quản lý Trường > Khoa > Bộ môn',
+    groupId: 'academic',
+    groupTitle: 'Giảng Dạy & Điểm Danh',
+    items: [
+      {
+        title: 'Lịch Giảng Dạy & Công Tác',
+        path: '/schedules',
+        icon: CalendarDays,
+        allowedRoles: ['admin', 'truongkhoa', 'giangvien', 'nhanvien'],
+        description: 'Thời khóa biểu & ca công tác',
+      },
+      {
+        title: 'Điểm Danh Chấm Công',
+        path: '/attendance/check-in',
+        icon: UserCheck,
+        allowedRoles: ['admin', 'truongkhoa', 'giangvien', 'nhanvien'],
+        description: 'Check-in & Check-out ca dạy',
+      },
+      {
+        title: 'Lịch Sử Chấm Công',
+        path: '/attendance/history',
+        icon: History,
+        allowedRoles: ['admin', 'truongkhoa', 'giangvien', 'nhanvien'],
+        description: 'Tra cứu lịch sử & ảnh minh chứng',
+      },
+      {
+        title: 'Kiosk Điểm Danh',
+        path: '/kiosk',
+        icon: ScanFace,
+        badge: 'Kiosk',
+        allowedRoles: ['admin', 'truongkhoa'],
+        description: 'Màn hình Kiosk sảnh trường',
+      },
+    ],
   },
   {
-    title: 'Quản Lý Cán Bộ',
-    path: '/users',
-    icon: Users,
-    allowedRoles: ['admin', 'truongkhoa'],
-    description: 'Danh sách nhân sự & tài khoản',
+    groupId: 'leave',
+    groupTitle: 'Đơn Từ & Nghỉ Phép',
+    items: [
+      {
+        title: 'Tạo Đơn Xin Nghỉ',
+        path: '/leave/create',
+        icon: FilePlus2,
+        allowedRoles: ['truongkhoa', 'giangvien', 'nhanvien'],
+        description: 'Nghỉ phép, dạy bù & đổi ca',
+      },
+      {
+        title: 'Đơn Nghỉ Của Tôi',
+        path: '/leave/my-requests',
+        icon: FileText,
+        allowedRoles: ['truongkhoa', 'giangvien', 'nhanvien'],
+        description: 'Theo dõi tiến độ duyệt đơn',
+      },
+      {
+        title: 'Hộp Duyệt Đơn',
+        path: '/leave/approvals',
+        icon: FileCheck2,
+        badge: 'Quản lý',
+        allowedRoles: ['admin', 'truongkhoa'],
+        description: 'Phê duyệt đơn nghỉ của khoa',
+      },
+    ],
   },
   {
-    title: 'Danh Mục Ca Dạy',
-    path: '/shifts',
-    icon: Clock,
-    allowedRoles: ['admin'],
-    description: 'Khung giờ ca học & ngưỡng trễ',
+    groupId: 'administration',
+    groupTitle: 'Quản Trị Tổ Chức',
+    items: [
+      {
+        title: 'Cơ Cấu Tổ Chức',
+        path: '/departments',
+        icon: Building2,
+        allowedRoles: ['admin'],
+        description: 'Trường > Khoa > Bộ môn',
+      },
+      {
+        title: 'Quản Lý Cán Bộ',
+        path: '/users',
+        icon: Users,
+        allowedRoles: ['admin', 'truongkhoa'],
+        description: 'Danh sách nhân sự & tài khoản',
+      },
+      {
+        title: 'Danh Mục Ca Dạy',
+        path: '/shifts',
+        icon: Clock,
+        allowedRoles: ['admin'],
+        description: 'Khung giờ ca học & ngưỡng trễ',
+      },
+      {
+        title: 'Đăng Ký Face ID',
+        path: '/face-registration',
+        icon: Scan,
+        badge: 'Mới',
+        allowedRoles: ['admin'],
+        description: 'Đăng ký vector khuôn mặt 128 số',
+      },
+    ],
   },
   {
-    title: 'Lịch Giảng Dạy & Công Tác',
-    path: '/schedules',
-    icon: CalendarDays,
-    allowedRoles: ['admin', 'truongkhoa', 'giangvien', 'nhanvien'],
-    description: 'Thời khóa biểu & lịch học kỳ',
-  },
-  {
-    title: 'Điểm Danh Chấm Công',
-    path: '/attendance/check-in',
-    icon: UserCheck,
-    allowedRoles: ['admin', 'truongkhoa', 'giangvien', 'nhanvien'],
-    description: 'Check-in & Check-out ca dạy',
-  },
-  {
-    title: 'Lịch Sử Chấm Công',
-    path: '/attendance/history',
-    icon: History,
-    allowedRoles: ['admin', 'truongkhoa', 'giangvien', 'nhanvien'],
-    description: 'Tra cứu lịch sử đa phương thức',
-  },
-  {
-    title: 'Đăng Ký Face ID',
-    path: '/face-registration',
-    icon: Scan,
-    badge: 'Mới',
-    allowedRoles: ['admin'],
-    description: 'Đăng ký vector khuôn mặt 128 số',
-  },
-  {
-    title: 'Kiosk Điểm Danh',
-    path: '/kiosk',
-    icon: ScanFace,
-    badge: 'Kiosk',
-    allowedRoles: ['admin', 'truongkhoa'],
-    description: 'Màn hình Kiosk điểm danh sảnh trường',
-  },
-  {
-    title: 'Tạo Đơn Xin Nghỉ',
-    path: '/leave/create',
-    icon: FilePlus2,
-    allowedRoles: ['truongkhoa', 'giangvien', 'nhanvien'],
-    description: 'Nghỉ phép, dạy bù & đổi ca',
-  },
-  {
-    title: 'Đơn Nghỉ Của Tôi',
-    path: '/leave/my-requests',
-    icon: FileText,
-    allowedRoles: ['truongkhoa', 'giangvien', 'nhanvien'],
-    description: 'Theo dõi tiến độ duyệt đơn',
-  },
-  {
-    title: 'Hộp Duyệt Đơn',
-    path: '/leave/approvals',
-    icon: FileCheck2,
-    badge: 'Quản lý',
-    allowedRoles: ['admin', 'truongkhoa'],
-    description: 'Phê duyệt đơn nghỉ của khoa',
-  },
-  {
-    title: 'Báo Cáo & Thống Kê',
-    path: '/reports',
-    icon: BarChart3,
-    allowedRoles: ['admin', 'truongkhoa'],
-    description: 'Tổng hợp công tháng & tỷ lệ',
-  },
-  {
-    title: 'Trợ Lý Thanh Tra AI',
-    path: '/ai-assistant',
-    icon: Bot,
-    badge: 'AI ✨',
-    highlight: true,
-    allowedRoles: ['admin', 'truongkhoa', 'giangvien', 'nhanvien'],
-    description: 'Giám sát & truy vấn thông minh',
-  },
-  {
-    title: 'Nhật Ký Kiểm Toán',
-    path: '/audit-logs',
-    icon: ShieldAlert,
-    allowedRoles: ['admin'],
-    description: 'Truy vết thao tác nhạy cảm',
+    groupId: 'reports_ai',
+    groupTitle: 'Báo Cáo & Hệ Thống AI',
+    items: [
+      {
+        title: 'Báo Cáo & Thống Kê',
+        path: '/reports',
+        icon: BarChart3,
+        allowedRoles: ['admin', 'truongkhoa'],
+        description: 'Tổng hợp công tháng & tỷ lệ',
+      },
+      {
+        title: 'Trợ Lý Thanh Tra AI',
+        path: '/ai-assistant',
+        icon: Bot,
+        badge: 'AI ✨',
+        highlight: true,
+        allowedRoles: ['admin', 'truongkhoa', 'giangvien', 'nhanvien'],
+        description: 'Giám sát & truy vấn thông minh',
+      },
+      {
+        title: 'Nhật Ký Kiểm Toán',
+        path: '/audit-logs',
+        icon: ShieldAlert,
+        allowedRoles: ['admin'],
+        description: 'Truy vết thao tác nhạy cảm',
+      },
+    ],
   },
 ];
+
+const MENU_ITEMS = MENU_GROUPS.flatMap((group) => group.items);
 
 export const MainLayout: React.FC = () => {
   const { user, logout } = useAuth();
@@ -162,6 +205,26 @@ export const MainLayout: React.FC = () => {
   const navigate = useNavigate();
 
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState<boolean>(() => {
+    try {
+      return localStorage.getItem('sidebar_collapsed') === 'true';
+    } catch {
+      return false;
+    }
+  });
+
+  const toggleSidebarCollapse = () => {
+    setIsSidebarCollapsed((prev) => {
+      const next = !prev;
+      try {
+        localStorage.setItem('sidebar_collapsed', String(next));
+      } catch (e) {
+        console.error(e);
+      }
+      return next;
+    });
+  };
+
   const [showNotifications, setShowNotifications] = useState(false);
   const [showUserMenu, setShowUserMenu] = useState(false);
   const [notifications, setNotifications] = useState<Array<{
@@ -185,7 +248,9 @@ export const MainLayout: React.FC = () => {
   const fetchRealNotifications = async () => {
     try {
       setIsLoadingNotifications(true);
-      const res = (await axiosClient.get('/notifications')) as unknown as {
+      const lastRead = localStorage.getItem(`last_read_noti_${user?._id}`);
+      const params = lastRead ? `?lastReadAt=${encodeURIComponent(lastRead)}` : '';
+      const res = (await axiosClient.get(`/notifications${params}`)) as unknown as {
         success: boolean;
         data?: {
           total: number;
@@ -232,10 +297,18 @@ export const MainLayout: React.FC = () => {
     return `${diffDays} ngày trước`;
   };
 
-  // Lọc danh sách menu dựa theo vai trò của người dùng
+  // Lọc danh sách menu phẳng & lọc nhóm phân cấp theo vai trò của người dùng
   const visibleMenuItems = MENU_ITEMS.filter(
     (item) => user && item.allowedRoles.includes(user.role)
   );
+
+  const visibleMenuGroups = React.useMemo(() => {
+    if (!user) return [];
+    return MENU_GROUPS.map((group) => ({
+      ...group,
+      items: group.items.filter((item) => item.allowedRoles.includes(user.role)),
+    })).filter((group) => group.items.length > 0);
+  }, [user]);
 
   const handleLogout = async () => {
     try {
@@ -299,124 +372,295 @@ export const MainLayout: React.FC = () => {
 
       <aside
         className={cn(
-          'fixed lg:static inset-y-0 left-0 z-50 w-72 max-w-[calc(100vw-3rem)] bg-slate-900 text-slate-200 flex flex-col transition-transform duration-300 ease-in-out border-r border-slate-800 shadow-xl lg:shadow-none print:hidden',
+          'fixed lg:static inset-y-0 left-0 z-50 bg-gradient-to-b from-slate-950 via-[#0a1228] to-slate-950 text-slate-200 flex flex-col transition-all duration-300 ease-in-out border-r border-slate-800/80 shadow-2xl lg:shadow-none print:hidden select-none',
+          isSidebarCollapsed ? 'lg:w-20' : 'lg:w-72',
+          'w-72 max-w-[calc(100vw-3rem)]',
           isSidebarOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'
         )}
       >
-        {/* Brand Header */}
-        <div className="h-16 px-6 flex items-center justify-between border-b border-slate-800 bg-slate-950/40">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-blue-600 to-indigo-500 flex items-center justify-center text-white shadow-md shadow-blue-500/20">
-              <GraduationCap className="w-6 h-6" />
-            </div>
-            <div>
-              <h1 className="font-bold text-xs tracking-tight text-white leading-none">ĐH CÔNG NGHỆ & KHOA HỌC</h1>
-              <p className="text-[10px] text-blue-400 font-medium tracking-wide mt-1">HỆ THỐNG QUẢN LÝ CHẤM CÔNG</p>
-            </div>
-          </div>
-
-          <button
-            onClick={() => setIsSidebarOpen(false)}
-            className="lg:hidden p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800"
-          >
-            <X className="w-5 h-5" />
-          </button>
-        </div>
-
-        {/* User Card Mini in Sidebar */}
-        <div className="p-4 mx-3 my-3 rounded-2xl bg-slate-800/60 border border-slate-700/50 flex items-center gap-3">
-          {user?.avatar && !avatarError ? (
-            <img
-              src={getSafeMediaUrl(user.avatar)}
-              alt={user?.fullName || 'Avatar'}
-              className="w-10 h-10 rounded-xl object-cover border border-blue-400/30 shadow-xs shrink-0"
-              onError={() => setAvatarError(true)}
-            />
-          ) : (
-            <div className="w-10 h-10 rounded-xl bg-blue-600/30 border border-blue-400/30 text-blue-300 font-bold text-sm flex items-center justify-center shrink-0">
-              {getInitials(user?.fullName)}
-            </div>
-          )}
-          <div className="flex-1 min-w-0">
-            <p className="text-xs font-semibold text-white truncate">{user?.fullName || 'Người dùng'}</p>
-            <span
-              className={cn(
-                'inline-block text-[10px] font-semibold px-2 py-0.5 rounded-full border mt-1',
-                getRoleBadgeStyle(user?.role)
-              )}
+        {/* 1. Brand Header */}
+        <div className="h-16 px-4 flex items-center justify-between border-b border-slate-800/80 bg-slate-950/60 backdrop-blur-md">
+          {isSidebarCollapsed ? (
+            <Link
+              to="/dashboard"
+              className="w-full flex items-center justify-center group relative py-1"
+              title="ĐH Công Nghệ & Khoa Học - Bảng điều khiển"
             >
-              {user ? ROLE_LABELS[user.role] : 'Khách'}
-            </span>
-          </div>
+              <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-blue-600 via-indigo-600 to-blue-500 flex items-center justify-center text-white shadow-md shadow-blue-500/30 group-hover:scale-105 transition-transform">
+                <GraduationCap className="w-6 h-6" />
+              </div>
+              {/* Tooltip khi thu gọn */}
+              <div className="absolute left-full ml-3 px-3 py-1.5 bg-slate-900/95 backdrop-blur-md text-white text-xs font-bold rounded-xl shadow-xl border border-slate-700 whitespace-nowrap hidden group-hover:block z-50 pointer-events-none">
+                ĐH Công Nghệ & Khoa Học
+              </div>
+            </Link>
+          ) : (
+            <>
+              <Link to="/dashboard" className="flex items-center gap-3 min-w-0">
+                <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-blue-600 via-indigo-600 to-blue-500 flex items-center justify-center text-white shadow-md shadow-blue-500/25 shrink-0">
+                  <GraduationCap className="w-6 h-6" />
+                </div>
+                <div className="min-w-0">
+                  <h1 className="font-bold text-xs tracking-tight text-white leading-none truncate">
+                    ĐH CÔNG NGHỆ & KHOA HỌC
+                  </h1>
+                  <p className="text-[10px] text-blue-400 font-semibold tracking-wide mt-1 truncate">
+                    HỆ THỐNG QUẢN LÝ CHẤM CÔNG
+                  </p>
+                </div>
+              </Link>
+
+              <div className="flex items-center gap-1">
+                {/* Nút thu gọn Sidebar trên Desktop */}
+                <button
+                  onClick={toggleSidebarCollapse}
+                  className="hidden lg:flex p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800/80 transition"
+                  title="Thu gọn thanh menu"
+                >
+                  <PanelLeftClose className="w-4 h-4" />
+                </button>
+
+                {/* Nút đóng Sidebar trên Mobile */}
+                <button
+                  onClick={() => setIsSidebarOpen(false)}
+                  className="lg:hidden p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition"
+                  title="Đóng menu"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+            </>
+          )}
         </div>
 
-        {/* Navigation Menu List */}
-        <div className="flex-1 overflow-y-auto px-3 py-2 space-y-1 custom-scrollbar">
-          <div className="px-3 pb-2 text-[10px] font-bold text-slate-400 uppercase tracking-wider">
-            Phân hệ chức năng
+        {/* 2. User Card Mini in Sidebar */}
+        {isSidebarCollapsed ? (
+          <div className="my-3 flex flex-col items-center justify-center">
+            <Link
+              to="/profile"
+              className="relative group p-1 rounded-2xl hover:bg-slate-800/60 transition"
+              title={`${user?.fullName || 'Người dùng'} (${user ? ROLE_LABELS[user.role] : 'Cán bộ'})`}
+            >
+              <UserAvatar
+                user={user}
+                src={user?.avatar}
+                avatarUrl={user?.avatar}
+                name={user?.fullName || 'Cán bộ'}
+                size="md"
+              />
+              <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 ring-2 ring-slate-950 absolute bottom-1 right-1" />
+              {/* Tooltip khi thu gọn */}
+              <div className="absolute left-full ml-3.5 px-3 py-2 bg-slate-900/95 backdrop-blur-md text-white text-xs rounded-xl shadow-2xl border border-slate-700 whitespace-nowrap hidden group-hover:block z-50 pointer-events-none">
+                <div className="font-bold text-slate-100">{user?.fullName}</div>
+                <div className="text-[10px] text-blue-400 font-medium">{user ? ROLE_LABELS[user.role] : 'Cán bộ'}</div>
+              </div>
+            </Link>
           </div>
-
-          {visibleMenuItems.map((item) => {
-            const Icon = item.icon;
-            return (
-              <NavLink
-                key={item.path}
-                to={item.path}
-                onClick={() => setIsSidebarOpen(false)}
-                className={({ isActive }) =>
-                  cn(
-                    'group flex items-center justify-between px-3.5 py-2.5 rounded-xl text-xs font-medium transition-all',
-                    isActive
-                      ? 'bg-blue-600 text-white font-semibold shadow-md shadow-blue-600/30'
-                      : item.highlight
-                      ? 'text-indigo-300 bg-indigo-950/40 border border-indigo-500/20 hover:bg-indigo-900/40 hover:text-white'
-                      : 'text-slate-300 hover:text-white hover:bg-slate-800/80'
-                  )
-                }
-              >
-                <div className="flex items-center gap-3">
-                  <Icon className="w-4 h-4 transition-transform group-hover:scale-110" />
-                  <span>{item.title}</span>
-                </div>
-
-                <div className="flex items-center gap-1.5">
-                  {item.badge && (
-                    <span
-                      className={cn(
-                        'px-1.5 py-0.5 rounded text-[9px] font-bold',
-                        item.highlight
-                          ? 'bg-indigo-500/20 text-indigo-300 border border-indigo-400/30'
-                          : 'bg-amber-400/20 text-amber-300 border border-amber-400/30'
-                      )}
-                    >
-                      {item.badge}
-                    </span>
+        ) : (
+          <div className="p-3 mx-3 my-2.5 rounded-2xl bg-slate-900/80 border border-slate-800/80 flex items-center justify-between gap-3 shadow-xs backdrop-blur-sm group/user">
+            <Link to="/profile" className="flex items-center gap-2.5 min-w-0 flex-1 hover:opacity-90 transition">
+              <div className="relative shrink-0">
+                <UserAvatar
+                  user={user}
+                  src={user?.avatar}
+                  avatarUrl={user?.avatar}
+                  name={user?.fullName || 'Cán bộ'}
+                  size="md"
+                />
+                <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 ring-2 ring-slate-900 absolute bottom-0 right-0" />
+              </div>
+              <div className="min-w-0">
+                <p className="text-xs font-bold text-white truncate leading-tight">
+                  {user?.fullName || 'Người dùng'}
+                </p>
+                <span
+                  className={cn(
+                    'inline-block text-[9px] font-semibold px-2 py-0.5 rounded-full border mt-1 truncate',
+                    getRoleBadgeStyle(user?.role)
                   )}
-                  <ChevronRight className="w-3.5 h-3.5 opacity-0 group-hover:opacity-100 transition-opacity" />
-                </div>
-              </NavLink>
+                >
+                  {user ? ROLE_LABELS[user.role] : 'Khách'}
+                </span>
+              </div>
+            </Link>
+
+            {/* Phím tắt thao tác nhanh */}
+            <div className="flex items-center gap-0.5 shrink-0 opacity-70 group-hover/user:opacity-100 transition-opacity">
+              <Link
+                to="/profile"
+                className="p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition"
+                title="Hồ sơ cá nhân"
+              >
+                <User className="w-3.5 h-3.5" />
+              </Link>
+              <button
+                onClick={handleLogout}
+                className="p-1.5 rounded-lg text-slate-400 hover:text-rose-400 hover:bg-rose-950/40 transition"
+                title="Đăng xuất"
+              >
+                <LogOut className="w-3.5 h-3.5" />
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* 3. Categorized Navigation Menu List */}
+        <div className="flex-1 overflow-y-auto px-2 py-1 space-y-3 custom-scrollbar">
+          {visibleMenuGroups.map((group, groupIndex) => {
+            return (
+              <div key={group.groupId} className="space-y-1">
+                {/* Tiêu đề nhóm */}
+                {isSidebarCollapsed ? (
+                  groupIndex > 0 && <div className="border-t border-slate-800/80 my-2 mx-2" />
+                ) : (
+                  <div className="px-3 pt-2 pb-1 text-[10px] font-bold text-slate-400 uppercase tracking-wider flex items-center justify-between">
+                    <span>{group.groupTitle}</span>
+                    <span className="text-[9px] text-slate-400 font-mono font-medium">({group.items.length})</span>
+                  </div>
+                )}
+
+                {/* Danh sách mục trong nhóm */}
+                {group.items.map((item) => {
+                  const Icon = item.icon;
+
+                  if (isSidebarCollapsed) {
+                    return (
+                      <NavLink
+                        key={item.path}
+                        to={item.path}
+                        onClick={() => setIsSidebarOpen(false)}
+                        className={({ isActive }) =>
+                          cn(
+                            'w-11 h-11 mx-auto rounded-xl flex items-center justify-center transition-all relative group',
+                            isActive
+                              ? 'bg-gradient-to-tr from-blue-600 via-indigo-600 to-blue-500 text-white shadow-lg shadow-blue-500/30 ring-1 ring-white/20'
+                              : item.highlight
+                              ? 'text-indigo-300 bg-indigo-950/40 border border-indigo-500/25 hover:bg-indigo-900/40 hover:text-white'
+                              : 'text-slate-400 hover:text-white hover:bg-slate-800/80'
+                          )
+                        }
+                      >
+                        <Icon className="w-5 h-5 shrink-0 transition-transform group-hover:scale-110" />
+
+                        {/* Chấm badge nhỏ khi thu gọn */}
+                        {item.badge && (
+                          <span
+                            className={cn(
+                              'w-2 h-2 rounded-full absolute top-1.5 right-1.5 ring-2 ring-slate-950',
+                              item.highlight ? 'bg-indigo-400' : 'bg-amber-400'
+                            )}
+                          />
+                        )}
+
+                        {/* Floating Tooltip hiển thị sang phải khi thu gọn */}
+                        <div className="absolute left-full ml-3.5 px-3 py-1.5 bg-slate-900/95 backdrop-blur-md text-white text-xs font-semibold rounded-xl shadow-2xl border border-slate-700/80 whitespace-nowrap hidden group-hover:flex items-center gap-2 z-50 pointer-events-none animate-in fade-in slide-in-from-left-2">
+                          <span>{item.title}</span>
+                          {item.badge && (
+                            <span
+                              className={cn(
+                                'px-1.5 py-0.2 rounded text-[9px] font-bold',
+                                item.highlight
+                                  ? 'bg-indigo-500/30 text-indigo-300'
+                                  : 'bg-amber-400/20 text-amber-300'
+                              )}
+                            >
+                              {item.badge}
+                            </span>
+                          )}
+                        </div>
+                      </NavLink>
+                    );
+                  }
+
+                  return (
+                    <NavLink
+                      key={item.path}
+                      to={item.path}
+                      onClick={() => setIsSidebarOpen(false)}
+                      className={({ isActive }) =>
+                        cn(
+                          'group flex items-center justify-between px-3 py-2.5 rounded-xl text-xs font-medium transition-all duration-150',
+                          isActive
+                            ? 'bg-gradient-to-r from-blue-600 via-indigo-600 to-blue-500 text-white font-semibold shadow-md shadow-blue-600/25 ring-1 ring-white/10'
+                            : item.highlight
+                            ? 'text-indigo-300 bg-indigo-950/40 border border-indigo-500/25 hover:bg-indigo-900/40 hover:text-white hover:border-indigo-400/40'
+                            : 'text-slate-300 hover:text-white hover:bg-slate-800/80'
+                        )
+                      }
+                    >
+                      <div className="flex items-center gap-3 min-w-0">
+                        <Icon className="w-4 h-4 shrink-0 transition-transform group-hover:scale-110" />
+                        <span className="truncate">{item.title}</span>
+                      </div>
+
+                      <div className="flex items-center gap-1.5 shrink-0">
+                        {item.badge && (
+                          <span
+                            className={cn(
+                              'px-1.5 py-0.5 rounded text-[9px] font-bold tracking-tight',
+                              item.highlight
+                                ? 'bg-indigo-500/30 text-indigo-200 border border-indigo-400/40'
+                                : 'bg-amber-400/20 text-amber-300 border border-amber-400/30'
+                            )}
+                          >
+                            {item.badge}
+                          </span>
+                        )}
+                        <ChevronRight className="w-3.5 h-3.5 opacity-0 group-hover:opacity-100 transition-opacity text-slate-400 group-hover:text-white" />
+                      </div>
+                    </NavLink>
+                  );
+                })}
+              </div>
             );
           })}
         </div>
 
-        {/* Sidebar Footer */}
-        <div className="p-4 border-t border-slate-800 bg-slate-950/40">
-          <div className="flex items-center justify-between text-xs text-slate-400">
-            <span className="flex items-center gap-1">
-              <Sparkles className="w-3.5 h-3.5 text-blue-400" />
-              <span>Phiên bản v1.0.0</span>
-            </span>
-            <a
-              href="/api-docs"
-              target="_blank"
-              rel="noreferrer"
-              className="flex items-center gap-1 hover:text-blue-400 transition"
-              title="Mở tài liệu Swagger API"
-            >
-              <span>API Docs</span>
-              <ExternalLink className="w-3 h-3" />
-            </a>
-          </div>
+        {/* 4. Sidebar Footer */}
+        <div className="p-3 border-t border-slate-800/80 bg-slate-950/60 backdrop-blur-md">
+          {isSidebarCollapsed ? (
+            <div className="flex flex-col items-center justify-center gap-2">
+              <button
+                onClick={toggleSidebarCollapse}
+                className="w-10 h-10 rounded-xl flex items-center justify-center text-slate-400 hover:text-white hover:bg-slate-800 transition group relative"
+                title="Mở rộng thanh menu"
+              >
+                <PanelLeftOpen className="w-5 h-5 text-blue-400" />
+                <div className="absolute left-full ml-3 px-3 py-1.5 bg-slate-900/95 backdrop-blur-md text-white text-xs font-semibold rounded-xl shadow-xl border border-slate-700 whitespace-nowrap hidden group-hover:block z-50 pointer-events-none">
+                  Mở rộng thanh menu
+                </div>
+              </button>
+            </div>
+          ) : (
+            <div className="flex items-center justify-between text-xs text-slate-400 px-1">
+              <span className="flex items-center gap-1.5 text-[11px]">
+                <Sparkles className="w-3.5 h-3.5 text-blue-400 shrink-0" />
+                <span className="font-medium">Phiên bản v1.0.0</span>
+              </span>
+
+              <div className="flex items-center gap-2">
+                <a
+                  href="/api-docs"
+                  target="_blank"
+                  rel="noreferrer"
+                  className="flex items-center gap-1 text-[11px] hover:text-blue-400 transition"
+                  title="Mở tài liệu Swagger API"
+                >
+                  <span>API</span>
+                  <ExternalLink className="w-3 h-3" />
+                </a>
+
+                {/* Nút thu gọn Sidebar ở footer */}
+                <button
+                  onClick={toggleSidebarCollapse}
+                  className="hidden lg:flex p-1 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition"
+                  title="Thu gọn menu"
+                >
+                  <PanelLeftClose className="w-4 h-4" />
+                </button>
+              </div>
+            </div>
+          )}
         </div>
       </aside>
 
@@ -428,13 +672,28 @@ export const MainLayout: React.FC = () => {
         {/* HEADER (Thanh điều hướng trên) */}
         {/* ========================================================= */}
         <header className="h-16 bg-white border-b border-slate-200 px-4 sm:px-6 flex items-center justify-between sticky top-0 z-30 shadow-xs print:hidden">
-          {/* Trái: Nút bật Sidebar trên Mobile & Tiêu đề Trang */}
-          <div className="flex items-center gap-3">
+          {/* Trái: Nút bật Sidebar trên Mobile / Thu gọn trên Desktop & Tiêu đề Trang */}
+          <div className="flex items-center gap-2.5 sm:gap-3">
+            {/* Nút bật Sidebar trên Mobile */}
             <button
               onClick={() => setIsSidebarOpen(true)}
-              className="lg:hidden p-2 rounded-xl text-slate-600 hover:text-slate-900 hover:bg-slate-100 focus:outline-none"
+              className="lg:hidden p-2 rounded-xl text-slate-600 hover:text-slate-900 hover:bg-slate-100 focus:outline-none transition"
+              title="Mở menu"
             >
               <Menu className="w-5 h-5" />
+            </button>
+
+            {/* Nút Thu gọn / Mở rộng Sidebar trên Desktop */}
+            <button
+              onClick={toggleSidebarCollapse}
+              className="hidden lg:flex p-2 rounded-xl text-slate-600 hover:text-slate-900 hover:bg-slate-100 focus:outline-none transition"
+              title={isSidebarCollapsed ? 'Mở rộng thanh menu' : 'Thu gọn thanh menu'}
+            >
+              {isSidebarCollapsed ? (
+                <PanelLeftOpen className="w-5 h-5 text-blue-600" />
+              ) : (
+                <PanelLeftClose className="w-5 h-5 text-slate-500" />
+              )}
             </button>
 
             <div>
@@ -453,6 +712,10 @@ export const MainLayout: React.FC = () => {
                   setShowNotifications(nextState);
                   setShowUserMenu(false);
                   if (nextState) {
+                    if (user?._id) {
+                      localStorage.setItem(`last_read_noti_${user._id}`, new Date().toISOString());
+                    }
+                    setUnreadCount(0);
                     fetchRealNotifications();
                   }
                 }}
@@ -482,13 +745,26 @@ export const MainLayout: React.FC = () => {
                           {notifications.length} bản ghi
                         </span>
                       </div>
-                      <button
-                        onClick={fetchRealNotifications}
-                        disabled={isLoadingNotifications}
-                        className="text-[11px] font-semibold text-slate-500 hover:text-blue-600 transition"
-                      >
-                        {isLoadingNotifications ? 'Đang tải...' : 'Làm mới'}
-                      </button>
+                      <div className="flex items-center gap-2">
+                        <button
+                          onClick={() => {
+                            if (user?._id) {
+                              localStorage.setItem(`last_read_noti_${user._id}`, new Date().toISOString());
+                            }
+                            setUnreadCount(0);
+                          }}
+                          className="text-[11px] font-semibold text-slate-500 hover:text-blue-600 transition"
+                        >
+                          Đã đọc
+                        </button>
+                        <button
+                          onClick={fetchRealNotifications}
+                          disabled={isLoadingNotifications}
+                          className="text-[11px] font-semibold text-slate-500 hover:text-blue-600 transition"
+                        >
+                          {isLoadingNotifications ? 'Đang tải...' : 'Làm mới'}
+                        </button>
+                      </div>
                     </div>
 
                     {isLoadingNotifications ? (
@@ -560,18 +836,13 @@ export const MainLayout: React.FC = () => {
                 }}
                 className="flex items-center gap-2 p-1.5 sm:px-3 sm:py-1.5 rounded-xl hover:bg-slate-100 transition border border-transparent hover:border-slate-200"
               >
-                {user?.avatar && !avatarError ? (
-                  <img
-                    src={getSafeMediaUrl(user.avatar)}
-                    alt={user?.fullName || 'Avatar'}
-                    className="w-8 h-8 rounded-lg object-cover shadow-sm border border-slate-200 shrink-0"
-                    onError={() => setAvatarError(true)}
-                  />
-                ) : (
-                  <div className="w-8 h-8 rounded-lg bg-blue-600 text-white font-bold text-xs flex items-center justify-center shadow-sm shrink-0">
-                    {getInitials(user?.fullName)}
-                  </div>
-                )}
+                <UserAvatar
+                  user={user}
+                  src={user?.avatar}
+                  avatarUrl={user?.avatar}
+                  name={user?.fullName || 'Cán bộ'}
+                  size="sm"
+                />
                 <div className="hidden md:flex flex-col text-left">
                   <span className="text-xs font-bold text-slate-800 leading-tight truncate max-w-[130px]">
                     {user?.fullName || 'Người dùng'}
@@ -590,17 +861,26 @@ export const MainLayout: React.FC = () => {
                     onClick={() => setShowUserMenu(false)}
                   />
                   <div className="absolute right-0 mt-2 w-64 bg-white rounded-2xl shadow-xl border border-slate-200 py-2 z-50 animate-in fade-in slide-in-from-top-2">
-                    <div className="px-4 py-3 border-b border-slate-100">
-                      <p className="text-xs font-bold text-slate-900">{user?.fullName}</p>
-                      <p className="text-xs text-slate-500 truncate">{user?.email}</p>
-                      <span
-                        className={cn(
-                          'inline-block text-[10px] font-semibold px-2 py-0.5 rounded-full border mt-2',
-                          getRoleBadgeStyle(user?.role)
-                        )}
-                      >
-                        {user ? ROLE_LABELS[user.role] : 'Cán bộ'}
-                      </span>
+                    <div className="px-4 py-3 border-b border-slate-100 flex items-center gap-3">
+                      <UserAvatar
+                        user={user}
+                        src={user?.avatar}
+                        avatarUrl={user?.avatar}
+                        name={user?.fullName || 'Cán bộ'}
+                        size="md"
+                      />
+                      <div className="min-w-0 flex-1">
+                        <p className="text-xs font-bold text-slate-900 truncate">{user?.fullName}</p>
+                        <p className="text-[11px] text-slate-500 truncate">{user?.email}</p>
+                        <span
+                          className={cn(
+                            'inline-block text-[10px] font-semibold px-2 py-0.5 rounded-full border mt-1',
+                            getRoleBadgeStyle(user?.role)
+                          )}
+                        >
+                          {user ? ROLE_LABELS[user.role] : 'Cán bộ'}
+                        </span>
+                      </div>
                     </div>
 
                     <div className="p-1 space-y-0.5">
@@ -641,7 +921,7 @@ export const MainLayout: React.FC = () => {
         {/* ========================================================= */}
         {/* NỘI DUNG CHÍNH CỦA TRANG (Page Content Outlet) */}
         {/* ========================================================= */}
-        <main className="flex-1 overflow-y-auto p-4 sm:p-6 lg:p-8 bg-slate-50">
+        <main className="flex-1 overflow-y-auto p-4 sm:p-6 lg:p-8 pb-28 sm:pb-32 bg-slate-50">
           <Outlet />
         </main>
       </div>

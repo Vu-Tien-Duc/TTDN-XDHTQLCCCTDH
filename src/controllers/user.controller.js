@@ -3,6 +3,7 @@ const bcrypt = require('bcryptjs');
 const User = require('../models/user.model');
 const Department = require('../models/department.model');
 const AuditLog = require('../models/auditLog.model');
+const RefreshToken = require('../models/refreshToken.model');
 const { sendSuccess, sendError } = require('../utils/responseHandler');
 const ERROR_CODES = require('../utils/errorCodes');
 const { euclideanDistance, FACE_MATCH_THRESHOLD, invalidateFaceCache } = require('../services/attendance.service');
@@ -463,6 +464,16 @@ const updateUser = async (req, res, next) => {
         await facultyDept.save(session ? { session } : {});
       }
 
+      // Thu hồi phiên đăng nhập: Nếu tài khoản bị khóa, thay đổi vai trò (role), hoặc đổi mật khẩu
+      if (
+        updateData.isActive === false ||
+        (updateData.role && updateData.role !== targetUser.role) ||
+        updateData.passwordHash
+      ) {
+        updateData.passwordChangedAt = new Date();
+        await RefreshToken.deleteMany({ userId: targetUser._id }).session(session || null);
+      }
+
       const resUser = await User.findByIdAndUpdate(
         req.params.id,
         updateData,
@@ -551,9 +562,11 @@ const deleteUser = async (req, res, next) => {
         );
       }
 
+      await RefreshToken.deleteMany({ userId: targetUser._id }).session(session || null);
+
       const updated = await User.findByIdAndUpdate(
         req.params.id,
-        { isActive: false },
+        { isActive: false, passwordChangedAt: new Date() },
         { returnDocument: 'after', session: session || undefined }
       );
 

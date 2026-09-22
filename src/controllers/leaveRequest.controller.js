@@ -55,10 +55,93 @@ const calculateLeaveDays = (startDate, endDate) => {
 };
 
 /**
+ * Tối ưu hóa Database: Tính số ngày phép đã sử dụng (APPROVED) và đang chờ duyệt (PENDING)
+ * trong năm bằng MongoDB Aggregation Pipeline thay vì tải dữ liệu về RAM để lặp qua JS.
+ */
+const getLeaveStatsByYear = async (userId, year) => {
+  const yearStart = new Date(year, 0, 1);
+  const yearEnd = new Date(year, 11, 31, 23, 59, 59, 999);
+
+  const [stats] = await LeaveRequest.aggregate([
+    {
+      $match: {
+        userId: new mongoose.Types.ObjectId(userId),
+        type: 'nghi_phep',
+        status: { $in: ['APPROVED', 'PENDING'] },
+        startDate: { $lte: yearEnd },
+        endDate: { $gte: yearStart },
+      },
+    },
+    {
+      $project: {
+        status: 1,
+        effectiveStart: { $max: ['$startDate', yearStart] },
+        effectiveEnd: { $min: ['$endDate', yearEnd] },
+      },
+    },
+    {
+      $project: {
+        status: 1,
+        leaveDays: {
+          $add: [
+            {
+              $round: [
+                {
+                  $divide: [
+                    { $subtract: ['$effectiveEnd', '$effectiveStart'] },
+                    86400000, // 1000 * 60 * 60 * 24
+                  ],
+                },
+                0,
+              ],
+            },
+            1,
+          ],
+        },
+      },
+    },
+    {
+      $group: {
+        _id: null,
+        daysUsed: {
+          $sum: { $cond: [{ $eq: ['$status', 'APPROVED'] }, '$leaveDays', 0] },
+        },
+        pendingDays: {
+          $sum: { $cond: [{ $eq: ['$status', 'PENDING'] }, '$leaveDays', 0] },
+        },
+      },
+    },
+  ]);
+
+  return {
+    daysUsed: stats?.daysUsed || 0,
+    pendingDays: stats?.pendingDays || 0,
+  };
+};
+
+// Khóa chống Race Condition: Ngăn chặn gửi 2 đơn đồng thời (Double-Click / Spam) từ cùng một user
+const activeLeaveSubmissions = new Set();
+
+/**
  * @desc Tạo đơn xin nghỉ phép / dạy bù / đổi ca
  * @route POST /api/leave-requests
  */
 const createLeaveRequest = async (req, res, next) => {
+  const userId = req.user?.id;
+  const lockKey = `leave_lock:${userId}`;
+
+  if (activeLeaveSubmissions.has(lockKey)) {
+    return sendError(
+      res,
+      'Yêu cầu nộp đơn xin nghỉ của bạn đang được xử lý. Vui lòng không nhấn nút gửi liên tục.',
+      null,
+      429,
+      'CONCURRENT_SUBMISSION_BLOCKED'
+    );
+  }
+
+  activeLeaveSubmissions.add(lockKey);
+
   try {
     // Quản trị viên (Admin) giữ quyền cao nhất hệ thống, không áp dụng tạo đơn xin nghỉ
     if (req.user.role === 'admin') {
@@ -72,8 +155,14 @@ const createLeaveRequest = async (req, res, next) => {
 
     const { type, reason, startDate, endDate, attachmentUrl } = req.body;
 
-    if (!type || !reason || !startDate || !endDate) {
-      return sendError(res, 'Vui lòng cung cấp loại đơn (type), lý do (reason), ngày bắt đầu và kết thúc.', null, 400);
+    // VULN-01: Kiểm tra kiểu dữ liệu nghiêm ngặt trước khi gọi hàm chuỗi
+    if (!type || typeof type !== 'string' || !reason || typeof reason !== 'string' || !startDate || !endDate) {
+      return sendError(res, 'Vui lòng cung cấp loại đơn (type), lý do (reason), ngày bắt đầu và kết thúc dạng hợp lệ.', null, 400);
+    }
+
+    const validTypes = ['nghi_phep', 'day_bu', 'doi_ca'];
+    if (!validTypes.includes(type)) {
+      return sendError(res, 'Loại đơn không hợp lệ. Chỉ chấp nhận: nghi_phep, day_bu, doi_ca.', null, 400);
     }
 
     const start = new Date(startDate);
@@ -85,6 +174,13 @@ const createLeaveRequest = async (req, res, next) => {
 
     if (end < start) {
       return sendError(res, 'Ngày kết thúc không thể trước ngày bắt đầu.', null, 400);
+    }
+
+    // FLAW-01: Chặn nộp đơn lùi về các ngày trong quá khứ
+    const todayStart = new Date();
+    todayStart.setHours(0, 0, 0, 0);
+    if (start < todayStart) {
+      return sendError(res, 'Không thể nộp đơn xin nghỉ lùi về các ngày trong quá khứ.', null, 400);
     }
 
     const normalizedReason = reason.trim();
@@ -114,43 +210,36 @@ const createLeaveRequest = async (req, res, next) => {
 
     // Kiểm tra hạn mức ngày phép năm nếu nộp đơn nghỉ phép thường
     if (type === 'nghi_phep') {
-      const requestedDays = calculateLeaveDays(start, end);
       const currentYear = new Date().getFullYear();
       const yearStart = new Date(currentYear, 0, 1);
       const yearEnd = new Date(currentYear, 11, 31, 23, 59, 59, 999);
 
+      // FLAW-03: Chỉ tính số ngày nghỉ rơi đúng vào năm đang xét
+      const currentYearLeavesStart = new Date(Math.max(start.getTime(), yearStart.getTime()));
+      const currentYearLeavesEnd = new Date(Math.min(end.getTime(), yearEnd.getTime()));
+      const requestedDaysInYear = calculateLeaveDays(currentYearLeavesStart, currentYearLeavesEnd);
+
       const user = await User.findById(req.user.id);
       const quota = user?.annualLeaveQuota !== undefined ? user.annualLeaveQuota : 12;
 
-      const approvedLeaves = await LeaveRequest.find({
-        userId: req.user.id,
-        status: 'APPROVED',
-        type: 'nghi_phep',
-        startDate: { $lte: yearEnd },
-        endDate: { $gte: yearStart },
-      });
+      // FLAW-02: Tối ưu Aggregation Pipeline - tính tổng ngày phép chiếm dụng (APPROVED + PENDING)
+      const { daysUsed, pendingDays } = await getLeaveStatsByYear(req.user.id, currentYear);
+      const daysOccupied = daysUsed + pendingDays;
 
-      let daysUsed = 0;
-      for (const leave of approvedLeaves) {
-        const effectiveStart = new Date(Math.max(leave.startDate.getTime(), yearStart.getTime()));
-        const effectiveEnd = new Date(Math.min(leave.endDate.getTime(), yearEnd.getTime()));
-        daysUsed += calculateLeaveDays(effectiveStart, effectiveEnd);
-      }
-
-      const remainingDays = Math.max(0, quota - daysUsed);
-      if (remainingDays <= 0) {
+      const availableDays = Math.max(0, quota - daysOccupied);
+      if (availableDays <= 0) {
         return sendError(
           res,
-          `Bạn đã sử dụng hết ${quota} ngày phép năm. Vui lòng chọn loại đơn "Đăng ký dạy bù" hoặc "Xin đổi ca dạy".`,
+          `Bạn đã sử dụng hoặc đang có đơn chờ duyệt hết ${quota} ngày phép năm. Vui lòng chọn loại đơn "Đăng ký dạy bù" hoặc "Xin đổi ca dạy".`,
           null,
           400
         );
       }
 
-      if (requestedDays > remainingDays) {
+      if (requestedDaysInYear > availableDays) {
         return sendError(
           res,
-          `Số ngày xin nghỉ (${requestedDays} ngày) vượt quá số ngày phép còn lại khả dụng (${remainingDays} ngày).`,
+          `Số ngày xin nghỉ thuộc năm ${currentYear} (${requestedDaysInYear} ngày) vượt quá số ngày phép khả dụng (${availableDays} ngày, đã bao gồm các đơn đang chờ duyệt).`,
           null,
           400
         );
@@ -158,7 +247,7 @@ const createLeaveRequest = async (req, res, next) => {
     }
 
     // Nếu người dùng tải file trực tiếp qua multipart/form-data thì lấy req.file, ngược lại dùng attachmentUrl
-    let finalAttachmentUrl = attachmentUrl || null;
+    let finalAttachmentUrl = typeof attachmentUrl === 'string' ? attachmentUrl.trim() : null;
     if (req.file) {
       finalAttachmentUrl = `/uploads/${req.file.filename}`;
     }
@@ -175,7 +264,20 @@ const createLeaveRequest = async (req, res, next) => {
 
     return sendSuccess(res, 'Gửi đơn thành công.', leaveRequest, 201);
   } catch (error) {
+    if (error.code === 11000) {
+      return sendError(
+        res,
+        'Bạn đã có một đơn nghỉ trùng lặp thời gian đang chờ duyệt hoặc đã duyệt trong hệ thống.',
+        null,
+        409,
+        'DUPLICATE_LEAVE_REQUEST'
+      );
+    }
     next(error);
+  } finally {
+    if (lockKey) {
+      activeLeaveSubmissions.delete(lockKey);
+    }
   }
 };
 
@@ -188,8 +290,15 @@ const getLeaveRequests = async (req, res, next) => {
     const { status, type, userId } = req.query;
     const query = {};
 
-    if (status) query.status = status;
-    if (type) query.type = type;
+    if (status && typeof status === 'string') query.status = status;
+    if (type && typeof type === 'string') query.type = type;
+
+    // VULN-02: Sanitize userId query để chống NoSQL Injection
+    if (userId) {
+      if (typeof userId !== 'string' || !mongoose.Types.ObjectId.isValid(userId)) {
+        return sendError(res, 'Mã người dùng (userId) không hợp lệ.', null, 400);
+      }
+    }
 
     if (req.user.role === 'giangvien' || req.user.role === 'nhanvien') {
       // Giảng viên / nhân viên mặc định chỉ xem đơn của mình
@@ -226,6 +335,11 @@ const getLeaveRequests = async (req, res, next) => {
  */
 const getLeaveRequestById = async (req, res, next) => {
   try {
+    // VULN-03: Validate id param
+    if (!mongoose.Types.ObjectId.isValid(req.params.id)) {
+      return sendError(res, 'Mã đơn (id) không hợp lệ.', null, 400);
+    }
+
     const request = await LeaveRequest.findById(req.params.id)
       .populate('userId', 'fullName email role departmentId')
       .populate('approvedBy', 'fullName email role');
@@ -263,6 +377,11 @@ const getLeaveBalance = async (req, res, next) => {
 
     // Kiểm tra phân quyền: Giảng viên / Nhân viên chỉ xem của chính mình
     if (req.query.userId && req.query.userId !== req.user.id) {
+      // VULN-02: Sanitize userId query
+      if (typeof req.query.userId !== 'string' || !mongoose.Types.ObjectId.isValid(req.query.userId)) {
+        return sendError(res, 'Mã người dùng (userId) không hợp lệ.', null, 400);
+      }
+
       if (req.user.role === 'giangvien' || req.user.role === 'nhanvien') {
         return sendError(res, 'Bạn chỉ có quyền tra cứu số dư ngày phép của chính mình.', null, 403);
       }
@@ -298,41 +417,9 @@ const getLeaveBalance = async (req, res, next) => {
     }
 
     const quota = user.annualLeaveQuota !== undefined ? user.annualLeaveQuota : 12;
-    const yearStart = new Date(currentYear, 0, 1);
-    const yearEnd = new Date(currentYear, 11, 31, 23, 59, 59, 999);
 
-    // 1. Tính tổng số ngày nghỉ đã được phê duyệt (APPROVED) trong năm
-    const approvedLeaves = await LeaveRequest.find({
-      userId: targetUserId,
-      status: 'APPROVED',
-      type: 'nghi_phep',
-      startDate: { $lte: yearEnd },
-      endDate: { $gte: yearStart },
-    });
-
-    let daysUsed = 0;
-    for (const leave of approvedLeaves) {
-      const effectiveStart = new Date(Math.max(leave.startDate.getTime(), yearStart.getTime()));
-      const effectiveEnd = new Date(Math.min(leave.endDate.getTime(), yearEnd.getTime()));
-      daysUsed += calculateLeaveDays(effectiveStart, effectiveEnd);
-    }
-
-    // 2. Tính tổng số ngày nghỉ đang chờ xét duyệt (PENDING) trong năm
-    const pendingLeaves = await LeaveRequest.find({
-      userId: targetUserId,
-      status: 'PENDING',
-      type: 'nghi_phep',
-      startDate: { $lte: yearEnd },
-      endDate: { $gte: yearStart },
-    });
-
-    let pendingDays = 0;
-    for (const leave of pendingLeaves) {
-      const effectiveStart = new Date(Math.max(leave.startDate.getTime(), yearStart.getTime()));
-      const effectiveEnd = new Date(Math.min(leave.endDate.getTime(), yearEnd.getTime()));
-      pendingDays += calculateLeaveDays(effectiveStart, effectiveEnd);
-    }
-
+    // Tối ưu hóa Database: Sử dụng Aggregation Pipeline duy nhất để tính song song daysUsed và pendingDays
+    const { daysUsed, pendingDays } = await getLeaveStatsByYear(targetUserId, currentYear);
     const remainingDays = Math.max(0, quota - daysUsed);
 
     return sendSuccess(res, 'Tính số dư ngày phép thành công.', {
@@ -411,6 +498,11 @@ const validateLeaveApprovalPermission = async (currentUser, leaveRequest) => {
  */
 const approveLeaveRequest = async (req, res, next) => {
   try {
+    // VULN-03: Validate id param
+    if (!mongoose.Types.ObjectId.isValid(req.params.id)) {
+      return sendError(res, 'Mã đơn (id) không hợp lệ.', null, 400);
+    }
+
     const request = await LeaveRequest.findById(req.params.id);
     if (!request) {
       return sendError(res, 'Không tìm thấy đơn xin.', null, 404);
@@ -428,45 +520,50 @@ const approveLeaveRequest = async (req, res, next) => {
 
     // Nếu là đơn nghỉ phép thường, kiểm tra xem người nộp đơn còn đủ số dư phép hay không
     if (request.type === 'nghi_phep') {
-      const requestedDays = calculateLeaveDays(request.startDate, request.endDate);
       const currentYear = new Date().getFullYear();
       const yearStart = new Date(currentYear, 0, 1);
       const yearEnd = new Date(currentYear, 11, 31, 23, 59, 59, 999);
 
+      // FLAW-03: Chỉ tính số ngày xin nghỉ thuộc năm đang xét
+      const currentYearLeavesStart = new Date(Math.max(request.startDate.getTime(), yearStart.getTime()));
+      const currentYearLeavesEnd = new Date(Math.min(request.endDate.getTime(), yearEnd.getTime()));
+      const requestedDays = calculateLeaveDays(currentYearLeavesStart, currentYearLeavesEnd);
+
       const applicantUser = await User.findById(request.userId);
       const quota = applicantUser?.annualLeaveQuota !== undefined ? applicantUser.annualLeaveQuota : 12;
 
-      const approvedLeaves = await LeaveRequest.find({
-        userId: request.userId,
-        status: 'APPROVED',
-        type: 'nghi_phep',
-        startDate: { $lte: yearEnd },
-        endDate: { $gte: yearStart },
-      });
-
-      let daysUsed = 0;
-      for (const leave of approvedLeaves) {
-        const effectiveStart = new Date(Math.max(leave.startDate.getTime(), yearStart.getTime()));
-        const effectiveEnd = new Date(Math.min(leave.endDate.getTime(), yearEnd.getTime()));
-        daysUsed += calculateLeaveDays(effectiveStart, effectiveEnd);
-      }
+      // Tối ưu Aggregation Pipeline: Tính số ngày đã sử dụng trực tiếp trên Database
+      const { daysUsed } = await getLeaveStatsByYear(request.userId, currentYear);
 
       const remainingDays = Math.max(0, quota - daysUsed);
       if (requestedDays > remainingDays) {
         return sendError(
           res,
-          `Không thể phê duyệt đơn: Cán bộ/giảng viên chỉ còn ${remainingDays} ngày phép khả dụng, đơn này xin nghỉ ${requestedDays} ngày.`,
+          `Không thể phê duyệt đơn: Cán bộ/giảng viên chỉ còn ${remainingDays} ngày phép khả dụng, đơn này xin nghỉ ${requestedDays} ngày trong năm ${currentYear}.`,
           null,
           400
         );
       }
     }
 
-    request.status = 'APPROVED';
-    request.approvedBy = req.user.id;
-    request.approvalNote = typeof req.body.approvalNote === 'string' ? req.body.approvalNote.trim() : '';
-    request.rejectionReason = null;
-    await request.save();
+    // VULN-04: Atomic State Transition chống Race Condition / TOCTOU
+    const approvalNote = typeof req.body.approvalNote === 'string' ? req.body.approvalNote.trim() : '';
+    const updatedRequest = await LeaveRequest.findOneAndUpdate(
+      { _id: req.params.id, status: 'PENDING' },
+      {
+        $set: {
+          status: 'APPROVED',
+          approvedBy: req.user.id,
+          approvalNote,
+          rejectionReason: null,
+        },
+      },
+      { new: true }
+    );
+
+    if (!updatedRequest) {
+      return sendError(res, 'Đơn không còn ở trạng thái chờ duyệt hoặc đã được xử lý bởi người khác.', null, 409);
+    }
 
     // Tích hợp chéo với Module Attendance (TV B):
     // Khi đơn được duyệt (APPROVED), tự động tạo/cập nhật bản ghi attendance_logs với status = 'EXCUSED_ABSENCE' và gán leaveRequestId
@@ -477,45 +574,44 @@ const approveLeaveRequest = async (req, res, next) => {
         endDate: { $gte: request.startDate },
       });
 
+      const bulkOps = [];
       for (const sch of schedules) {
         const occurrenceStart = new Date(Math.max(request.startDate.getTime(), sch.startDate.getTime()));
         const occurrenceEnd = new Date(Math.min(request.endDate.getTime(), sch.endDate.getTime()));
         const occurrenceDates = getLeaveOccurrenceDates(occurrenceStart, occurrenceEnd, sch.weekday);
 
         for (const occurrenceDate of occurrenceDates) {
-          const occurrenceEndOfDay = new Date(occurrenceDate.getTime() + 24 * 60 * 60 * 1000 - 1);
-
-          // Tìm bản ghi điểm danh hiện có của ngày này (kể cả bản ghi ABSENT do Cron tạo có checkInTime = null)
-          const existingLog = await AttendanceLog.findOne({
-            userId: request.userId,
-            scheduleId: sch._id,
-            $or: [
-              { checkInTime: { $gte: occurrenceDate, $lte: occurrenceEndOfDay } },
-              { createdAt: { $gte: occurrenceDate, $lte: occurrenceEndOfDay } },
-              { leaveRequestId: request._id },
-            ],
+          const workDateStr = getVietnamDateKey(occurrenceDate);
+          bulkOps.push({
+            updateOne: {
+              filter: {
+                userId: request.userId,
+                scheduleId: sch._id,
+                workDate: workDateStr,
+              },
+              update: {
+                $set: {
+                  status: 'EXCUSED_ABSENCE',
+                  leaveRequestId: request._id,
+                  checkInTime: null,
+                  checkOutTime: null,
+                },
+                $setOnInsert: {
+                  shiftId: sch.shiftId,
+                  method: 'system',
+                  deviceId: 'SYSTEM_LEAVE',
+                  isManualOverride: false,
+                },
+              },
+              upsert: true,
+            },
           });
-
-          if (existingLog) {
-            existingLog.status = 'EXCUSED_ABSENCE';
-            existingLog.leaveRequestId = request._id;
-            existingLog.checkInTime = null;
-            existingLog.checkOutTime = null;
-            await existingLog.save();
-          } else {
-            await AttendanceLog.create({
-              userId: request.userId,
-              shiftId: sch.shiftId,
-              scheduleId: sch._id,
-              status: 'EXCUSED_ABSENCE',
-              leaveRequestId: request._id,
-              checkInTime: null,
-              checkOutTime: null,
-              isManualOverride: false,
-              method: 'manual',
-            });
-          }
         }
+      }
+
+      // Tối ưu N+1 Query: Sử dụng bulkWrite để thực thi tất cả các bản ghi điểm danh trong 1 network round-trip
+      if (bulkOps.length > 0) {
+        await AttendanceLog.bulkWrite(bulkOps, { ordered: false });
       }
     }
 
@@ -545,7 +641,7 @@ const approveLeaveRequest = async (req, res, next) => {
       });
     }
 
-    return sendSuccess(res, 'Đã phê duyệt đơn thành công và đồng bộ chấm công có phép (EXCUSED_ABSENCE).', request);
+    return sendSuccess(res, 'Đã phê duyệt đơn thành công và đồng bộ chấm công có phép (EXCUSED_ABSENCE).', updatedRequest);
   } catch (error) {
     next(error);
   }
@@ -557,10 +653,16 @@ const approveLeaveRequest = async (req, res, next) => {
  */
 const rejectLeaveRequest = async (req, res, next) => {
   try {
+    // VULN-03: Validate id param
+    if (!mongoose.Types.ObjectId.isValid(req.params.id)) {
+      return sendError(res, 'Mã đơn (id) không hợp lệ.', null, 400);
+    }
+
     const { rejectionReason } = req.body;
 
-    if (!rejectionReason || rejectionReason.trim() === '') {
-      return sendError(res, 'Lý do từ chối (rejectionReason) là bắt buộc khi từ chối đơn.', null, 400);
+    // VULN-01: Kiểm tra kiểu dữ liệu nghiêm ngặt
+    if (!rejectionReason || typeof rejectionReason !== 'string' || !rejectionReason.trim()) {
+      return sendError(res, 'Lý do từ chối (rejectionReason) là chuỗi bắt buộc khi từ chối đơn.', null, 400);
     }
 
     const request = await LeaveRequest.findById(req.params.id);
@@ -578,10 +680,22 @@ const rejectLeaveRequest = async (req, res, next) => {
       return sendError(res, permCheck.message, null, permCheck.status || 403);
     }
 
-    request.status = 'REJECTED';
-    request.approvedBy = req.user.id;
-    request.rejectionReason = rejectionReason.trim();
-    await request.save();
+    // VULN-04: Atomic State Transition chống Race Condition / TOCTOU
+    const updatedRequest = await LeaveRequest.findOneAndUpdate(
+      { _id: req.params.id, status: 'PENDING' },
+      {
+        $set: {
+          status: 'REJECTED',
+          approvedBy: req.user.id,
+          rejectionReason: rejectionReason.trim(),
+        },
+      },
+      { new: true }
+    );
+
+    if (!updatedRequest) {
+      return sendError(res, 'Đơn không còn ở trạng thái chờ duyệt hoặc đã được xử lý bởi người khác.', null, 409);
+    }
 
     // Ghi audit log
     await AuditLog.create({
@@ -609,7 +723,7 @@ const rejectLeaveRequest = async (req, res, next) => {
       });
     }
 
-    return sendSuccess(res, 'Đã từ chối đơn thành công.', request);
+    return sendSuccess(res, 'Đã từ chối đơn thành công.', updatedRequest);
   } catch (error) {
     next(error);
   }
@@ -623,4 +737,5 @@ module.exports = {
   approveLeaveRequest,
   rejectLeaveRequest,
   calculateLeaveDays,
+  getLeaveStatsByYear,
 };
