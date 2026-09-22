@@ -731,7 +731,6 @@ export const FaceCheckInKiosk: React.FC = () => {
       const res = await attendanceApi.faceCheckIn({
         faceDescriptor: descriptorArray,
         mode: kioskModeRef.current,
-        location: is2FaGpsEnabled && kioskCoords ? kioskCoords : undefined,
       });
 
       if (res && res.success) {

@@ -19,6 +19,9 @@ import reportService, {
   AttendanceReportData,
   MonthlyStaffReportItem,
 } from '../../services/report.service';
+import departmentService from '../../services/departmentService';
+import { useAuth } from '../../contexts/AuthContext';
+import { Department } from '../../types';
 import BarChart, { BarDataPoint } from '../../components/charts/BarChart';
 import DonutChart, { DonutSegment } from '../../components/charts/DonutChart';
 import LineTrendChart, { TrendPoint } from '../../components/charts/LineTrendChart';
@@ -26,9 +29,13 @@ import { exportAttendanceToExcel, triggerPrintPdf } from '../../utils/exportUtil
 import { formatDate } from '../../utils';
 
 export const AttendanceDashboardPage: React.FC = () => {
+  const { user } = useAuth();
   const [selectedMonth, setSelectedMonth] = useState<number>(new Date().getMonth() + 1);
   const [selectedYear, setSelectedYear] = useState<number>(new Date().getFullYear());
+  const [selectedDepartment, setSelectedDepartment] = useState<string>('');
+  const [departments, setDepartments] = useState<Department[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
+  const [isExporting, setIsExporting] = useState<boolean>(false);
   const [showGuide, setShowGuide] = useState<boolean>(true);
   const [searchTerm, setSearchTerm] = useState<string>('');
 
@@ -36,16 +43,29 @@ export const AttendanceDashboardPage: React.FC = () => {
   const [staffList, setStaffList] = useState<MonthlyStaffReportItem[]>([]);
   const [weeklyTrend, setWeeklyTrend] = useState<TrendPoint[]>([]);
 
+  // Tải danh mục phòng ban nếu là Admin hoặc Trưởng khoa
+  useEffect(() => {
+    if (user?.role === 'admin' || user?.role === 'truongkhoa') {
+      departmentService
+        .getAllDepartments()
+        .then((depts) => {
+          if (Array.isArray(depts)) setDepartments(depts);
+        })
+        .catch(() => {});
+    }
+  }, [user]);
+
   const fetchDashboardData = async () => {
     setLoading(true);
     try {
       const firstDayOfMonth = new Date(selectedYear, selectedMonth - 1, 1).toISOString();
       const lastDayOfMonth = new Date(selectedYear, selectedMonth, 0, 23, 59, 59, 999).toISOString();
 
-      // 1. Lấy dữ liệu tổng hợp theo tháng và năm đã chọn
+      // 1. Lấy dữ liệu tổng hợp theo tháng, năm và đơn vị đã chọn
       const summaryRes = await reportService.getAttendanceReport({
         from: firstDayOfMonth,
         to: lastDayOfMonth,
+        departmentId: selectedDepartment || undefined,
       });
       if (summaryRes.success && summaryRes.data) {
         setSummary(summaryRes.data);
@@ -55,6 +75,7 @@ export const AttendanceDashboardPage: React.FC = () => {
       const monthlyRes = await reportService.getMonthlyReport({
         month: selectedMonth,
         year: selectedYear,
+        departmentId: selectedDepartment || undefined,
       });
       if (monthlyRes.success && monthlyRes.data) {
         if (monthlyRes.data.report) {
@@ -73,7 +94,7 @@ export const AttendanceDashboardPage: React.FC = () => {
 
   useEffect(() => {
     fetchDashboardData();
-  }, [selectedMonth, selectedYear]);
+  }, [selectedMonth, selectedYear, selectedDepartment]);
 
   // Tính tỷ lệ chuyên cần tổng quan
   const totalShifts = summary?.totalRecords || 0;
@@ -123,20 +144,85 @@ export const AttendanceDashboardPage: React.FC = () => {
       return weeklyTrend;
     }
     return [
-      { label: 'Tuần 1', rate: overallAttendanceRate, lateRate: Math.max(0, 100 - overallAttendanceRate) },
-      { label: 'Tuần 2', rate: overallAttendanceRate, lateRate: Math.max(0, 100 - overallAttendanceRate) },
-      { label: 'Tuần 3', rate: overallAttendanceRate, lateRate: Math.max(0, 100 - overallAttendanceRate) },
-      { label: 'Tuần 4', rate: overallAttendanceRate, lateRate: Math.max(0, 100 - overallAttendanceRate) },
+      { label: 'Tuần 1', rate: overallAttendanceRate, lateRate: Math.max(0, 100 - (overallAttendanceRate ?? 0)) },
+      { label: 'Tuần 2', rate: overallAttendanceRate, lateRate: Math.max(0, 100 - (overallAttendanceRate ?? 0)) },
+      { label: 'Tuần 3', rate: overallAttendanceRate, lateRate: Math.max(0, 100 - (overallAttendanceRate ?? 0)) },
+      { label: 'Tuần 4', rate: overallAttendanceRate, lateRate: Math.max(0, 100 - (overallAttendanceRate ?? 0)) },
     ];
   }, [weeklyTrend, overallAttendanceRate]);
 
-  // Xuất Excel
-  const handleExportExcel = () => {
+  // Xuất Excel 5 sheets chuẩn với dữ liệu thực từ MongoDB
+  const handleExportExcel = async () => {
+    if (isExporting) return;
+    setIsExporting(true);
+    const toastId = toast.loading('Đang khởi tạo dữ liệu và kết xuất file Excel 5 Sheets...');
     try {
-      exportAttendanceToExcel(summary, staffList, selectedMonth, selectedYear);
-      toast.success('Đã xuất file Excel thành công!', { icon: '📊' });
+      const res = await reportService.getExportData({
+        month: selectedMonth,
+        year: selectedYear,
+        departmentId: selectedDepartment || undefined,
+      });
+
+      if (res.success && res.data) {
+        let exportData = res.data;
+
+        // Nếu người dùng đang tìm kiếm nhân sự, lọc nhất quán trên tất cả các sheet liên quan
+        if (searchTerm.trim()) {
+          const term = searchTerm.toLowerCase();
+          const filteredStaff = exportData.staffStats.filter(
+            (s) =>
+              s.fullName.toLowerCase().includes(term) ||
+              s.email.toLowerCase().includes(term) ||
+              s.departmentName.toLowerCase().includes(term) ||
+              s.role.toLowerCase().includes(term)
+          );
+          const staffNames = new Set(filteredStaff.map((s) => s.fullName.toLowerCase()));
+
+          const filteredLogs = exportData.attendanceLogs.filter((l) =>
+            staffNames.has(l.fullName.toLowerCase())
+          );
+          const filteredLeaves = exportData.leaveRequests.filter((r) =>
+            staffNames.has(r.fullName.toLowerCase())
+          );
+
+          // Cập nhật lại tổng số ca cho overview khi có filter cá nhân
+          const filteredTotalShifts = filteredLogs.length;
+          const filteredOnTime = filteredLogs.filter((l) => l.statusCode === 'ON_TIME').length;
+          const filteredLate = filteredLogs.filter((l) => l.statusCode === 'LATE').length;
+          const filteredEarly = filteredLogs.filter((l) => l.statusCode === 'EARLY_LEAVE').length;
+          const filteredAbsent = filteredLogs.filter((l) => l.statusCode === 'ABSENT').length;
+          const filteredExcused = filteredLogs.filter((l) => l.statusCode === 'EXCUSED_ABSENCE').length;
+          const valid = filteredOnTime + filteredExcused;
+          const rate = filteredTotalShifts > 0 ? Math.round((valid / filteredTotalShifts) * 100) : 100;
+
+          exportData = {
+            ...exportData,
+            overview: {
+              ...exportData.overview,
+              totalUsers: filteredStaff.length,
+              totalShifts: filteredTotalShifts,
+              onTimeCount: filteredOnTime,
+              lateCount: filteredLate,
+              earlyLeaveCount: filteredEarly,
+              absentCount: filteredAbsent,
+              excusedAbsenceCount: filteredExcused,
+              overallAttendanceRate: rate,
+            },
+            staffStats: filteredStaff,
+            attendanceLogs: filteredLogs,
+            leaveRequests: filteredLeaves,
+          };
+        }
+
+        exportAttendanceToExcel(exportData);
+        toast.success('Đã xuất file Excel 5 sheet chi tiết thành công!', { id: toastId, icon: '📊' });
+      } else {
+        toast.error(res.message || 'Lỗi khi xuất file Excel.', { id: toastId });
+      }
     } catch {
-      toast.error('Lỗi khi xuất file Excel.');
+      toast.error('Lỗi kết nối khi trích xuất dữ liệu Excel.', { id: toastId });
+    } finally {
+      setIsExporting(false);
     }
   };
 
@@ -201,6 +287,22 @@ export const AttendanceDashboardPage: React.FC = () => {
             ))}
           </select>
 
+          {/* Department Filter (Admin & Dean) */}
+          {departments.length > 0 && (
+            <select
+              value={selectedDepartment}
+              onChange={(e) => setSelectedDepartment(e.target.value)}
+              className="px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500/20 max-w-[190px] truncate"
+            >
+              <option value="">-- Tất cả đơn vị --</option>
+              {departments.map((dept) => (
+                <option key={dept._id} value={dept._id}>
+                  {dept.name}
+                </option>
+              ))}
+            </select>
+          )}
+
           {/* Toggle Guide */}
           <button
             onClick={() => setShowGuide(!showGuide)}
@@ -215,13 +317,18 @@ export const AttendanceDashboardPage: React.FC = () => {
             <span>{showGuide ? 'Ẩn giải thích' : '💡 Giải thích chỉ số'}</span>
           </button>
 
-          {/* Export Excel */}
+          {/* Export Excel (5 Sheets) */}
           <button
             onClick={handleExportExcel}
-            className="px-3 py-2 bg-emerald-600 hover:bg-emerald-700 active:scale-95 text-white text-xs font-bold rounded-xl shadow-sm transition-all flex items-center gap-1.5"
+            disabled={isExporting}
+            className="px-3 py-2 bg-emerald-600 hover:bg-emerald-700 disabled:bg-emerald-400 active:scale-95 text-white text-xs font-bold rounded-xl shadow-sm transition-all flex items-center gap-1.5 cursor-pointer disabled:cursor-not-allowed"
           >
-            <FileSpreadsheet className="w-3.5 h-3.5" />
-            <span>Xuất Excel</span>
+            {isExporting ? (
+              <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+            ) : (
+              <FileSpreadsheet className="w-3.5 h-3.5" />
+            )}
+            <span>{isExporting ? 'Đang xuất Excel...' : 'Xuất Excel'}</span>
           </button>
 
           {/* Export PDF */}
@@ -234,6 +341,7 @@ export const AttendanceDashboardPage: React.FC = () => {
           </button>
         </div>
       </div>
+
 
       {/* Explanations Panel (Giải thích dễ hiểu các chỉ số) */}
       {showGuide && (

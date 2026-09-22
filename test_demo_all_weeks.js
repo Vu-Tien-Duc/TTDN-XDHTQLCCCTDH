@@ -59,10 +59,12 @@ async function runTests() {
 
   let server = null;
   try {
+    if (mongoose.connection.readyState === 0) {
+      await connectDB();
+    }
     const testPing = await fetch(`${BASE_URL}/health`).catch(() => null);
     if (!testPing || testPing.status !== 200) {
-      console.log('🔄 Đang tự động kết nối CSDL và khởi động máy chủ API Express (Port 5000)...');
-      await connectDB();
+      console.log('🔄 Đang tự động khởi động máy chủ API Express (Port 5000)...');
       server = app.listen(5000);
       await new Promise((r) => setTimeout(r, 1200));
     }
@@ -230,9 +232,14 @@ async function runTests() {
         name: 'Ca Test Toàn Ngày',
         startTime: '00:00',
         endTime: '23:59',
-        lateThresholdMinutes: 15,
+        lateThresholdMinutes: 1440,
         isActive: true,
       });
+    } else {
+      allDayShift.startTime = '00:00';
+      allDayShift.endTime = '23:59';
+      allDayShift.lateThresholdMinutes = 1440;
+      await allDayShift.save();
     }
     await Schedule.deleteMany({ userId: lecturerId, weekday: todayWeekday });
     await Schedule.create({

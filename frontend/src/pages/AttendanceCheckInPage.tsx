@@ -46,8 +46,17 @@ type TabType = 'gps' | 'qr' | 'manual';
 export const AttendanceCheckInPage: React.FC = () => {
   const { user } = useAuth();
 
-  // Tab chuyển đổi phương thức điểm danh
-  const [activeTab, setActiveTab] = useState<TabType>('gps');
+  // Tab chuyển đổi phương thức điểm danh (hỗ trợ điều hướng qua URL query param: ?tab=gps|qr|manual)
+  const [activeTab, setActiveTab] = useState<TabType>(() => {
+    try {
+      const params = new URLSearchParams(window.location.search);
+      const tabParam = params.get('tab');
+      if (tabParam === 'gps' || tabParam === 'qr') {
+        return tabParam;
+      }
+    } catch {}
+    return 'gps';
+  });
 
   // Đồng hồ thời gian thực
   const [currentTime, setCurrentTime] = useState(new Date());
