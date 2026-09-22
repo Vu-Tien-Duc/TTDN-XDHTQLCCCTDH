@@ -14,7 +14,7 @@ const uploadSingleFile = async (req, res, next) => {
       return sendError(res, 'Vui lòng chọn file cần tải lên.', null, 400);
     }
 
-    const fileUrl = `/uploads/${file.filename}`;
+    const fileUrl = `/api/uploads/${file.filename}`;
     const baseUrl = getBaseUrl(req);
     const fullUrl = `${baseUrl}${fileUrl}`;
 

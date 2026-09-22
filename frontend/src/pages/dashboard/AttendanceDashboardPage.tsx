@@ -41,6 +41,8 @@ export const AttendanceDashboardPage: React.FC = () => {
   const [showGuide, setShowGuide] = useState<boolean>(true);
   const [searchTerm, setSearchTerm] = useState<string>('');
   const [currentPage, setCurrentPage] = useState<number>(1);
+  const [totalServerUsers, setTotalServerUsers] = useState<number>(0);
+  const [serverTotalPages, setServerTotalPages] = useState<number>(1);
   const pageSize = 10;
 
   const [summary, setSummary] = useState<AttendanceReportData | null>(null);
@@ -75,7 +77,7 @@ export const AttendanceDashboardPage: React.FC = () => {
         setSummary(summaryRes.data);
       }
 
-      // 2. Lấy danh sách chi tiết theo tháng và xu hướng các tuần thực tế từ MongoDB
+      // 2. Lấy danh sách chi tiết theo tháng có phân trang server-side
       const monthlyRes = await reportService.getMonthlyReport({
         month: selectedMonth,
         year: selectedYear,
@@ -84,6 +86,13 @@ export const AttendanceDashboardPage: React.FC = () => {
       if (monthlyRes.success && monthlyRes.data) {
         if (monthlyRes.data.report) {
           setStaffList(monthlyRes.data.report);
+        }
+        if (monthlyRes.data.pagination) {
+          setServerTotalPages(monthlyRes.data.pagination.totalPages || 1);
+          setTotalServerUsers(monthlyRes.data.pagination.totalUsers || monthlyRes.data.totalUsers);
+        } else if (monthlyRes.data.totalUsers) {
+          setTotalServerUsers(monthlyRes.data.totalUsers);
+          setServerTotalPages(Math.ceil(monthlyRes.data.totalUsers / pageSize) || 1);
         }
         if (monthlyRes.data.weeklyTrend && monthlyRes.data.weeklyTrend.length > 0) {
           setWeeklyTrend(monthlyRes.data.weeklyTrend);
@@ -128,11 +137,16 @@ export const AttendanceDashboardPage: React.FC = () => {
     );
   }, [staffList, searchTerm]);
 
-  const totalPages = Math.ceil(filteredStaffList.length / pageSize) || 1;
+  const effectiveTotalPages = searchTerm.trim()
+    ? Math.ceil(filteredStaffList.length / pageSize) || 1
+    : serverTotalPages;
+
   const paginatedStaffList = useMemo(() => {
+    // Nếu backend đã phân trang và trả về danh sách trong giới hạn pageSize
+    if (staffList.length <= pageSize) return filteredStaffList;
     const start = (currentPage - 1) * pageSize;
     return filteredStaffList.slice(start, start + pageSize);
-  }, [filteredStaffList, currentPage]);
+  }, [filteredStaffList, staffList.length, currentPage]);
 
   // Chuẩn bị dữ liệu cho 3 Biểu đồ
   // 1. Biểu đồ tròn (Donut)
@@ -628,7 +642,80 @@ export const AttendanceDashboardPage: React.FC = () => {
           </div>
         </div>
 
-        <div className="overflow-x-auto">
+        {/* GIAO DIỆN MOBILE: CARD VIEW (md:hidden) */}
+        <div className="md:hidden divide-y divide-slate-100">
+          {loading ? (
+            <div className="py-10 text-center text-slate-400">
+              <RefreshCw className="w-5 h-5 animate-spin mx-auto mb-2 text-blue-600" />
+              Đang tính toán dữ liệu bảng công...
+            </div>
+          ) : paginatedStaffList.length === 0 ? (
+            <div className="py-10 text-center text-slate-400">
+              {searchTerm ? 'Không tìm thấy nhân sự phù hợp với từ khóa.' : 'Không có dữ liệu nhân sự trong tháng này.'}
+            </div>
+          ) : (
+            paginatedStaffList.map((item) => {
+              const hasShifts = item.totalWorkingDays > 0;
+              const onTimeRate = hasShifts
+                ? Math.round(((item.onTimeCount + item.excusedCount) / item.totalWorkingDays) * 100)
+                : null;
+
+              return (
+                <div key={item.user.id} className="p-4 space-y-3 hover:bg-slate-50/60 transition">
+                  <div className="flex items-start justify-between gap-2">
+                    <div>
+                      <h4 className="font-bold text-sm text-slate-900">{item.user.fullName}</h4>
+                      <p className="text-[11px] text-slate-500 font-mono mt-0.5">{item.user.email}</p>
+                    </div>
+                    <span
+                      className={`font-mono font-bold px-2 py-0.5 rounded text-[11px] shrink-0 ${
+                        !hasShifts
+                          ? 'bg-slate-100 text-slate-500'
+                          : onTimeRate! >= 90
+                          ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+                          : onTimeRate! >= 75
+                          ? 'bg-amber-50 text-amber-700 border border-amber-200'
+                          : 'bg-rose-50 text-rose-700 border border-rose-200'
+                      }`}
+                    >
+                      {hasShifts ? `${onTimeRate}% chuyên cần` : 'Chưa có ca'}
+                    </span>
+                  </div>
+
+                  <div className="grid grid-cols-3 gap-2 text-xs bg-slate-50 p-2.5 rounded-xl border border-slate-200/80 text-center">
+                    <div>
+                      <span className="text-[10px] text-slate-400 uppercase font-bold block">Tổng ca</span>
+                      <span className="font-bold text-slate-900 text-sm mt-0.5 block">{item.totalWorkingDays}</span>
+                    </div>
+                    <div>
+                      <span className="text-[10px] text-emerald-600 uppercase font-bold block">Đúng giờ</span>
+                      <span className="font-bold text-emerald-700 text-sm mt-0.5 block">{item.onTimeCount}</span>
+                    </div>
+                    <div>
+                      <span className="text-[10px] text-amber-600 uppercase font-bold block">Đi muộn</span>
+                      <span className="font-bold text-amber-700 text-sm mt-0.5 block">{item.lateCount}</span>
+                    </div>
+                    <div>
+                      <span className="text-[10px] text-orange-600 uppercase font-bold block">Về sớm</span>
+                      <span className="font-bold text-orange-700 text-sm mt-0.5 block">{item.earlyLeaveCount}</span>
+                    </div>
+                    <div>
+                      <span className="text-[10px] text-rose-600 uppercase font-bold block">Vắng</span>
+                      <span className="font-bold text-rose-700 text-sm mt-0.5 block">{item.absentCount}</span>
+                    </div>
+                    <div>
+                      <span className="text-[10px] text-blue-600 uppercase font-bold block">Có phép</span>
+                      <span className="font-bold text-blue-700 text-sm mt-0.5 block">{item.excusedCount}</span>
+                    </div>
+                  </div>
+                </div>
+              );
+            })
+          )}
+        </div>
+
+        {/* GIAO DIỆN TABLET & DESKTOP: BẢNG TRUYỀN THỐNG (hidden md:block) */}
+        <div className="hidden md:block overflow-x-auto">
           <table className="w-full text-left text-xs">
             <thead className="bg-slate-50 text-slate-500 font-bold border-b border-slate-200/80 uppercase text-[10px] tracking-wider">
               <tr>
@@ -714,15 +801,15 @@ export const AttendanceDashboardPage: React.FC = () => {
         </div>
 
         {/* Phân trang danh sách nhân sự */}
-        {filteredStaffList.length > pageSize && (
+        {(effectiveTotalPages > 1 || totalServerUsers > pageSize) && (
           <div className="px-4 py-3 border-t border-slate-200/80 bg-slate-50/60 flex flex-col sm:flex-row items-center justify-between gap-2 text-xs text-slate-500 print:hidden">
             <div>
-              Hiển thị <span className="font-semibold text-slate-700 font-mono">{(currentPage - 1) * pageSize + 1}</span> - <span className="font-semibold text-slate-700 font-mono">{Math.min(currentPage * pageSize, filteredStaffList.length)}</span> trên tổng số <span className="font-semibold text-slate-700 font-mono">{filteredStaffList.length}</span> nhân sự
+              Hiển thị trang <span className="font-semibold text-slate-700 font-mono">{currentPage}</span> / <span className="font-semibold text-slate-700 font-mono">{effectiveTotalPages}</span> (Tổng số <span className="font-semibold text-slate-700 font-mono">{totalServerUsers || filteredStaffList.length}</span> nhân sự)
             </div>
             <div className="flex items-center gap-2">
               <button
                 type="button"
-                disabled={currentPage === 1}
+                disabled={currentPage === 1 || loading}
                 onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
                 className="px-3 py-1 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed text-slate-700 font-medium transition flex items-center gap-1 shadow-2xs"
               >
@@ -730,12 +817,12 @@ export const AttendanceDashboardPage: React.FC = () => {
                 <span>Trước</span>
               </button>
               <span className="px-2 font-semibold text-slate-700 font-mono">
-                {currentPage} / {totalPages}
+                {currentPage} / {effectiveTotalPages}
               </span>
               <button
                 type="button"
-                disabled={currentPage === totalPages}
-                onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+                disabled={currentPage >= effectiveTotalPages || loading}
+                onClick={() => setCurrentPage((p) => Math.min(effectiveTotalPages, p + 1))}
                 className="px-3 py-1 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed text-slate-700 font-medium transition flex items-center gap-1 shadow-2xs"
               >
                 <span>Sau</span>

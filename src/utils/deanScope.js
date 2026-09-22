@@ -13,8 +13,18 @@ const getDeanDepartmentIds = async (actor) => {
   const myDeptId = actor.departmentId || (await User.findById(actor.id || actor._id))?.departmentId;
   if (!myDeptId) return [];
 
-  const childDepts = await Department.find({ parentId: myDeptId }).distinct('_id');
-  return [myDeptId, ...childDepts];
+  // Đệ quy đa cấp (BFS) tìm toàn bộ phòng ban con, cháu, chắt trong cây phân cấp
+  const allDeptIds = [myDeptId];
+  let currentParentIds = [myDeptId];
+
+  while (currentParentIds.length > 0) {
+    const childDepts = await Department.find({ parentId: { $in: currentParentIds } }).distinct('_id');
+    if (!childDepts || childDepts.length === 0) break;
+    allDeptIds.push(...childDepts);
+    currentParentIds = childDepts;
+  }
+
+  return allDeptIds;
 };
 
 /**

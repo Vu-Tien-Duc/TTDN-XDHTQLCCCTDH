@@ -12,7 +12,7 @@ import {
   XCircle,
 } from 'lucide-react';
 import { LeaveRequest, User } from '../../types';
-import { formatDate, formatDateTime, LEAVE_STATUS_MAP } from '../../utils';
+import { formatDate, formatDateTime, LEAVE_STATUS_MAP, getSafeMediaUrl } from '../../utils';
 
 interface LeaveDetailModalProps {
   isOpen: boolean;
@@ -54,7 +54,8 @@ export const LeaveDetailModal: React.FC<LeaveDetailModalProps> = ({
   const statusInfo = LEAVE_STATUS_MAP[leaveRequest.status] || LEAVE_STATUS_MAP.PENDING;
 
   // File url
-  const attachment = leaveRequest.attachmentUrl || leaveRequest.evidenceFile;
+  const rawAttachment = leaveRequest.attachmentUrl || leaveRequest.evidenceFile;
+  const attachment = getSafeMediaUrl(rawAttachment);
 
   // Calculate days chuẩn theo lịch
   const start = new Date(leaveRequest.startDate);

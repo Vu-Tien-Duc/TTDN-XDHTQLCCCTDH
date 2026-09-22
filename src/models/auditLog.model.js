@@ -57,6 +57,9 @@ auditLogSchema.index({ timestamp: -1 });
 const blockMutation = function () {
   const err = new Error('Nhật ký kiểm toán (Audit Log) là dữ liệu bất biến, không được phép sửa hoặc xóa.');
   err.status = 403;
+  if (typeof next === 'function') {
+    return next(err);
+  }
   throw err;
 };
 
@@ -75,7 +78,13 @@ auditLogSchema.pre('findOneAndDelete', blockMutation);
 // Chặn sửa đổi thông qua document.save() sau khi đã được lưu
 auditLogSchema.pre('save', function () {
   if (!this.isNew) {
-    blockMutation();
+    const err = new Error('Nhật ký kiểm toán (Audit Log) là dữ liệu bất biến, không được phép sửa hoặc xóa.');
+    err.status = 403;
+    if (typeof next === 'function') return next(err);
+    throw err;
+  }
+  if (typeof next === 'function') {
+    return next();
   }
 });
 

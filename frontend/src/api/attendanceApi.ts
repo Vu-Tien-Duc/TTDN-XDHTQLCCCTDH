@@ -12,6 +12,7 @@ export interface CheckInPayload {
     lng: number;
     accuracy?: number;
   };
+  accuracy?: number;
   latitude?: number;
   longitude?: number;
   accuracy?: number;
@@ -29,6 +30,7 @@ export interface CheckOutPayload {
     lng: number;
     accuracy?: number;
   };
+  accuracy?: number;
   latitude?: number;
   longitude?: number;
   accuracy?: number;

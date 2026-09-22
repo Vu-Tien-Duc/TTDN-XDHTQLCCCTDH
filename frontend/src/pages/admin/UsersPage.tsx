@@ -16,6 +16,8 @@ import {
   Lock,
   Mail,
   Award,
+  ChevronLeft,
+  ChevronRight,
 } from 'lucide-react';
 import { Department, Role, User as UserType } from '../../types';
 import { userService, CreateUserPayload, UpdateUserPayload } from '../../services/userService';
@@ -35,6 +37,12 @@ export const UsersPage: React.FC = () => {
   const [search, setSearch] = useState('');
   const [selectedRole, setSelectedRole] = useState<string>('all');
   const [selectedDept, setSelectedDept] = useState<string>('all');
+
+  // Phân trang Server-side
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize] = useState(15);
+  const [totalPages, setTotalPages] = useState(1);
+  const [totalUsers, setTotalUsers] = useState(0);
 
   const generateSecurePassword = () => {
     const uppers = 'ABCDEFGHJKLMNPQRSTUVWXYZ';
@@ -92,24 +100,40 @@ export const UsersPage: React.FC = () => {
     }
   }, []);
 
-  // Tải danh sách người dùng
+  // Tải danh sách người dùng phân trang từ Server
   const fetchUsers = useCallback(async () => {
     try {
       setIsLoading(true);
-      const params: { role?: Role; departmentId?: string; search?: string } = {};
+      const params: { role?: Role; departmentId?: string; search?: string; page: number; limit: number } = {
+        page: currentPage,
+        limit: pageSize,
+      };
       if (selectedRole !== 'all') params.role = selectedRole as Role;
       if (selectedDept !== 'all' && isAdmin) params.departmentId = selectedDept;
       if (search.trim()) params.search = search.trim();
 
-      const data = await userService.getAllUsers(params);
-      setUsers(data || []);
+      const result = await userService.getUsersPaginated(params);
+      if (result && Array.isArray(result.records)) {
+        setUsers(result.records);
+        setTotalPages(result.totalPages || 1);
+        setTotalUsers(result.total || result.records.length);
+      } else if (Array.isArray(result)) {
+        setUsers(result);
+        setTotalPages(1);
+        setTotalUsers(result.length);
+      }
     } catch (err) {
       console.error('[UsersPage] Lỗi tải người dùng:', err);
       toast.error('Không thể tải danh sách cán bộ / giảng viên.');
     } finally {
       setIsLoading(false);
     }
-  }, [selectedRole, selectedDept, search, isAdmin]);
+  }, [selectedRole, selectedDept, search, isAdmin, currentPage, pageSize]);
+
+  // Reset về trang 1 khi thay đổi bộ lọc tìm kiếm
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [selectedRole, selectedDept, search]);
 
   useEffect(() => {
     fetchDepartments();
@@ -522,6 +546,41 @@ export const UsersPage: React.FC = () => {
                 })}
               </tbody>
             </table>
+          </div>
+
+          {/* Thanh Phân Trang Server-side */}
+          <div className="p-4 border-t border-slate-200 bg-slate-50/50 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs text-slate-500">
+            <div>
+              Hiển thị <span className="font-semibold text-slate-800 font-mono">{users.length > 0 ? (currentPage - 1) * pageSize + 1 : 0}</span> - <span className="font-semibold text-slate-800 font-mono">{Math.min(currentPage * pageSize, totalUsers)}</span> trên tổng số <span className="font-semibold text-slate-800 font-mono">{totalUsers}</span> nhân sự
+            </div>
+
+            {totalPages > 1 && (
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  disabled={currentPage <= 1 || isLoading}
+                  onClick={() => setCurrentPage((prev) => Math.max(1, prev - 1))}
+                  className="flex items-center gap-1 px-3 py-1.5 rounded-xl border border-slate-200 bg-white hover:bg-slate-100 disabled:opacity-40 disabled:cursor-not-allowed font-medium text-slate-700 transition"
+                >
+                  <ChevronLeft className="w-3.5 h-3.5" />
+                  <span>Trước</span>
+                </button>
+
+                <span className="px-3 py-1 rounded-xl bg-white border border-slate-200 font-bold text-slate-800 font-mono">
+                  {currentPage} / {totalPages}
+                </span>
+
+                <button
+                  type="button"
+                  disabled={currentPage >= totalPages || isLoading}
+                  onClick={() => setCurrentPage((prev) => Math.min(totalPages, prev + 1))}
+                  className="flex items-center gap-1 px-3 py-1.5 rounded-xl border border-slate-200 bg-white hover:bg-slate-100 disabled:opacity-40 disabled:cursor-not-allowed font-medium text-slate-700 transition"
+                >
+                  <span>Sau</span>
+                  <ChevronRight className="w-3.5 h-3.5" />
+                </button>
+              </div>
+            )}
           </div>
         </>
         )}

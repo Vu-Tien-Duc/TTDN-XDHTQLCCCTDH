@@ -537,7 +537,75 @@ export const DepartmentsPage: React.FC = () => {
             <span className="text-xs text-slate-400 font-medium">Tổng số: {filteredFlatList.length} đơn vị</span>
           </div>
 
-          <div className="overflow-x-auto">
+          {/* GIAO DIỆN MOBILE: CARD VIEW (md:hidden) */}
+          <div className="md:hidden divide-y divide-slate-100">
+            {filteredFlatList.length === 0 ? (
+              <div className="p-6 text-center text-xs text-slate-400">
+                Không tìm thấy đơn vị nào phù hợp.
+              </div>
+            ) : (
+              filteredFlatList.map((d) => {
+                const parentName =
+                  d.parentId && typeof d.parentId === 'object' ? d.parentId.name : '-';
+                const managerName =
+                  d.managerId && typeof d.managerId === 'object' ? d.managerId.fullName : '-';
+
+                return (
+                  <div key={d._id} className="p-4 space-y-3 hover:bg-slate-50/60 transition">
+                    <div className="flex items-start justify-between gap-2">
+                      <div>
+                        <h4 className="font-bold text-sm text-slate-900">{d.name}</h4>
+                        {parentName !== '-' && (
+                          <p className="text-[11px] text-slate-500 mt-0.5">
+                            Trực thuộc: <span className="font-semibold text-slate-700">{parentName}</span>
+                          </p>
+                        )}
+                      </div>
+                      {getTypeBadge(d.type)}
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-2 text-xs bg-slate-50 p-2.5 rounded-xl border border-slate-200/80">
+                      <div>
+                        <span className="text-[10px] text-slate-400 uppercase font-bold block">Trưởng đơn vị</span>
+                        <span className="font-semibold text-slate-800 truncate block mt-0.5">{managerName}</span>
+                      </div>
+                      <div>
+                        <span className="text-[10px] text-slate-400 uppercase font-bold block">Tọa độ GPS</span>
+                        <span className="font-mono text-[11px] text-slate-600 block truncate mt-0.5">
+                          {d.location?.lat ? `${d.location.lat}, ${d.location.lng}` : 'Chưa gán'}
+                        </span>
+                      </div>
+                    </div>
+
+                    {isAdmin && (
+                      <div className="flex items-center justify-end gap-2 pt-1">
+                        <button
+                          onClick={() => handleOpenEditModal(d)}
+                          className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-semibold text-blue-600 bg-blue-50 border border-blue-100 hover:bg-blue-100 transition"
+                        >
+                          <Edit2 className="w-3.5 h-3.5" />
+                          <span>Sửa</span>
+                        </button>
+                        <button
+                          onClick={() => {
+                            setDeptToDelete(d);
+                            setDeleteModalOpen(true);
+                          }}
+                          className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-semibold text-rose-600 bg-rose-50 border border-rose-100 hover:bg-rose-100 transition"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                          <span>Xóa</span>
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                );
+              })
+            )}
+          </div>
+
+          {/* GIAO DIỆN DESKTOP & TABLET: BẢNG TRUYỀN THỐNG (hidden md:block) */}
+          <div className="hidden md:block overflow-x-auto">
             <table className="w-full text-left text-xs text-slate-700">
               <thead className="bg-slate-50/80 text-slate-500 uppercase tracking-wider font-bold border-b border-slate-200">
                 <tr>
@@ -596,12 +664,12 @@ export const DepartmentsPage: React.FC = () => {
       )}
 
       {/* ======================================================= */}
-      {/* MODAL THÊM / CHỈNH SỬA KHOA & BỘ MÔN */}
+      {/* MODAL THÊM / CHỈNH SỬA KHOA & BỘ MÔN (RESPONSIVE SCROLL) */}
       {/* ======================================================= */}
       {isModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-in fade-in">
-          <div className="bg-white w-full max-w-lg rounded-3xl shadow-2xl border border-slate-200 overflow-hidden">
-            <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between">
+          <div className="bg-white w-full max-w-lg rounded-3xl shadow-2xl border border-slate-200 overflow-hidden max-h-[90vh] flex flex-col">
+            <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between shrink-0">
               <h3 className="text-base font-bold text-slate-900">
                 {modalMode === 'create' ? 'Thêm Đơn Vị / Bộ Môn Mới' : 'Cập Nhật Thông Tin Đơn Vị'}
               </h3>
@@ -613,7 +681,7 @@ export const DepartmentsPage: React.FC = () => {
               </button>
             </div>
 
-            <form onSubmit={handleSubmit} className="p-6 space-y-4">
+            <form onSubmit={handleSubmit} className="p-6 space-y-4 overflow-y-auto flex-1 custom-scrollbar">
               {/* Tên đơn vị */}
               <div>
                 <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
@@ -734,7 +802,7 @@ export const DepartmentsPage: React.FC = () => {
               </div>
 
               {/* Buttons */}
-              <div className="pt-4 flex items-center justify-end gap-2 border-t border-slate-100">
+              <div className="pt-4 flex items-center justify-end gap-2 border-t border-slate-100 shrink-0">
                 <button
                   type="button"
                   onClick={() => setIsModalOpen(false)}

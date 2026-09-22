@@ -69,6 +69,36 @@ const leaveRequestSchema = new mongoose.Schema(
   {
     timestamps: true,
     collection: 'leave_requests',
+    toJSON: {
+      transform: (doc, ret) => {
+        if (typeof ret.attachmentUrl === 'string') {
+          if (ret.attachmentUrl.startsWith('http://chamcongdh.io.vn')) {
+            ret.attachmentUrl = ret.attachmentUrl.replace('http://chamcongdh.io.vn', 'https://chamcongdh.io.vn');
+          }
+          if (ret.attachmentUrl.startsWith('/uploads/')) {
+            ret.attachmentUrl = `/api${ret.attachmentUrl}`;
+          } else if (ret.attachmentUrl.includes('chamcongdh.io.vn/uploads/')) {
+            ret.attachmentUrl = ret.attachmentUrl.replace('chamcongdh.io.vn/uploads/', 'chamcongdh.io.vn/api/uploads/');
+          }
+        }
+        return ret;
+      },
+    },
+    toObject: {
+      transform: (doc, ret) => {
+        if (typeof ret.attachmentUrl === 'string') {
+          if (ret.attachmentUrl.startsWith('http://chamcongdh.io.vn')) {
+            ret.attachmentUrl = ret.attachmentUrl.replace('http://chamcongdh.io.vn', 'https://chamcongdh.io.vn');
+          }
+          if (ret.attachmentUrl.startsWith('/uploads/')) {
+            ret.attachmentUrl = `/api${ret.attachmentUrl}`;
+          } else if (ret.attachmentUrl.includes('chamcongdh.io.vn/uploads/')) {
+            ret.attachmentUrl = ret.attachmentUrl.replace('chamcongdh.io.vn/uploads/', 'chamcongdh.io.vn/api/uploads/');
+          }
+        }
+        return ret;
+      },
+    },
   }
 );
 

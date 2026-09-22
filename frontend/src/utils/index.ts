@@ -196,3 +196,33 @@ export const LEAVE_STATUS_MAP: Record<LeaveStatus, { label: string; color: strin
 };
 
 export * from './errorHandler';
+
+/**
+ * Chuẩn hóa URL hình ảnh / tài liệu đính kèm:
+ * - Thay thế triệt để http://chamcongdh.io.vn bằng https://chamcongdh.io.vn
+ * - Nâng cấp http:// thành https:// khi web đang chạy trên HTTPS
+ * - Tự động định tuyến qua /api/uploads/ để luôn được Nginx chuyển tiếp tới Backend Node.js
+ * - Tránh hoàn toàn lỗi Mixed Content và tránh bị redirect sang /login khi xem file
+ */
+export function getSafeMediaUrl(url?: string | null): string {
+  if (!url) return '';
+  let safeUrl = url.trim();
+
+  // 1. Chuẩn hóa domain & giao thức HTTPS
+  if (safeUrl.startsWith('http://chamcongdh.io.vn')) {
+    safeUrl = safeUrl.replace('http://chamcongdh.io.vn', 'https://chamcongdh.io.vn');
+  }
+  if (typeof window !== 'undefined' && window.location.protocol === 'https:' && safeUrl.startsWith('http://')) {
+    safeUrl = safeUrl.replace(/^http:\/\//i, 'https://');
+  }
+
+  // 2. Chuyển đổi /uploads/ -> /api/uploads/ để Nginx trên VPS luôn proxy về cổng 5000
+  if (safeUrl.startsWith('/uploads/')) {
+    safeUrl = `/api${safeUrl}`;
+  } else if (safeUrl.includes('chamcongdh.io.vn/uploads/')) {
+    safeUrl = safeUrl.replace('chamcongdh.io.vn/uploads/', 'chamcongdh.io.vn/api/uploads/');
+  }
+
+  return safeUrl;
+}
+

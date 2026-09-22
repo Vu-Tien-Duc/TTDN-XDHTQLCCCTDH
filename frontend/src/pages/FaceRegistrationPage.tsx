@@ -14,6 +14,9 @@ import {
   ShieldCheck,
   User,
   Sparkles,
+  RotateCw,
+  RotateCcw,
+  Check,
 } from 'lucide-react';
 import { attendanceApi } from '../api';
 import { toast } from 'react-hot-toast';
@@ -45,9 +48,12 @@ export const FaceRegistrationPage: React.FC = () => {
   const [modelReady, setModelReady] = useState(false);
   const [loadingModel, setLoadingModel] = useState(false);
 
-  // Camera & Detection
+  // Camera & Biometric Rotation Scanning (Quay đầu 1 vòng)
   const [isCameraActive, setIsCameraActive] = useState(false);
   const [isExtracting, setIsExtracting] = useState(false);
+  const [circleProgress, setCircleProgress] = useState<number>(0); // 0 -> 100%
+  const [coveredCount, setCoveredCount] = useState<number>(0);
+  const [isSavingAuto, setIsSavingAuto] = useState<boolean>(false);
   const [detectedDescriptor, setDetectedDescriptor] = useState<number[] | null>(null);
   const [capturedImagePreview, setCapturedImagePreview] = useState<string | null>(null);
   const [samples, setSamples] = useState<number[][]>([]);
@@ -60,8 +66,16 @@ export const FaceRegistrationPage: React.FC = () => {
   } | null>(null);
 
   const videoRef = useRef<HTMLVideoElement>(null);
+  const canvasRef = useRef<HTMLCanvasElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const audioCtxRef = useRef<AudioContext | null>(null);
+  const scanIntervalRef = useRef<any>(null);
+  const isDetectingRef = useRef<boolean>(false);
+  const ticksCoveredRef = useRef<boolean[]>(Array(24).fill(false));
+  const circleSamplesRef = useRef<number[][]>([]);
+  const lastSectorSampledRef = useRef<number>(-1);
+  const isAutoSavingRef = useRef<boolean>(false);
 
   // 1. Tải model weights
   const loadFaceModels = useCallback(async () => {
@@ -101,7 +115,39 @@ export const FaceRegistrationPage: React.FC = () => {
     loadFaceModels();
   }, [fetchLecturers, loadFaceModels]);
 
-  // 3. Điều khiển Camera
+  // Âm thanh phản hồi quét sinh trắc học công nghệ cao
+  const playBeep = useCallback((freq: number = 880, duration: number = 0.15) => {
+    try {
+      if (!audioCtxRef.current) {
+        audioCtxRef.current = new (window.AudioContext || (window as any).webkitAudioContext)();
+      }
+      const ctx = audioCtxRef.current;
+      if (ctx.state === 'suspended') ctx.resume();
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(freq, ctx.currentTime);
+      gain.gain.setValueAtTime(0.12, ctx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + duration);
+      osc.start(ctx.currentTime);
+      osc.stop(ctx.currentTime + duration);
+    } catch {}
+  }, []);
+
+  const playTickSound = useCallback(() => {
+    playBeep(720, 0.05);
+  }, [playBeep]);
+
+  const playCelebrationChime = useCallback(() => {
+    playBeep(523.25, 0.1);
+    setTimeout(() => playBeep(659.25, 0.1), 90);
+    setTimeout(() => playBeep(783.99, 0.1), 180);
+    setTimeout(() => playBeep(1046.5, 0.25), 270);
+  }, [playBeep]);
+
+  // 3. Điều khiển Camera & Khởi tạo vòng quét tròn 360°
   const startCamera = async () => {
     try {
       if (streamRef.current) {
@@ -117,6 +163,13 @@ export const FaceRegistrationPage: React.FC = () => {
       setSamples([]);
       setSamplePreviews([]);
       setDuplicateError(null);
+      setCircleProgress(0);
+      setCoveredCount(0);
+      ticksCoveredRef.current = Array(24).fill(false);
+      circleSamplesRef.current = [];
+      lastSectorSampledRef.current = -1;
+      isAutoSavingRef.current = false;
+      setIsSavingAuto(false);
 
       if (videoRef.current) {
         videoRef.current.srcObject = stream;
@@ -133,6 +186,10 @@ export const FaceRegistrationPage: React.FC = () => {
   };
 
   const stopCamera = () => {
+    if (scanIntervalRef.current) {
+      clearInterval(scanIntervalRef.current);
+      scanIntervalRef.current = null;
+    }
     if (streamRef.current) {
       streamRef.current.getTracks().forEach((track) => track.stop());
       streamRef.current = null;
@@ -140,7 +197,13 @@ export const FaceRegistrationPage: React.FC = () => {
     if (videoRef.current) {
       videoRef.current.srcObject = null;
     }
+    if (canvasRef.current) {
+      const ctx = canvasRef.current.getContext('2d');
+      if (ctx) ctx.clearRect(0, 0, canvasRef.current.width, canvasRef.current.height);
+    }
     setIsCameraActive(false);
+    setIsSavingAuto(false);
+    isAutoSavingRef.current = false;
   };
 
   // Đảm bảo stream được gắn vào video khi isCameraActive bật
@@ -159,6 +222,272 @@ export const FaceRegistrationPage: React.FC = () => {
       stopCamera();
     };
   }, []);
+
+  // Tự động lưu Face ID sau khi hoàn tất 1 vòng quay
+  const autoSaveFaceDescriptor = useCallback(async (collectedSamples: number[][]) => {
+    if (!selectedUser || collectedSamples.length === 0) return;
+
+    try {
+      setIsExtracting(true);
+      setDuplicateError(null);
+      setIsSavingAuto(true);
+
+      const payload = collectedSamples.length >= 3 ? collectedSamples : collectedSamples[0];
+      const res = await attendanceApi.registerFaceDescriptor(selectedUser._id, payload);
+
+      if (res && res.success) {
+        playCelebrationChime();
+        toast.success(`🎉 Đã quét trọn vẹn toàn bộ khuôn mặt và lưu Face ID thành công cho ${selectedUser.fullName}!`, { duration: 6000 });
+        setLecturers((prev) =>
+          prev.map((item) => (item._id === selectedUser._id ? { ...item, faceRegistered: true } : item))
+        );
+        setSelectedUser((prev) => (prev ? { ...prev, faceRegistered: true } : null));
+        stopCamera();
+      }
+    } catch (error: any) {
+      console.error('Lỗi tự động lưu Face ID:', error);
+      playBeep(300, 0.3);
+      if (error.response?.status === 409) {
+        const errPayload = error.response.data || {};
+        const errErrors = errPayload.errors || {};
+        const msg = errPayload.message || 'Khuôn mặt này đã được đăng ký cho tài khoản khác!';
+        setDuplicateError({
+          message: msg,
+          duplicateFullName: errErrors.duplicateFullName,
+          duplicateEmail: errErrors.duplicateEmail,
+          distance: errErrors.distance,
+        });
+        toast.error(`⚠️ ${msg}`, { duration: 7000 });
+      } else {
+        toast.error(error.response?.data?.message || 'Lỗi khi lưu vector khuôn mặt vào máy chủ');
+      }
+    } finally {
+      setIsExtracting(false);
+      setIsSavingAuto(false);
+    }
+  }, [selectedUser, playCelebrationChime, playBeep]);
+
+  // VÒNG LẶP QUÉT TRÒN QUAY ĐẦU 1 VÒNG (SINGLE CIRCULAR HEAD TURN SCANNER)
+  useEffect(() => {
+    if (!isCameraActive || !modelReady || !selectedUser) {
+      if (scanIntervalRef.current) {
+        clearInterval(scanIntervalRef.current);
+        scanIntervalRef.current = null;
+      }
+      return;
+    }
+
+    const runCircleScanTick = async () => {
+      if (isDetectingRef.current || isAutoSavingRef.current || isExtracting) return;
+      if (!videoRef.current || videoRef.current.readyState < 2) return;
+
+      isDetectingRef.current = true;
+      try {
+        const video = videoRef.current;
+        const detections = await faceapi
+          .detectAllFaces(video, new faceapi.TinyFaceDetectorOptions({ inputSize: 320, scoreThreshold: 0.35 }))
+          .withFaceLandmarks()
+          .withFaceDescriptors();
+
+        const canvas = canvasRef.current;
+        if (!canvas) return;
+
+        if (canvas.width !== video.videoWidth || canvas.height !== video.videoHeight) {
+          canvas.width = video.videoWidth || 640;
+          canvas.height = video.videoHeight || 480;
+        }
+        const ctx = canvas.getContext('2d');
+        if (!ctx) return;
+
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+        const cX = canvas.width / 2;
+        const cY = canvas.height / 2;
+        const radius = Math.min(canvas.width, canvas.height) * 0.32;
+        const numTicks = 24;
+
+        if (!detections || detections.length === 0) {
+          // Vẽ vòng tròn ticks màu xám khi chưa có mặt
+          drawTicks(ctx, cX, cY, radius, numTicks, ticksCoveredRef.current, null, 0);
+          return;
+        }
+
+        // Chọn khuôn mặt trung tâm nhất
+        let targetFace = detections[0];
+        let bestScore = -Infinity;
+        const maxD = Math.hypot(cX, cY);
+
+        for (const d of detections) {
+          const box = d.detection.box;
+          const fX = box.x + box.width / 2;
+          const fY = box.y + box.height / 2;
+          const dist = Math.hypot(fX - cX, fY - cY);
+          const centerWeight = Math.max(0.3, 1.0 - 0.7 * (dist / maxD));
+          const score = box.width * box.height * centerWeight;
+          if (score > bestScore) {
+            bestScore = score;
+            targetFace = d;
+          }
+        }
+
+        const pos = targetFace.landmarks.positions;
+        const nose = pos[30];
+        const leftJaw = pos[0];
+        const rightJaw = pos[16];
+        const chin = pos[8];
+        const leftEye = pos[36];
+        const rightEye = pos[45];
+
+        const faceCenterX = (leftJaw.x + rightJaw.x) / 2;
+        const faceWidth = Math.max(1, rightJaw.x - leftJaw.x);
+        const eyeCenterY = (leftEye.y + rightEye.y) / 2;
+        const faceHeight = Math.max(1, chin.y - eyeCenterY);
+
+        // Vector độ lệch quay đầu (dx: trái/phải, dy: ngước/cúi)
+        const dx = (nose.x - faceCenterX) / (faceWidth * 0.45);
+        const dy = (nose.y - (eyeCenterY + chin.y) / 2) / (faceHeight * 0.45);
+        const mag = Math.hypot(dx, dy);
+
+        let currentAngle: number | null = null;
+
+        // Vẽ các điểm mốc sinh trắc học trên khuôn mặt
+        ctx.fillStyle = 'rgba(52, 211, 153, 0.75)';
+        for (let i = 0; i < pos.length; i += 2) {
+          const p = pos[i];
+          ctx.beginPath();
+          ctx.arc(p.x, p.y, 2, 0, 2 * Math.PI);
+          ctx.fill();
+        }
+
+        // Khi người dùng nghiêng/quay đầu theo vòng tròn
+        if (mag >= 0.055) {
+          // Tính góc nghiêng trong khoảng [0, 2*PI)
+          let angle = Math.atan2(dy, dx);
+          if (angle < 0) angle += 2 * Math.PI;
+          currentAngle = angle;
+
+          const sectorIdx = Math.floor((angle / (2 * Math.PI)) * numTicks) % numTicks;
+
+          if (!ticksCoveredRef.current[sectorIdx]) {
+            ticksCoveredRef.current[sectorIdx] = true;
+            playTickSound();
+
+            // Trích xuất mẫu vector sinh trắc học ở các góc cách nhau để đảm bảo độ bao phủ đa dạng
+            if (
+              lastSectorSampledRef.current === -1 ||
+              Math.abs(sectorIdx - lastSectorSampledRef.current) >= 3 ||
+              circleSamplesRef.current.length < 4
+            ) {
+              const desc = Array.from(targetFace.descriptor);
+              circleSamplesRef.current.push(desc);
+              lastSectorSampledRef.current = sectorIdx;
+              setSamples([...circleSamplesRef.current]);
+
+              // Snapshot frame hình minh chứng
+              const snapCanvas = document.createElement('canvas');
+              snapCanvas.width = 320;
+              snapCanvas.height = 240;
+              const sCtx = snapCanvas.getContext('2d');
+              if (sCtx && videoRef.current) {
+                sCtx.drawImage(videoRef.current, 0, 0, 320, 240);
+              }
+              const dataUrl = snapCanvas.toDataURL('image/jpeg', 0.85);
+              setSamplePreviews((prev) => [...prev, dataUrl]);
+              setCapturedImagePreview(dataUrl);
+            }
+          }
+        } else {
+          // Khi nhìn thẳng chính diện, nếu chưa có mẫu chính diện thì lưu mẫu 1
+          if (circleSamplesRef.current.length === 0) {
+            const desc = Array.from(targetFace.descriptor);
+            circleSamplesRef.current.push(desc);
+            setSamples([...circleSamplesRef.current]);
+          }
+        }
+
+        // Đếm số vạch đã quét xong (cần 17/24 vạch ~ 70% vòng tròn là hoàn tất)
+        const covered = ticksCoveredRef.current.filter(Boolean).length;
+        setCoveredCount(covered);
+
+        const pct = Math.min(100, Math.round((covered / 17) * 100));
+        setCircleProgress(pct);
+
+        // Vẽ 24 vạch tròn Face ID chuẩn Apple
+        drawTicks(ctx, cX, cY, radius, numTicks, ticksCoveredRef.current, currentAngle, pct);
+
+        // Đã hoàn tất 1 vòng quay -> Tự động lưu ngay
+        if (pct >= 100 && !isAutoSavingRef.current && circleSamplesRef.current.length >= 2) {
+          isAutoSavingRef.current = true;
+          setIsSavingAuto(true);
+          playCelebrationChime();
+          toast.success('🎉 Đã nhận diện trọn vẹn toàn bộ khuôn mặt trong 1 vòng quay! Đang lưu Face ID...', { id: 'circle-save' });
+          autoSaveFaceDescriptor([...circleSamplesRef.current]);
+        }
+      } catch (err) {
+        console.error('Lỗi circle scan tick:', err);
+      } finally {
+        isDetectingRef.current = false;
+      }
+    };
+
+    scanIntervalRef.current = setInterval(runCircleScanTick, 90);
+
+    return () => {
+      if (scanIntervalRef.current) {
+        clearInterval(scanIntervalRef.current);
+        scanIntervalRef.current = null;
+      }
+    };
+  }, [isCameraActive, modelReady, selectedUser, isSavingAuto, isExtracting, autoSaveFaceDescriptor, playTickSound, playCelebrationChime]);
+
+  // Hàm vẽ 24 vạch tròn chuẩn Face ID bao quanh khuôn mặt
+  const drawTicks = (
+    ctx: CanvasRenderingContext2D,
+    cX: number,
+    cY: number,
+    radius: number,
+    numTicks: number,
+    ticksCovered: boolean[],
+    currentAngle: number | null,
+    progress: number
+  ) => {
+    const tickLen = 16;
+    for (let i = 0; i < numTicks; i++) {
+      const angle = (i / numTicks) * 2 * Math.PI - Math.PI / 2;
+      const isCovered = ticksCovered[i] || progress >= 100;
+
+      const rIn = radius;
+      const rOut = radius + tickLen;
+      const x1 = cX + Math.cos(angle) * rIn;
+      const y1 = cY + Math.sin(angle) * rIn;
+      const x2 = cX + Math.cos(angle) * rOut;
+      const y2 = cY + Math.sin(angle) * rOut;
+
+      ctx.beginPath();
+      ctx.moveTo(x1, y1);
+      ctx.lineTo(x2, y2);
+      ctx.lineWidth = isCovered ? 5 : 2.5;
+      ctx.strokeStyle = isCovered ? '#10B981' : 'rgba(255, 255, 255, 0.3)';
+      ctx.lineCap = 'round';
+      ctx.stroke();
+    }
+
+    // Vẽ chấm tròn chỉ hướng quay đầu hiện tại
+    if (currentAngle !== null && progress < 100) {
+      const pAngle = currentAngle;
+      const pR = radius + tickLen / 2;
+      const pX = cX + Math.cos(pAngle) * pR;
+      const pY = cY + Math.sin(pAngle) * pR;
+
+      ctx.beginPath();
+      ctx.arc(pX, pY, 7, 0, 2 * Math.PI);
+      ctx.fillStyle = '#38BDF8';
+      ctx.shadowColor = '#38BDF8';
+      ctx.shadowBlur = 12;
+      ctx.fill();
+      ctx.shadowBlur = 0;
+    }
+  };
 
   // 4. Chụp ảnh từ camera và trích xuất vector 128 số (Hỗ trợ 3 góc chụp P1 - Item 16, Item 17)
   const handleCaptureAndExtract = async () => {
@@ -479,7 +808,7 @@ export const FaceRegistrationPage: React.FC = () => {
       {/* Main Grid */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
         {/* Cột trái: Danh sách Giảng viên (5 cols) */}
-        <div className="lg:col-span-5 bg-white rounded-2xl border border-gray-100 shadow-sm flex flex-col h-[700px]">
+        <div className="lg:col-span-5 bg-white rounded-2xl border border-gray-100 shadow-sm flex flex-col h-[360px] lg:h-[700px]">
           <div className="p-4 border-b border-gray-100 space-y-3">
             <h2 className="font-bold text-gray-800 text-sm">Danh sách Nhân sự & Giảng viên</h2>
             <div className="relative">
@@ -514,6 +843,15 @@ export const FaceRegistrationPage: React.FC = () => {
                       setDetectedDescriptor(null);
                       setCapturedImagePreview(null);
                       setDuplicateError(null);
+                      setCircleProgress(0);
+                      setCoveredCount(0);
+                      ticksCoveredRef.current = Array(24).fill(false);
+                      circleSamplesRef.current = [];
+                      lastSectorSampledRef.current = -1;
+                      isAutoSavingRef.current = false;
+                      setIsSavingAuto(false);
+                      setSamples([]);
+                      setSamplePreviews([]);
                       stopCamera();
                     }}
                     className={`p-3 rounded-xl cursor-pointer transition flex items-center justify-between ${
@@ -558,7 +896,7 @@ export const FaceRegistrationPage: React.FC = () => {
         </div>
 
         {/* Cột phải: Khung Chụp / Đăng ký Face ID (7 cols) */}
-        <div className="lg:col-span-7 bg-white rounded-2xl border border-gray-100 shadow-sm p-6 flex flex-col justify-between h-[700px]">
+        <div className="lg:col-span-7 bg-white rounded-2xl border border-gray-100 shadow-sm p-4 sm:p-6 flex flex-col justify-between min-h-[560px] lg:h-[700px]">
           {selectedUser ? (
             <div className="flex flex-col h-full justify-between space-y-4">
               {/* Header giảng viên được chọn */}
@@ -643,42 +981,54 @@ export const FaceRegistrationPage: React.FC = () => {
                   className={`w-full h-full object-cover ${isCameraActive ? 'block' : 'hidden'}`}
                 />
 
-                {/* Khung hướng dẫn khuôn mặt khi Camera bật */}
+                {/* Canvas vẽ vòng tròn 24 vạch sinh trắc học Face ID */}
+                {isCameraActive && (
+                  <canvas
+                    ref={canvasRef}
+                    className="absolute inset-0 w-full h-full object-cover pointer-events-none z-10"
+                  />
+                )}
+
+                {/* Lời nhắc & Khung hướng dẫn: QUAY ĐẦU MỘT VÒNG ĐỂ NHẬN DIỆN TOÀN BỘ KHUÔN MẶT */}
                 {isCameraActive && (
                   <>
-                    {/* Stepper chỉ dẫn 3 góc chụp khuôn mặt (Issue 16) */}
-                    <div className="absolute top-3 inset-x-3 z-10 flex items-center justify-between gap-2 bg-black/70 backdrop-blur-md px-3.5 py-2 rounded-xl border border-white/15 text-white text-xs">
-                      <div className="flex items-center gap-2">
-                        <span className="px-2 py-0.5 rounded-full bg-indigo-500 font-bold text-[10px]">
-                          Góc {Math.min(3, samples.length + 1)}/3
-                        </span>
-                        <span className="font-bold text-indigo-200">
-                          {POSES[Math.min(2, samples.length)]?.title}
-                        </span>
+                    {/* Header thông điệp chính: Quay đầu một vòng nhận diện toàn bộ khuôn mặt */}
+                    <div className="absolute top-3 inset-x-3 z-20 flex flex-col items-center justify-center bg-slate-950/85 backdrop-blur-md px-4 py-2.5 rounded-2xl border border-white/15 text-white shadow-2xl text-center">
+                      <div className="flex items-center gap-2 text-xs font-black text-amber-300">
+                        <RotateCw className="w-4 h-4 text-amber-400 animate-spin" />
+                        <span className="text-sm">Quay đầu một vòng để nhận diện toàn bộ khuôn mặt</span>
                       </div>
-                      <div className="flex items-center gap-1.5">
-                        {POSES.map((_, idx) => (
-                          <div
-                            key={idx}
-                            className={`w-2.5 h-2.5 rounded-full transition-all ${
-                              idx < samples.length
-                                ? 'bg-emerald-400 scale-110'
-                                : idx === samples.length
-                                ? 'bg-indigo-400 ring-2 ring-indigo-300 ring-offset-1 ring-offset-black animate-pulse'
-                                : 'bg-slate-600'
-                            }`}
-                          />
-                        ))}
-                      </div>
-                    </div>
-
-                    <div className="absolute inset-0 pointer-events-none flex flex-col items-center justify-center">
-                      <div className="w-52 h-64 sm:w-60 sm:h-72 border-2 border-dashed border-indigo-400/80 rounded-[50%] shadow-[0_0_0_9999px_rgba(0,0,0,0.25)] animate-pulse" />
-                      <p className="mt-4 text-xs font-semibold text-white bg-black/70 px-4 py-1.5 rounded-full backdrop-blur-xs border border-white/10">
-                        {POSES[Math.min(2, samples.length)]?.desc}
+                      <p className="text-[11px] text-slate-300 mt-0.5">
+                        Chỉ một lần quay vậy thôi — máy sẽ tự động ghi nhớ toàn bộ khuôn mặt và lưu Face ID, không cần chụp nhiều lần!
                       </p>
                     </div>
+
+                    {/* Vòng tâm hiển thị % tiến trình vòng quay */}
+                    <div className="absolute inset-0 pointer-events-none flex flex-col items-center justify-center z-15 pt-8">
+                      <div className="bg-black/60 backdrop-blur-md px-4 py-1.5 rounded-full border border-white/20 text-white text-xs font-bold flex items-center gap-2 shadow-2xl">
+                        <div className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse" />
+                        <span>Vòng quay khuôn mặt: {circleProgress}% ({coveredCount}/17 vạch)</span>
+                      </div>
+                    </div>
                   </>
+                )}
+
+                {/* Overlay khi đang tự động lưu dữ liệu */}
+                {isSavingAuto && (
+                  <div className="absolute inset-0 bg-slate-950/90 backdrop-blur-md flex flex-col items-center justify-center text-white space-y-4 z-30 animate-in fade-in duration-200">
+                    <div className="w-16 h-16 rounded-full bg-emerald-500/20 border-2 border-emerald-400 flex items-center justify-center shadow-2xl shadow-emerald-500/50 animate-bounce">
+                      <Sparkles className="w-8 h-8 text-emerald-400" />
+                    </div>
+                    <div className="text-center space-y-1">
+                      <h3 className="text-base font-bold text-emerald-300">
+                        🎉 ĐÃ NHẬN DIỆN TRỌN VẸN TOÀN BỘ KHUÔN MẶT TRONG 1 VÒNG QUAY!
+                      </h3>
+                      <p className="text-xs text-slate-300">
+                        Đang đồng bộ hóa dữ liệu Face ID của {selectedUser?.fullName} vào hệ thống...
+                      </p>
+                    </div>
+                    <RefreshCw className="w-6 h-6 animate-spin text-emerald-400" />
+                  </div>
                 )}
 
                 {!isCameraActive && capturedImagePreview && (
@@ -712,7 +1062,7 @@ export const FaceRegistrationPage: React.FC = () => {
                     <Scan className="w-12 h-12 mx-auto text-gray-600 stroke-1" />
                     <p className="text-sm font-medium">Chưa mở camera hoặc chưa chọn ảnh</p>
                     <p className="text-xs text-gray-600 max-w-sm">
-                      Chọn <span className="text-indigo-400 font-semibold">Mở Camera</span> để chụp 3 góc trực tiếp hoặc <span className="text-indigo-400 font-semibold">Tải ảnh lên</span> chân dung rõ mặt để trích xuất vector.
+                      Chọn <span className="text-indigo-400 font-semibold">Mở Camera</span> để quay đầu một vòng máy tự động nhận diện toàn bộ khuôn mặt (không cần chụp nhiều lần) hoặc <span className="text-indigo-400 font-semibold">Tải ảnh lên</span> để trích xuất.
                     </p>
                   </div>
                 )}
@@ -807,25 +1157,47 @@ export const FaceRegistrationPage: React.FC = () => {
                     </div>
                   </div>
                 ) : isCameraActive ? (
-                  <div className="flex flex-col sm:flex-row items-center justify-between gap-3 bg-indigo-50/70 p-3 rounded-xl border border-indigo-100">
-                    <div className="text-xs text-indigo-900">
-                      <span className="font-bold">Góc {samples.length + 1}/3:</span>{' '}
-                      {POSES[samples.length]?.desc}
+                  <div className="flex flex-col sm:flex-row items-center justify-between gap-3 bg-gradient-to-r from-amber-50 via-indigo-50 to-emerald-50 p-3.5 rounded-xl border border-indigo-200">
+                    <div className="flex items-center gap-2.5">
+                      <div className="p-2 rounded-lg bg-indigo-600 text-white animate-spin">
+                        <RotateCw className="w-4 h-4" />
+                      </div>
+                      <div>
+                        <div className="text-xs font-bold text-indigo-950 flex items-center gap-2">
+                          <span>Quay đầu một vòng để nhận diện toàn bộ khuôn mặt</span>
+                          <span className="px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 text-[10px] font-semibold">
+                            Chỉ 1 lần quay duy nhất
+                          </span>
+                        </div>
+                        <div className="text-[11px] text-slate-600 mt-0.5">
+                          Quay đầu chậm rãi một vòng — Không cần bấm chụp nhiều lần. Tiến trình: <strong>{circleProgress}%</strong>
+                        </div>
+                      </div>
                     </div>
                     <button
-                      onClick={handleCaptureAndExtract}
-                      disabled={isExtracting}
-                      className="flex items-center gap-2 px-6 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-bold rounded-xl shadow-sm transition shrink-0"
+                      onClick={() => {
+                        setCircleProgress(0);
+                        setCoveredCount(0);
+                        ticksCoveredRef.current = Array(24).fill(false);
+                        circleSamplesRef.current = [];
+                        lastSectorSampledRef.current = -1;
+                        setSamples([]);
+                        setSamplePreviews([]);
+                        setCapturedImagePreview(null);
+                        isAutoSavingRef.current = false;
+                        setIsSavingAuto(false);
+                      }}
+                      className="px-3 py-1.5 text-xs text-slate-600 hover:text-slate-900 bg-white border border-slate-200 rounded-lg hover:bg-slate-50 transition shrink-0 flex items-center gap-1 font-semibold"
                     >
-                      <Camera className="w-4 h-4" />
-                      Chụp Góc {samples.length + 1}/3
+                      <RotateCcw className="w-3.5 h-3.5" />
+                      <span>Quay lại từ đầu</span>
                     </button>
                   </div>
                 ) : (
                   <div className="p-3 bg-gray-50 rounded-xl flex items-center gap-2 text-xs text-gray-500">
                     <AlertCircle className="w-4 h-4 text-gray-400 shrink-0" />
                     <span>
-                      Hướng dẫn: Chụp đủ 3 góc (Chính diện, Nghiêng trái, Nghiêng phải) để hệ thống nhận diện tức thì trong mọi điều kiện ánh sáng và góc đứng tại Kiosk.
+                      Hướng dẫn: Khi mở camera, chỉ cần quay đầu một vòng chậm rãi để máy nhận diện toàn bộ khuôn mặt chỉ trong một lần quay vậy thôi, không cần chụp nhiều lần!
                     </span>
                   </div>
                 )}

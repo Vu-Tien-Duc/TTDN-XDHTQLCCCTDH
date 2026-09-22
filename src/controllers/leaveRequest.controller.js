@@ -499,9 +499,8 @@ const approveLeaveRequest = async (req, res, next) => {
           if (existingLog) {
             existingLog.status = 'EXCUSED_ABSENCE';
             existingLog.leaveRequestId = request._id;
-            if (!existingLog.checkInTime) {
-              existingLog.checkInTime = occurrenceDate;
-            }
+            existingLog.checkInTime = null;
+            existingLog.checkOutTime = null;
             await existingLog.save();
           } else {
             await AttendanceLog.create({
@@ -510,7 +509,8 @@ const approveLeaveRequest = async (req, res, next) => {
               scheduleId: sch._id,
               status: 'EXCUSED_ABSENCE',
               leaveRequestId: request._id,
-              checkInTime: occurrenceDate,
+              checkInTime: null,
+              checkOutTime: null,
               isManualOverride: false,
               method: 'manual',
             });

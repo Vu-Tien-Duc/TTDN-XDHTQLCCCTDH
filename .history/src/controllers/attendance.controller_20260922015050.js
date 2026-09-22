@@ -244,49 +244,27 @@ const checkOut = async (req, res, next) => {
     // Giới hạn trong khoảng [00:00:00 - 23:59:59] của NGÀY HÔM NAY theo múi giờ UTC+7
     const { startOfDay, endOfDay } = getVietnamDayRange();
 
-    let openLog = null;
+    const query = {
+      userId,
+      checkOutTime: null,
+      checkInTime: { $gte: startOfDay, $lte: endOfDay },
+    };
 
-    // 1. Ưu tiên tìm theo attendanceId chính xác nếu client truyền lên
     if (attendanceId && mongoose.Types.ObjectId.isValid(attendanceId)) {
-      openLog = await AttendanceLog.findOne({
-        _id: attendanceId,
-        userId,
-        checkOutTime: null,
-      }).populate('shiftId');
+      query._id = attendanceId;
+    } else if (shiftId && mongoose.Types.ObjectId.isValid(shiftId)) {
+      query.shiftId = shiftId;
     }
 
-    // 2. Tìm theo shiftId hoặc ca mở trong ngày hôm nay
-    if (!openLog) {
-      const query = {
-        userId,
-        checkOutTime: null,
-        checkInTime: { $gte: startOfDay, $lte: endOfDay },
-      };
-
-      if (shiftId && mongoose.Types.ObjectId.isValid(shiftId)) {
-        query.shiftId = shiftId;
-      }
-
-      openLog = await AttendanceLog.findOne(query)
-        .populate('shiftId')
-        .sort({ checkInTime: -1 });
-    }
-
-    // 3. Fallback tìm bất kỳ bản ghi check-in nào chưa checkout của chính userId
-    if (!openLog) {
-      openLog = await AttendanceLog.findOne({
-        userId,
-        checkOutTime: null,
-        checkInTime: { $ne: null },
-      })
-        .populate('shiftId')
-        .sort({ checkInTime: -1 });
-    }
+    // Tự tìm bản ghi đang mở (chưa có checkOutTime) của chính userId trong ngày hôm nay
+    const openLog = await AttendanceLog.findOne(query)
+      .populate('shiftId')
+      .sort({ checkInTime: -1 });
 
     if (!openLog) {
       return sendError(
         res,
-        'Không tìm thấy bản ghi check-in nào còn mở để thực hiện check-out.',
+        'Không tìm thấy bản ghi check-in nào còn mở trong ngày hôm nay.',
         null,
         404,
         ERROR_CODES.ATTENDANCE_NO_OPEN_RECORD
@@ -313,8 +291,8 @@ const checkOut = async (req, res, next) => {
       .populate('shiftId', 'name startTime endTime lateThresholdMinutes')
       .populate('scheduleId', 'roomId weekday');
 
-    // Tính tổng thời lượng làm việc thực tế (chống lỗi null checkInTime)
-    const durationMs = openLog.checkInTime ? (openLog.checkOutTime.getTime() - openLog.checkInTime.getTime()) : 0;
+    // Tính tổng thời lượng làm việc thực tế
+    const durationMs = openLog.checkOutTime.getTime() - openLog.checkInTime.getTime();
     const durationMinutes = Math.max(0, Math.round(durationMs / (60 * 1000)));
     const hours = Math.floor(durationMinutes / 60);
     const mins = durationMinutes % 60;
@@ -417,24 +395,15 @@ const getAttendanceHistory = async (req, res, next) => {
       .populate('shiftId', 'name startTime endTime')
       .populate('scheduleId', 'roomId weekday')
       .populate('leaveRequestId', 'type reason')
-      .sort({ createdAt: -1, checkInTime: -1 })
+      .sort({ checkInTime: -1 })
       .skip(skip)
       .limit(limitNum);
-
-    // Chuẩn hóa: người vắng mặt hoặc nghỉ phép tuyệt đối không có giờ check-in
-    const sanitizedLogs = logs.map((log) => {
-      const obj = log.toObject();
-      if (obj.status === 'ABSENT' || obj.status === 'EXCUSED_ABSENCE') {
-        obj.checkInTime = null;
-      }
-      return obj;
-    });
 
     return sendSuccess(res, 'Lấy lịch sử chấm công thành công.', {
       total,
       page: pageNum,
       totalPages,
-      records: sanitizedLogs,
+      records: logs,
     });
   } catch (error) {
     next(error);
@@ -474,12 +443,7 @@ const getAttendanceById = async (req, res, next) => {
       }
     }
 
-    const logObj = log.toObject();
-    if (logObj.status === 'ABSENT' || logObj.status === 'EXCUSED_ABSENCE') {
-      logObj.checkInTime = null;
-    }
-
-    return sendSuccess(res, 'Lấy chi tiết bản ghi chấm công thành công.', logObj, 200);
+    return sendSuccess(res, 'Lấy chi tiết chấm công thành công.', log);
   } catch (error) {
     next(error);
   }

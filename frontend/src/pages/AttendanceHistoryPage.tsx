@@ -300,7 +300,7 @@ export const AttendanceHistoryPage: React.FC = () => {
 
                       {/* Check-in */}
                       <td className="py-3.5 px-4">
-                        {checkInDate ? (
+                        {checkInDate && log.status !== 'ABSENT' && log.status !== 'EXCUSED_ABSENCE' ? (
                           <div>
                             <div className="text-xs font-bold font-mono text-gray-900">
                               {checkInDate.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })}
@@ -310,13 +310,13 @@ export const AttendanceHistoryPage: React.FC = () => {
                             </div>
                           </div>
                         ) : (
-                          <span className="text-xs text-gray-400">--:--</span>
+                          <span className="text-xs text-gray-400 font-mono">--:--</span>
                         )}
                       </td>
 
                       {/* Check-out */}
                       <td className="py-3.5 px-4">
-                        {checkOutDate ? (
+                        {checkOutDate && log.status !== 'ABSENT' && log.status !== 'EXCUSED_ABSENCE' ? (
                           <div>
                             <div className="text-xs font-bold font-mono text-gray-900">
                               {checkOutDate.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })}
@@ -326,7 +326,9 @@ export const AttendanceHistoryPage: React.FC = () => {
                             </div>
                           </div>
                         ) : (
-                          <span className="text-xs text-gray-400">Chưa check-out</span>
+                          <span className="text-xs text-gray-400">
+                            {log.status === 'ABSENT' || log.status === 'EXCUSED_ABSENCE' ? '--:--' : 'Chưa check-out'}
+                          </span>
                         )}
                       </td>
 
