@@ -157,7 +157,7 @@ const MENU_ITEMS: SidebarMenuItem[] = [
 ];
 
 export const MainLayout: React.FC = () => {
-  const { user, logout } = useAuth();
+  const { user, logout, login } = useAuth();
   const location = useLocation();
   const navigate = useNavigate();
 
@@ -176,8 +176,12 @@ export const MainLayout: React.FC = () => {
   const [unreadCount, setUnreadCount] = useState(0);
   const [isLoadingNotifications, setIsLoadingNotifications] = useState(false);
   const [avatarError, setAvatarError] = useState(false);
+  const [isSwitchingAccount, setIsSwitchingAccount] = useState(false);
 
-<<<<<<< HEAD
+  React.useEffect(() => {
+    setAvatarError(false);
+  }, [user?.avatar]);
+
   // Danh sách tài khoản demo phục vụ hội đồng nghiệm thu & kiểm thử
   const demoAccounts = [
     {
@@ -205,11 +209,31 @@ export const MainLayout: React.FC = () => {
       badge: 'Nhân Viên',
     },
   ];
-=======
-  React.useEffect(() => {
-    setAvatarError(false);
-  }, [user?.avatar]);
->>>>>>> 8f4c134acbafc6889eb67fe47a2884a4032afb52
+
+  const handleQuickSwitch = async (email: string) => {
+    setIsSwitchingAccount(true);
+    try {
+      const res = (await axiosClient.post('/auth/login', {
+        email,
+        password: 'password123',
+      })) as unknown as {
+        success: boolean;
+        message?: string;
+        data?: { accessToken: string; user: import('../types').User };
+      };
+
+      if (res.success && res.data) {
+        login(res.data.accessToken, res.data.user);
+        toast.success(`Đã chuyển sang: ${res.data.user.fullName} (${res.data.user.role})`, {
+          icon: '🔄',
+        });
+      }
+    } catch {
+      toast.error('Không thể chuyển đổi tài khoản demo. Vui lòng kiểm tra backend.');
+    } finally {
+      setIsSwitchingAccount(false);
+    }
+  };
 
   // Lấy dữ liệu thông báo thực tế từ CSDL & email hệ thống
   const fetchRealNotifications = async () => {
@@ -380,7 +404,6 @@ export const MainLayout: React.FC = () => {
           </div>
         </div>
 
-<<<<<<< HEAD
         {/* Quick Demo Switcher inside Sidebar for Mobile/Tablet */}
         <div className="px-3 pb-2 xl:hidden">
           <div className="p-2.5 rounded-xl bg-slate-800/40 border border-slate-700/40 space-y-1.5">
@@ -407,9 +430,6 @@ export const MainLayout: React.FC = () => {
             </div>
           </div>
         </div>
-
-=======
->>>>>>> 8f4c134acbafc6889eb67fe47a2884a4032afb52
         {/* Navigation Menu List */}
         <div className="flex-1 overflow-y-auto px-3 py-2 space-y-1 custom-scrollbar">
           <div className="px-3 pb-2 text-[10px] font-bold text-slate-400 uppercase tracking-wider">

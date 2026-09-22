@@ -189,7 +189,6 @@ const generateMonthlyReport = async (month, year, departmentId = null, options =
     };
   });
 
-<<<<<<< HEAD
   // Tính xu hướng chuyên cần theo 4 tuần trong tháng hoàn toàn từ dữ liệu MongoDB thật
   const daysInMonth = new Date(year, month, 0).getDate();
   const weekRanges = [
@@ -198,8 +197,6 @@ const generateMonthlyReport = async (month, year, departmentId = null, options =
     { label: 'Tuần 3', start: 15, end: 21 },
     { label: 'Tuần 4', start: 22, end: daysInMonth },
   ];
-
-  const mStr = String(month).padStart(2, '0');
 
   const weeklyTrend = weekRanges.map(({ label, start, end }) => {
     const wStart = new Date(year, month - 1, start, 0, 0, 0, 0);
@@ -230,19 +227,14 @@ const generateMonthlyReport = async (month, year, departmentId = null, options =
 
   return {
     report: reportData,
-    totalUsers: users.length,
-    weeklyTrend,
-=======
-  return {
-    report: reportData,
     totalUsers,
+    weeklyTrend,
     pagination: {
       page: page || 1,
       limit: limit || reportData.length,
       totalPages: limit ? Math.ceil(totalUsers / limit) || 1 : 1,
       totalUsers,
     },
->>>>>>> 8f4c134acbafc6889eb67fe47a2884a4032afb52
   };
 };
 

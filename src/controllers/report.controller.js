@@ -215,14 +215,9 @@ const getMonthlyReport = async (req, res, next) => {
     return sendSuccess(res, `Lấy báo cáo tổng hợp tháng ${month}/${year} thành công.`, {
       month,
       year,
-<<<<<<< HEAD
-      totalUsers: result.totalUsers !== undefined ? result.totalUsers : reportList.length,
-      report: reportList,
-      weeklyTrend: result.weeklyTrend || weeklyTrend,
-=======
-      totalUsers: result.totalUsers,
-      report: result.report,
->>>>>>> 8f4c134acbafc6889eb67fe47a2884a4032afb52
+      totalUsers: result.totalUsers !== undefined ? result.totalUsers : (result.report?.length || 0),
+      report: result.report || [],
+      weeklyTrend: result.weeklyTrend || [],
       pagination: result.pagination,
     });
   } catch (error) {

@@ -54,14 +54,10 @@ auditLogSchema.index({ targetType: 1, timestamp: -1 });
 auditLogSchema.index({ timestamp: -1 });
 
 // Đảm bảo tính bất biến (Immutability / Append-Only) cho Audit Logs
-const blockMutation = function (next) {
+const blockMutation = function () {
   const err = new Error('Nhật ký kiểm toán (Audit Log) là dữ liệu bất biến, không được phép sửa hoặc xóa.');
   err.status = 403;
-  if (typeof next === 'function') {
-    next(err);
-  } else {
-    throw err;
-  }
+  throw err;
 };
 
 // Chặn toàn bộ thao tác sửa đổi trên Query
@@ -77,11 +73,10 @@ auditLogSchema.pre('deleteMany', blockMutation);
 auditLogSchema.pre('findOneAndDelete', blockMutation);
 
 // Chặn sửa đổi thông qua document.save() sau khi đã được lưu
-auditLogSchema.pre('save', function (next) {
+auditLogSchema.pre('save', function () {
   if (!this.isNew) {
-    return blockMutation(next);
+    blockMutation();
   }
-  next();
 });
 
 module.exports = mongoose.model('AuditLog', auditLogSchema, 'audit_logs');
