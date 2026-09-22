@@ -55,7 +55,6 @@ export const AttendanceCheckInPage: React.FC = () => {
     } catch { }
     return 'gps';
   });
-
   // Đồng hồ thời gian thực
   const [currentTime, setCurrentTime] = useState(new Date());
 
@@ -1164,8 +1163,7 @@ export const AttendanceCheckInPage: React.FC = () => {
                       <td className="py-4 px-6">
                         {log ? (
                           <span
-                            className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full font-bold text-[11px] ${
-                              log.status === 'ON_TIME'
+                            className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full font-bold text-[11px] ${log.status === 'ON_TIME'
                                 ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
                                 : log.status === 'LATE'
                                 ? 'bg-amber-50 text-amber-700 border border-amber-200'

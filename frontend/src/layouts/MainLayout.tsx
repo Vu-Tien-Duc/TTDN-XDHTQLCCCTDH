@@ -157,7 +157,7 @@ const MENU_ITEMS: SidebarMenuItem[] = [
 ];
 
 export const MainLayout: React.FC = () => {
-  const { user, logout } = useAuth();
+  const { user, logout, login } = useAuth();
   const location = useLocation();
   const navigate = useNavigate();
 
@@ -176,10 +176,64 @@ export const MainLayout: React.FC = () => {
   const [unreadCount, setUnreadCount] = useState(0);
   const [isLoadingNotifications, setIsLoadingNotifications] = useState(false);
   const [avatarError, setAvatarError] = useState(false);
+  const [isSwitchingAccount, setIsSwitchingAccount] = useState(false);
 
   React.useEffect(() => {
     setAvatarError(false);
   }, [user?.avatar]);
+
+  // Danh sách tài khoản demo phục vụ hội đồng nghiệm thu & kiểm thử
+  const demoAccounts = [
+    {
+      role: 'admin',
+      name: 'Ban Giám Hiệu (Admin)',
+      email: 'daihocdtd@gmail.com',
+      badge: 'Admin',
+    },
+    {
+      role: 'truongkhoa',
+      name: 'Trưởng Khoa CNTT',
+      email: 'truongkhoa.cntt@university.edu.vn',
+      badge: 'Trưởng Khoa',
+    },
+    {
+      role: 'giangvien',
+      name: 'TS. Trần Thị Bích',
+      email: 'giangvien.bich@university.edu.vn',
+      badge: 'Giảng Viên',
+    },
+    {
+      role: 'nhanvien',
+      name: 'Đỗ Thu Hà',
+      email: 'nhanvien.ha@university.edu.vn',
+      badge: 'Nhân Viên',
+    },
+  ];
+
+  const handleQuickSwitch = async (email: string) => {
+    setIsSwitchingAccount(true);
+    try {
+      const res = (await axiosClient.post('/auth/login', {
+        email,
+        password: 'password123',
+      })) as unknown as {
+        success: boolean;
+        message?: string;
+        data?: { accessToken: string; user: import('../types').User };
+      };
+
+      if (res.success && res.data) {
+        login(res.data.accessToken, res.data.user);
+        toast.success(`Đã chuyển sang: ${res.data.user.fullName} (${res.data.user.role})`, {
+          icon: '🔄',
+        });
+      }
+    } catch {
+      toast.error('Không thể chuyển đổi tài khoản demo. Vui lòng kiểm tra backend.');
+    } finally {
+      setIsSwitchingAccount(false);
+    }
+  };
 
   // Lấy dữ liệu thông báo thực tế từ CSDL & email hệ thống
   const fetchRealNotifications = async () => {
@@ -350,6 +404,32 @@ export const MainLayout: React.FC = () => {
           </div>
         </div>
 
+        {/* Quick Demo Switcher inside Sidebar for Mobile/Tablet */}
+        <div className="px-3 pb-2 xl:hidden">
+          <div className="p-2.5 rounded-xl bg-slate-800/40 border border-slate-700/40 space-y-1.5">
+            <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Chuyển tài khoản demo:</p>
+            <div className="grid grid-cols-2 gap-1.5">
+              {demoAccounts.map((acc) => {
+                const isActive = user?.email === acc.email;
+                return (
+                  <button
+                    key={acc.email}
+                    disabled={isSwitchingAccount || isActive}
+                    onClick={() => handleQuickSwitch(acc.email)}
+                    className={cn(
+                      'px-2 py-1 rounded-lg text-[10px] font-bold text-center transition',
+                      isActive
+                        ? 'bg-blue-600 text-white'
+                        : 'bg-slate-700/50 text-slate-300 hover:bg-slate-700 hover:text-white'
+                    )}
+                  >
+                    {acc.badge}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        </div>
         {/* Navigation Menu List */}
         <div className="flex-1 overflow-y-auto px-3 py-2 space-y-1 custom-scrollbar">
           <div className="px-3 pb-2 text-[10px] font-bold text-slate-400 uppercase tracking-wider">

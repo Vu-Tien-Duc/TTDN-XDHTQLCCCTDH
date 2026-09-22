@@ -30,19 +30,19 @@ const runAssert = (condition, message) => {
 };
 
 async function ensureServerRunning() {
+  const dbUri = process.env.MONGODB_URI || 'mongodb://localhost:27017/university_attendance_db';
+  if (mongoose.connection.readyState === 0) {
+    await mongoose.connect(dbUri);
+    console.log('[Database] Kết nối MongoDB thành công');
+  }
+
   try {
     const res = await fetch(`${BASE_URL}/health`);
     if (res.ok) return null;
   } catch {}
 
-  console.log('🔄 Đang tự động kết nối CSDL và khởi động máy chủ API Express (Port 5000)...');
+  console.log('🔄 Đang tự động khởi động máy chủ API Express (Port 5000)...');
   const app = require('./src/app');
-  const dbUri = process.env.MONGODB_URI || 'mongodb://localhost:27017/university_attendance_db';
-
-  if (mongoose.connection.readyState === 0) {
-    await mongoose.connect(dbUri);
-    console.log('[Database] Kết nối MongoDB thành công');
-  }
 
   const server = http.createServer(app);
   await new Promise((resolve) => server.listen(5000, resolve));
@@ -315,9 +315,14 @@ async function main() {
         name: 'Ca Test Kiosk Hôm Nay',
         startTime: '00:00',
         endTime: '23:59',
-        lateThresholdMinutes: 15,
+        lateThresholdMinutes: 1440,
         isActive: true,
       });
+    } else {
+      kioskTodayShift.startTime = '00:00';
+      kioskTodayShift.endTime = '23:59';
+      kioskTodayShift.lateThresholdMinutes = 1440;
+      await kioskTodayShift.save();
     }
     await Schedule.deleteMany({ userId: lecUser._id || lecUser.id, weekday: todayWeekday, subjectName: 'Kiosk Attendance Test' });
     await Schedule.create({
