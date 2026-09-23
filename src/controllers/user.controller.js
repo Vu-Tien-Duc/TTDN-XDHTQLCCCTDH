@@ -608,7 +608,8 @@ const deleteUser = async (req, res, next) => {
 const registerFaceDescriptor = async (req, res, next) => {
   try {
     const { id } = req.params;
-    const { faceDescriptor, faceDescriptors } = req.body;
+    const { faceDescriptor, faceDescriptors, force, overrideDuplicate } = req.body;
+    const isForce = force === true || overrideDuplicate === true || force === 'true';
     let descriptorList = [];
 
     if (Array.isArray(faceDescriptors) && faceDescriptors.length > 0) {
@@ -654,7 +655,7 @@ const registerFaceDescriptor = async (req, res, next) => {
 
     const duplicateCheck = checkDuplicateFace(descriptorList, otherUsersWithFace);
 
-    if (duplicateCheck.isDuplicate && duplicateCheck.duplicateUser) {
+    if (duplicateCheck.isDuplicate && duplicateCheck.duplicateUser && !isForce) {
       const duplicateUser = duplicateCheck.duplicateUser;
       return sendError(
         res,
@@ -682,7 +683,7 @@ const registerFaceDescriptor = async (req, res, next) => {
     // 6. Ghi AuditLog
     await AuditLog.create({
       actor: req.user.id,
-      action: 'REGISTER_FACE_DESCRIPTOR',
+      action: isForce && duplicateCheck.isDuplicate ? 'FORCE_REGISTER_FACE_DESCRIPTOR' : 'REGISTER_FACE_DESCRIPTOR',
       targetId: targetUser._id.toString(),
       targetType: 'User',
       ipAddress: req.ip || req.connection?.remoteAddress,
@@ -691,6 +692,8 @@ const registerFaceDescriptor = async (req, res, next) => {
         targetEmail: targetUser.email,
         targetFullName: targetUser.fullName,
         samplesCount: descriptorList.length,
+        forcedOverride: isForce,
+        possibleDuplicateWith: duplicateCheck.duplicateUser ? duplicateCheck.duplicateUser.email : null,
       },
     });
 

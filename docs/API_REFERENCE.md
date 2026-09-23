@@ -45,12 +45,16 @@ Authorization: Bearer <access_token>
 }
 ```
 
-### `POST /api/auth/refresh` — Làm mới Access Token (Silent Refresh)
+### `POST /api/auth/refresh` hoặc `POST /api/auth/refresh-token` — Làm mới Access Token (Silent Refresh)
 - **Cơ chế:** Gửi kèm HTTP-Only Cookie chứa `refreshToken` hoặc Body `{ "refreshToken": "..." }`.
 - **Response 200:** Cấp `accessToken` mới (thời hạn 15 phút).
 
 ### `POST /api/auth/logout` — Đăng xuất & Thu hồi phiên
 - **Cơ chế:** Đưa `accessToken` hiện tại vào Blacklist và xóa bản ghi `refreshToken` trong Database.
+
+### `POST /api/auth/verify-account` — Kích hoạt tài khoản qua OTP 6 số
+- **Request Body:** `{ "email": "nguyenvanmoi@university.edu.vn", "otp": "123456" }`
+- **Response 200:** Kích hoạt tài khoản thành công (`isVerified: true`).
 
 ### `POST /api/auth/forgot-password` — Yêu cầu cấp OTP khôi phục mật khẩu
 - **Request Body:** `{ "email": "giangvien.cuong@university.edu.vn" }`
@@ -68,6 +72,18 @@ Authorization: Bearer <access_token>
 
 ### `GET /api/auth/me` — Lấy thông tin tài khoản đang đăng nhập
 - **Thẩm quyền:** Mọi vai trò đã đăng nhập (Bearer Token).
+
+### `PUT /api/auth/change-password` — Đổi mật khẩu cá nhân
+- **Request Body:**
+```json
+{
+  "oldPassword": "password123",
+  "newPassword": "newSecretPass2026"
+}
+```
+
+### `PUT /api/auth/avatar` & `POST /api/auth/avatar` — Cập nhật ảnh đại diện / khuôn mặt
+- **Content-Type:** `multipart/form-data` (file `avatar`) hoặc `application/json` (`{ "avatarUrl": "..." }`).
 
 ---
 
@@ -99,6 +115,19 @@ Authorization: Bearer <access_token>
 
 ### `DELETE /api/users/:id` — Khóa tài khoản (Soft Delete — Admin only)
 - Chuyển `isActive = false` để vô hiệu hóa đăng nhập, bảo toàn toàn vẹn dữ liệu lịch sử.
+
+### `POST /api/users/:id/face-descriptor` — Đăng ký đặc trưng Face ID 128 chiều (Admin only)
+- **Request Body:**
+```json
+{
+  "faceDescriptor": [0.0123, -0.0456, "... (128 số float chuẩn hóa L2)"],
+  "facePhotoUrl": "/uploads/face_6aad1.jpg"
+}
+```
+- **Kiểm tra chống trùng lặp khuôn mặt ($\tau_{register} = 0.44$):** Hệ thống tự động so khớp với toàn bộ vector đã đăng ký trong trường. Nếu phát hiện khoảng cách Euclidean $< 0.44$, từ chối với lỗi `409 Conflict` (Mã `USER_003: Khuôn mặt này đã được đăng ký cho tài khoản khác`).
+
+### `DELETE /api/users/:id/face-descriptor` — Xóa đặc trưng Face ID (Admin only)
+- Xóa vector 128 chiều và đặt `faceRegistered = false` để mở lại quyền quét và đăng ký khuôn mặt mới.
 
 ---
 
@@ -208,6 +237,37 @@ Authorization: Bearer <access_token>
 }
 ```
 
+### `POST /api/attendance/face-checkin` — Điểm danh Kiosk AI nhận diện khuôn mặt
+- **Thẩm quyền:** Thiết bị Kiosk sảnh (Header: `x-kiosk-key: <KIOSK_KEY>`).
+- **Giới hạn:** Rate limit 15 req/phút/IP.
+- **Request Body:**
+```json
+{
+  "faceDescriptor": [0.0123, -0.0456, "... 128 số float trích xuất từ camera Kiosk"],
+  "location": { "lat": 21.0285, "lng": 105.8542 }
+}
+```
+- **Ngưỡng so khớp:** Khoảng cách Euclidean $< 0.55$. Tự động tìm ca dạy trong ngày hôm nay của giảng viên, ghi nhận điểm danh `ON_TIME` hoặc `LATE`.
+
+### `POST /api/attendance/face-checkin-batch` — Điểm danh Kiosk đa khuôn mặt (Batch Processing)
+- **Request Body:** `{ "descriptors": [ [128 floats], [128 floats] ] }`
+
+### `GET /api/attendance/qr/generate` — Sinh mã QR Động TOTP (Hiệu lực 15-20s)
+- Hiển thị trên màn hình Kiosk / Máy chiếu lớp học, mã hóa HMAC-SHA256 làm mới tự động.
+
+### `POST /api/attendance/qr/scan` — Quét mã QR Động trên di động điểm danh
+- **Request Body:**
+```json
+{
+  "qrToken": "eyJhbGciOiJIUzI1Ni...",
+  "location": { "lat": 21.0285, "lng": 105.8542 },
+  "deviceId": "MOBILE_DEVICE_ID"
+}
+```
+
+### `GET /api/attendance/campus-config` & `POST /api/attendance/campus-config` — Cấu hình Geofence GPS
+- Quản lý tọa độ tâm trường và bán kính cho phép điểm danh di động.
+
 ### `POST /api/attendance/trigger-absent-check` — Kích hoạt quét vắng mặt (Cron Test)
 - Tự động tạo bản ghi `ABSENT` cho các ca dạy đã qua thời gian điểm danh mà chưa có check-in.
 
@@ -263,6 +323,10 @@ Authorization: Bearer <access_token>
 ### `GET /api/reports/monthly` — Báo cáo chi tiết theo tháng phục vụ tính lương
 - **Query Params:** `?month=9&year=2026&departmentId=<id>`
 
+### `GET /api/reports/export-data` — Trích xuất dữ liệu đa chiều 5 Sheets phục vụ Excel
+- **Query Params:** `?month=9&year=2026&departmentId=<id>`
+- **Cấu trúc trả về:** 5 Sheet dữ liệu: Tổng hợp công, Bảng điểm danh chi tiết, Danh sách trễ/về sớm, Thống kê đơn nghỉ phép, và Phân bổ giờ giảng theo khoa.
+
 ---
 
 ## 9. Trợ Lý Ảo Thông Minh — `/api/ai`
@@ -308,16 +372,35 @@ Authorization: Bearer <access_token>
 
 ---
 
-## 12. Kiểm Tra Trạng Thái Hệ Thống — `/api/health`
+## 12. Hệ Thống Thông Báo — `/api/notifications`
+
+### `GET /api/notifications` — Danh sách thông báo người dùng
+- **Query Params:** `?isRead=false&limit=20`
+- **Response:** Danh sách các thông báo tự động (Duyệt đơn nghỉ phép, cảnh báo đi muộn/vắng mặt, nhắc nhở lịch dạy).
+
+---
+
+## 13. Kiểm Tra Trạng Thái Hệ Thống — `/api/health`
 
 ### `GET /api/health` — Health check endpoint (Public)
 - **Response:**
 ```json
 {
   "status": "OK",
-  "message": "Hệ thống đang hoạt động bình thường.",
+  "message": "Hệ thống Quản lý Chấm công Trường Đại học đang hoạt động bình thường.",
   "collectionsCount": 9,
-  "timestamp": "2026-09-22T14:00:00.000Z"
+  "collections": [
+    "users",
+    "departments",
+    "shift_configs",
+    "schedules",
+    "attendance_logs",
+    "leave_requests",
+    "audit_logs",
+    "refresh_tokens",
+    "token_blacklists"
+  ],
+  "timestamp": "2026-09-23T14:00:00.000Z"
 }
 ```
 

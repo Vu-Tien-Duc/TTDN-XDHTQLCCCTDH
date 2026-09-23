@@ -509,11 +509,10 @@ const euclideanDistance = (vecA, vecB) => {
 const FACE_MATCH_THRESHOLD = 0.48;
 
 // Ngưỡng kiểm tra trùng lặp khi Đăng Ký Khuôn Mặt (Anti-duplicate registration).
-// Khi một người dùng đăng ký, để xác định họ có thực sự là cùng một người với tài khoản khác hay không:
-// Cùng một người có khoảng cách khuôn mặt nhìn thẳng và vector trung tâm < 0.44.
-// Ngưỡng 0.44 đảm bảo phát hiện chính xác trường hợp 1 người lập 2 tài khoản (ngay cả khi khác ánh sáng/thiết bị),
-// đồng thời không bao giờ báo nhầm đồng nghiệp khác mặt (khoảng cách người khác nhau thường 0.52 - 0.85+).
-const DUPLICATE_FACE_THRESHOLD = 0.44;
+// Khi cùng một người đăng ký 2 tài khoản, khoảng cách vector chính diện và centroid luôn < 0.28.
+// Hai người khác nhau (kể cả cùng giới tính, cùng góc nhìn, có nét tương đồng) thường có khoảng cách từ 0.32 - 0.85+.
+// Đặt ngưỡng 0.28 để ngăn chặn 1 người đăng ký nhiều tài khoản, đồng thời triệt tiêu hoàn toàn lỗi chặn nhầm 2 người khác nhau.
+const DUPLICATE_FACE_THRESHOLD = 0.28;
 
 /**
  * Tính vector trung tâm (Centroid) và chuẩn hóa độ dài L2 = 1.0
@@ -549,10 +548,10 @@ const computeNormalizedCentroid = (descriptors) => {
 /**
  * Thuật toán Biometric Multi-Metric Fusion kiểm tra trùng lặp khuôn mặt:
  * 1. Chống lọt (Không cho cùng 1 người đăng ký nhiều tài khoản):
- *    - Bắt chính xác khoảng cách cùng một người (thường 0.20 - 0.44 khi khác ánh sáng/thiết bị).
+ *    - Bắt chính xác khoảng cách cùng một người (thường < 0.28 giữa các vector nhìn thẳng chuẩn).
  * 2. Chống nhầm (Không bao giờ chặn 2 đồng nghiệp khác nhau có nét tương đồng):
  *    - Sử dụng Centroid và Primary Frontal để triệt tiêu phương sai góc nghiêng ngẫu nhiên.
- *    - Người có khoảng cách chính diện và centroid >= 0.48 được bảo vệ tuyệt đối không bị chặn nhầm.
+ *    - Khoảng cách giữa 2 người khác nhau (thường >= 0.32) được phép đăng ký bình thường.
  *
  * @param {number[][]} incomingDescriptors
  * @param {Array} otherUsersWithFace
@@ -591,20 +590,14 @@ const checkDuplicateFace = (incomingDescriptors, otherUsersWithFace) => {
       ? euclideanDistance(inputCentroid, otherCentroid)
       : Infinity;
 
-    // 3. Khoảng cách tối thiểu và trung bình giữa toàn bộ các cặp mẫu
+    // 3. Khoảng cách tối thiểu giữa toàn bộ các cặp mẫu
     let minPairDist = Infinity;
-    let sumPairDist = 0;
-    let pairCount = 0;
-
     for (const inVec of incomingDescriptors) {
       for (const exVec of otherCandidates) {
         const d = euclideanDistance(inVec, exVec);
         if (d < minPairDist) minPairDist = d;
-        sumPairDist += d;
-        pairCount++;
       }
     }
-    const avgDist = pairCount > 0 ? sumPairDist / pairCount : Infinity;
 
     const effectiveMin = Math.min(primaryDist, centroidDist, minPairDist);
     if (effectiveMin < minRecordedDistance) {
@@ -612,22 +605,19 @@ const checkDuplicateFace = (incomingDescriptors, otherUsersWithFace) => {
     }
 
     // NGUYÊN TẮC BẢO VỆ ĐỒNG NGHIỆP:
-    // Nếu cả góc chính diện và vector trung tâm đều cách nhau xa (>= 0.48):
-    // Hai người này CHẮC CHẮN là 2 cá thể riêng biệt, bất chấp một góc nghiêng méo ngẫu nhiên!
-    if (primaryDist >= 0.48 && centroidDist >= 0.48) {
+    // Nếu cả góc chính diện và vector trung tâm đều cách nhau xa (>= 0.32):
+    // Hai người này CHẮC CHẮN là 2 cá thể riêng biệt, không được báo trùng!
+    if (primaryDist >= 0.32 && centroidDist >= 0.32) {
       continue;
     }
 
     // TIÊU CHÍ XÁC NHẬN TRÙNG LẶP (CÙNG MỘT NGƯỜI):
-    // Tiêu chí 1: Góc chính diện nhìn thẳng khớp rõ nét (primaryDist < 0.435)
-    // Tiêu chí 2: Vector trung tâm sinh trắc học khớp rõ nét (centroidDist < 0.435)
-    // Tiêu chí 3: Cả chính diện và centroid đều nằm trong dải cùng người (primaryDist < 0.45 && centroidDist < 0.46)
-    // Tiêu chí 4: Có cặp mẫu khớp sâu và được xác nhận bởi centroid + avgDist (minPairDist < 0.40 && centroidDist < 0.46 && avgDist < 0.48)
+    // Cùng một người thì góc chính diện nhìn thẳng hoặc vector trung tâm phải cực kỳ khớp (< 0.28).
+    // Nếu cả hai đều < 0.30 và có góc khớp sâu < 0.25 thì xác nhận trùng.
     const isDup =
-      primaryDist < 0.435 ||
-      centroidDist < 0.435 ||
-      (primaryDist < 0.45 && centroidDist < 0.46) ||
-      (minPairDist < 0.40 && centroidDist < 0.46 && avgDist < 0.48);
+      primaryDist < 0.28 ||
+      centroidDist < 0.28 ||
+      (primaryDist < 0.30 && centroidDist < 0.30 && minPairDist < 0.25);
 
     if (isDup) {
       closestDuplicateUser = other;

@@ -276,23 +276,32 @@ Hệ thống cung cấp sẵn danh sách tài khoản theo từng vai trò để
 
 | Nhóm chức năng | Endpoint | Phương thức | Thẩm quyền tối thiểu | Mô tả ngắn |
 | :--- | :--- | :---: | :---: | :--- |
-| **Xác thực** | `/api/auth/login` | `POST` | Public | Đăng nhập tài khoản & nhận JWT |
-| | `/api/auth/refresh` | `POST` | Public | Gia hạn access token mới |
-| | `/api/auth/logout` | `POST` | Bearer | Đăng xuất & thu hồi token |
-| | `/api/auth/forgot-password` | `POST` | Public | Gửi mã OTP khôi phục qua email |
-| **Nhân sự** | `/api/users` | `GET` | Trưởng khoa | Danh sách cán bộ theo phân cấp |
+| **Xác thực** | `/api/auth/login` | `POST` | Public | Đăng nhập tài khoản & nhận JWT (Rate Limit 5 lần/15p) |
+| | `/api/auth/refresh` | `POST` | Public | Gia hạn access token mới từ refresh token |
+| | `/api/auth/logout` | `POST` | Bearer | Đăng xuất, blacklist token & clear cookie |
+| | `/api/auth/forgot-password` | `POST` | Public | Gửi mã OTP khôi phục qua email (hạn 10p) |
+| | `/api/auth/change-password` | `PUT` | Cá nhân | Đổi mật khẩu tài khoản hiện tại |
+| | `/api/auth/avatar` | `PUT/POST` | Cá nhân | Cập nhật ảnh đại diện người dùng |
+| **Nhân sự** | `/api/users` | `GET` | Trưởng khoa | Danh sách cán bộ theo phân cấp khoa/trường |
 | | `/api/users` | `POST` | Admin | Tạo mới tài khoản cán bộ |
-| **Tổ chức** | `/api/departments/tree` | `GET` | Giảng viên | Cấu trúc cây đơn vị/phòng ban |
-| **Lịch dạy** | `/api/schedules` | `GET` | Giảng viên | Xem lịch dạy theo khoảng ngày |
-| | `/api/schedules` | `POST` | Trưởng khoa | Phân công lịch dạy & kiểm tra trùng |
-| **Điểm danh** | `/api/attendance/check-in` | `POST` | Giảng viên | Check-in qua GPS/FaceID |
-| | `/api/attendance/kiosk-detect` | `POST` | Giảng viên | API Kiosk AI nhận diện khuôn mặt |
-| | `/api/attendance/history` | `GET` | Giảng viên | Xem lịch sử chấm công cá nhân |
+| | `/api/users/:id/face-descriptor` | `POST` | Admin | Đăng ký vector Face ID 128D (chống trùng $\tau=0.44$) |
+| | `/api/users/:id/face-descriptor` | `DELETE`| Admin | Xóa vector Face ID để cho phép đăng ký lại |
+| **Tổ chức** | `/api/departments/tree` | `GET` | Giảng viên | Cấu trúc cây đơn vị/phòng ban phân cấp |
+| **Lịch dạy** | `/api/schedules` | `GET` | Giảng viên | Xem lịch dạy theo khoảng ngày/tuần |
+| | `/api/schedules` | `POST` | Trưởng khoa | Phân công lịch dạy & phát hiện xung đột trùng phòng/ca |
+| **Điểm danh** | `/api/attendance/check-in` | `POST` | Giảng viên | Check-in qua GPS/FaceID cá nhân |
+| | `/api/attendance/face-checkin` | `POST` | Kiosk | Kiosk AI nhận diện khuôn mặt tức thời ($\tau=0.55$) |
+| | `/api/attendance/qr/generate` | `GET` | Public | Sinh mã QR động TOTP (15s) hiển thị Kiosk/máy chiếu |
+| | `/api/attendance/qr/scan` | `POST` | Giảng viên | Quét mã QR động kết hợp GPS Geofencing |
+| | `/api/attendance/campus-config` | `GET/POST`| Admin | Cấu hình tọa độ khuôn viên trường & bán kính GPS |
+| | `/api/attendance/history` | `GET` | Giảng viên | Xem lịch sử chấm công cá nhân/khoa/trường |
 | **Nghỉ phép** | `/api/leave-requests` | `POST` | Giảng viên | Nộp đơn xin nghỉ phép/dạy bù |
 | | `/api/leave-requests/balance`| `GET` | Giảng viên | Xem số dư phép năm tính bằng Aggregation |
 | | `/api/leave-requests/:id/approve` | `PUT`| Trưởng khoa | Phê duyệt đơn & tự động gán điểm danh |
 | **Báo cáo** | `/api/reports/monthly` | `GET` | Trưởng khoa | Báo cáo chuyên cần tổng hợp theo tháng |
-| **Trợ lý AI** | `/api/ai/chat` | `POST` | Giảng viên | Chat hỏi đáp dữ liệu ngôn ngữ tự nhiên |
+| | `/api/reports/export-data` | `GET` | Giảng viên | Dữ liệu trích xuất Excel 5 sheet đa chiều |
+| **Trợ lý AI** | `/api/ai/chat` | `POST` | Giảng viên | Chat hỏi đáp dữ liệu ngôn ngữ tự nhiên (Gemini) |
+| **Thông báo** | `/api/notifications` | `GET` | Giảng viên | Danh sách thông báo duyệt đơn, nhắc nhở chấm công |
 | **Kiểm toán** | `/api/audit-logs` | `GET` | Admin | Nhật ký truy vết các thao tác nhạy cảm |
 
 ---

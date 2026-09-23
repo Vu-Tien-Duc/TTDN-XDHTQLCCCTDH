@@ -723,8 +723,8 @@ export const FaceRegistrationPage: React.FC = () => {
     }
   };
 
-  // 6. Gửi API lưu vector vào DB (Hỗ trợ đa vector 3 góc Issue 16)
-  const handleSaveDescriptor = async () => {
+  // 6. Gửi API lưu vector vào DB (Hỗ trợ đa vector 3 góc & Admin Override khi xác nhận 2 người khác nhau)
+  const handleSaveDescriptor = async (forceOverride = false) => {
     if (!selectedUser || (samples.length === 0 && !detectedDescriptor)) {
       toast.error('Vui lòng chọn giảng viên và chụp khuôn mặt trước!');
       return;
@@ -732,11 +732,10 @@ export const FaceRegistrationPage: React.FC = () => {
 
     try {
       setIsExtracting(true);
-      setDuplicateError(null);
 
       // Gửi đa vector các mẫu sinh trắc học đã thu thập nếu có, hoặc vector đơn lẻ
       const payload = samples.length > 1 ? samples : (detectedDescriptor || samples[0]);
-      const res = await attendanceApi.registerFaceDescriptor(selectedUser._id, payload);
+      const res = await attendanceApi.registerFaceDescriptor(selectedUser._id, payload, { force: forceOverride });
 
       if (res && res.success) {
         const countText = samples.length > 1 ? ` (${samples.length} góc chụp sinh trắc học)` : '';
@@ -751,6 +750,7 @@ export const FaceRegistrationPage: React.FC = () => {
         setSamplePreviews([]);
         setCapturedImagePreview(null);
         setDuplicateError(null);
+        stopCamera();
       }
     } catch (error: any) {
       console.error('Lỗi lưu Face ID:', error);
@@ -773,6 +773,12 @@ export const FaceRegistrationPage: React.FC = () => {
     } finally {
       setIsExtracting(false);
     }
+  };
+
+  // 6a. Admin xác nhận 2 người khác nhau và vẫn tiếp tục lưu
+  const handleForceRegister = async () => {
+    if (!selectedUser) return;
+    await handleSaveDescriptor(true);
   };
 
   // 6b. Chuyển Face ID từ tài khoản cũ sang tài khoản hiện tại (Override/Reassign)
@@ -1215,9 +1221,9 @@ export const FaceRegistrationPage: React.FC = () => {
                     </div>
                     <div className="space-y-1.5 flex-1">
                       <div className="font-bold text-rose-900 text-sm flex items-center justify-between">
-                        <span>⚠️ Phát Hiện Khuôn Mặt Đã Tồn Tại (Trùng Lặp)!</span>
-                        <span className="text-[11px] px-2.5 py-0.5 bg-rose-200 text-rose-800 rounded-full font-bold">
-                          Không Cho Phép
+                        <span>⚠️ Phát Hiện Khuôn Mặt Có Nét Tương Đồng!</span>
+                        <span className="text-[11px] px-2.5 py-0.5 bg-amber-100 text-amber-800 border border-amber-300 rounded-full font-bold">
+                          Cần Xác Nhận
                         </span>
                       </div>
                       <p className="text-xs text-rose-700 leading-relaxed font-medium">
@@ -1226,24 +1232,36 @@ export const FaceRegistrationPage: React.FC = () => {
                       {duplicateError.duplicateFullName && (
                         <div className="space-y-2 pt-1">
                           <div className="flex flex-wrap items-center gap-2 text-xs">
-                            <span className="text-gray-600 font-medium">Khuôn mặt này thuộc về:</span>
+                            <span className="text-gray-600 font-medium">Khuôn mặt này tương đồng với:</span>
                             <span className="px-2.5 py-1 bg-white border border-rose-200 text-rose-900 rounded-lg font-bold shadow-xs">
                               👤 {duplicateError.duplicateFullName} ({duplicateError.duplicateEmail})
                             </span>
                             {duplicateError.distance !== undefined && (
                               <span className="text-[11px] text-gray-500 font-mono">
-                                [Độ khớp Euclidean: {duplicateError.distance} &lt; {duplicateError.threshold || 0.44}]
+                                [Độ khớp Euclidean: {duplicateError.distance} &lt; {duplicateError.threshold || 0.28}]
                               </span>
                             )}
                           </div>
 
                           <div className="flex flex-wrap items-center gap-2 pt-1">
+                            {/* Nút 1: Cho phép Admin xác nhận đây là 2 người khác nhau và vẫn tiếp tục đăng ký */}
+                            <button
+                              type="button"
+                              onClick={handleForceRegister}
+                              disabled={isExtracting}
+                              className="inline-flex items-center gap-1.5 px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold shadow-sm transition cursor-pointer"
+                              title="Xác nhận đây là 2 người khác nhau để lưu Face ID"
+                            >
+                              <CheckCircle2 className="w-3.5 h-3.5" />
+                              <span>Xác nhận 2 người khác nhau — Vẫn đăng ký cho {selectedUser.fullName}</span>
+                            </button>
+
                             {duplicateError.duplicateUserId && (
                               <button
                                 type="button"
                                 onClick={handleReassignFace}
                                 disabled={isExtracting}
-                                className="inline-flex items-center gap-1.5 px-3.5 py-2 bg-rose-600 hover:bg-rose-700 text-white rounded-xl text-xs font-bold shadow-sm transition cursor-pointer"
+                                className="inline-flex items-center gap-1.5 px-3 py-2 bg-rose-600 hover:bg-rose-700 text-white rounded-xl text-xs font-semibold shadow-sm transition cursor-pointer"
                               >
                                 <RotateCw className="w-3.5 h-3.5" />
                                 <span>Chuyển Face ID sang {selectedUser.fullName}</span>
@@ -1271,7 +1289,7 @@ export const FaceRegistrationPage: React.FC = () => {
                                   }
                                 }}
                                 disabled={isExtracting}
-                                className="inline-flex items-center gap-1.5 px-3.5 py-2 bg-white border border-rose-300 text-rose-700 hover:bg-rose-50 rounded-xl text-xs font-semibold shadow-2xs transition cursor-pointer"
+                                className="inline-flex items-center gap-1.5 px-3 py-2 bg-white border border-rose-300 text-rose-700 hover:bg-rose-50 rounded-xl text-xs font-semibold shadow-2xs transition cursor-pointer"
                               >
                                 <UserX className="w-3.5 h-3.5" />
                                 <span>Xóa Face ID của {duplicateError.duplicateFullName}</span>
@@ -1280,8 +1298,8 @@ export const FaceRegistrationPage: React.FC = () => {
                           </div>
                         </div>
                       )}
-                      <p className="text-[11px] text-rose-600 italic pt-1">
-                        🔒 Quy định bảo mật: Mỗi tài khoản chỉ được liên kết 1 khuôn mặt duy nhất. Bạn không thể sử dụng 1 khuôn mặt để điểm danh cho nhiều tài khoản khác nhau.
+                      <p className="text-[11px] text-slate-500 pt-1">
+                        💡 Nếu đây là 2 người khác nhau (anh em hoặc đồng nghiệp có nét tương đồng), vui lòng bấm nút xanh <strong>"Xác nhận 2 người khác nhau — Vẫn đăng ký"</strong> để lưu Face ID bình thường.
                       </p>
                     </div>
                   </div>
@@ -1332,11 +1350,13 @@ export const FaceRegistrationPage: React.FC = () => {
                           Chụp lại từ đầu
                         </button>
                         <button
-                          onClick={handleSaveDescriptor}
+                          onClick={() => handleSaveDescriptor(!!duplicateError)}
                           disabled={isExtracting}
                           className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold rounded-xl shadow-xs transition cursor-pointer"
                         >
-                          {samples.length >= 3 ? 'Xác Nhận & Lưu Face ID (3 Góc)' : 'Xác Nhận & Lưu Face ID'}
+                          {duplicateError
+                            ? `Vẫn Lưu Face ID cho ${selectedUser.fullName}`
+                            : (samples.length >= 3 ? 'Xác Nhận & Lưu Face ID (3 Góc)' : 'Xác Nhận & Lưu Face ID')}
                         </button>
                       </div>
                     </div>
