@@ -1,0 +1,1 @@
+import{r as e}from"./createLucideIcon-DE-lQ5q9.js";import"./attendanceApi-DymUl1PX.js";var t={getAll:async()=>e.get(`/shifts`),getById:async t=>e.get(`/shifts/${t}`),create:async t=>e.post(`/shifts`,t),update:async(t,n)=>e.put(`/shifts/${t}`,n),delete:async t=>e.delete(`/shifts/${t}`)};export{t};

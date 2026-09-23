@@ -1,0 +1,1 @@
+import{r as e}from"./createLucideIcon-DE-lQ5q9.js";var t={getAttendanceReport:async t=>await e.get(`/reports/attendance`,{params:t}),getMonthlyReport:async t=>await e.get(`/reports/monthly`,{params:t}),getExportData:async t=>await e.get(`/reports/export-data`,{params:t})};export{t};
