@@ -1051,7 +1051,7 @@ export const FaceCheckInKiosk: React.FC = () => {
       {/* =============== BOTTOM BAR =============== */}
       <div className="shrink-0 bg-slate-900/90 backdrop-blur-md border-t border-slate-800/80 px-4 sm:px-6 py-2.5 sm:py-3 flex flex-col sm:flex-row items-center justify-between gap-3 z-20 mt-auto">
         <div className="hidden sm:block text-xs text-slate-500 font-medium">
-          Mô hình: <span className="text-slate-400">TinyFaceDetector + Euclidean (d &lt; 0.55)</span> &bull; Trạng thái:{' '}
+          Mô hình: <span className="text-slate-400">TinyFaceDetector + Euclidean (d &lt; 0.48)</span> &bull; Trạng thái:{' '}
           <span className="text-indigo-400 font-bold uppercase">{kioskState}</span>
           {cameraState !== 'ACTIVE' && (
             <> &bull; Camera: <span className="text-amber-400 font-bold uppercase">{cameraState}</span></>

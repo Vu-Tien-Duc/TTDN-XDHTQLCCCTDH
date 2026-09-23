@@ -213,6 +213,61 @@ export const SchedulesPage: React.FC = () => {
   const selectedFormUser = usersList.find((u) => u._id === formData.userId);
   const canAssignSubject = selectedFormUser?.role === 'giangvien' || selectedFormUser?.role === 'truongkhoa';
 
+  // Phát hiện sớm xung đột Phòng Học / Giảng Đường ngay trên giao diện
+  const roomConflictWarning = useMemo(() => {
+    if (!formData.roomId.trim() || !formData.shiftId || !formData.startDate || !formData.endDate) {
+      return null;
+    }
+    const cleanRoom = formData.roomId.trim().toLowerCase();
+    const normalize = (r: string) =>
+      r.toLowerCase().replace(/^(phòng\s*học|phòng|giảng\s*đường|hội\s*trường|khu|p\.)\s+/i, '').replace(/\s+/g, ' ').trim();
+    const normClean = normalize(cleanRoom);
+
+    const formShift = shifts.find((s) => s._id === formData.shiftId);
+    const formStart = formData.startTime || formShift?.startTime || '';
+    const formEnd = formData.endTime || formShift?.endTime || '';
+    if (!formStart || !formEnd) return null;
+
+    const toMins = (t: string) => {
+      const [h, m] = t.split(':').map(Number);
+      return (h || 0) * 60 + (m || 0);
+    };
+    const formStartM = toMins(formStart);
+    const formEndM = toMins(formEnd);
+    const formStartD = new Date(formData.startDate);
+    const formEndD = new Date(formData.endDate);
+
+    const conflict = schedules.find((s) => {
+      if (editingSchedule && s._id === editingSchedule._id) return false;
+      const sRoom = (s.roomId || (s as any).room || '').trim();
+      if (!sRoom) return false;
+      const normS = normalize(sRoom);
+      if (sRoom.toLowerCase() !== cleanRoom && normS !== normClean) return false;
+      if (s.weekday !== Number(formData.weekday)) return false;
+
+      // Kiểm tra khoảng ngày có giao thoa không
+      const sStartD = new Date(s.startDate || '');
+      const sEndD = new Date(s.endDate || '');
+      if (isNaN(sStartD.getTime()) || isNaN(sEndD.getTime())) return false;
+      if (sStartD > formEndD || sEndD < formStartD) return false;
+
+      // Kiểm tra ca/khung giờ có giao thoa không
+      const sShift = shifts.find((sh) => sh._id === (typeof s.shiftId === 'object' ? (s.shiftId as any)?._id : s.shiftId));
+      const sStart = s.startTime || sShift?.startTime || (typeof s.shiftId === 'object' ? (s.shiftId as any)?.startTime : '');
+      const sEnd = s.endTime || sShift?.endTime || (typeof s.shiftId === 'object' ? (s.shiftId as any)?.endTime : '');
+      if (!sStart || !sEnd) return false;
+
+      return Math.max(formStartM, toMins(sStart)) < Math.min(formEndM, toMins(sEnd));
+    });
+
+    if (conflict) {
+      const lecturer = typeof conflict.userId === 'object' ? (conflict.userId as any)?.fullName : 'giảng viên khác';
+      const subject = conflict.subjectName ? ` (Môn: "${conflict.subjectName}")` : '';
+      return `Phòng "${formData.roomId.trim()}" đã có lịch của ${lecturer}${subject} trong cùng ca/khung giờ!`;
+    }
+    return null;
+  }, [formData.roomId, formData.shiftId, formData.weekday, formData.startTime, formData.endTime, formData.startDate, formData.endDate, schedules, shifts, editingSchedule]);
+
   // Modal Xác nhận xóa
   const [deleteTarget, setDeleteTarget] = useState<Schedule | null>(null);
   const [isDeleting, setIsDeleting] = useState<boolean>(false);
@@ -578,6 +633,12 @@ export const SchedulesPage: React.FC = () => {
     }
     if (new Date(formData.endDate) < new Date(formData.startDate)) {
       toast.error('Ngày kết thúc không được trước ngày bắt đầu');
+      return;
+    }
+
+    if (roomConflictWarning) {
+      setConflictError(roomConflictWarning);
+      toast.error('Xung đột phòng học: ' + roomConflictWarning);
       return;
     }
 
@@ -2127,6 +2188,14 @@ export const SchedulesPage: React.FC = () => {
                       </button>
                     ))}
                   </div>
+
+                  {/* Cảnh báo trực tiếp nếu phòng học bị trùng lịch */}
+                  {roomConflictWarning && (
+                    <div className="flex items-center gap-1.5 text-[11px] text-red-700 bg-red-50 p-2 rounded-lg border border-red-200">
+                      <AlertTriangle className="w-3.5 h-3.5 text-red-600 shrink-0" />
+                      <span className="font-medium">{roomConflictWarning}</span>
+                    </div>
+                  )}
                 </div>
               </div>
 

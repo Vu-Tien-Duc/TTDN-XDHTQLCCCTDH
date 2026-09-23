@@ -31,6 +31,7 @@ import { useAuth } from '../../contexts/AuthContext';
 import { getVietnamDateString, formatTime } from '../../utils';
 import GpsCampusMap from '../../components/common/GpsCampusMap';
 import UserAvatar from '../../components/common/UserAvatar';
+import jsQR from 'jsqr';
 
 // Tính khoảng cách Haversine thực tế (mét)
 function calculateDistanceMeters(lat1: number, lon1: number, lat2: number, lon2: number): number {
@@ -536,35 +537,74 @@ export const AttendanceCheckInPage: React.FC = () => {
   const startCameraScanner = async () => {
     try {
       setCameraActive(true);
-      const stream = await navigator.mediaDevices.getUserMedia({
-        video: { facingMode: 'environment', width: { ideal: 1280 }, height: { ideal: 720 } },
-      });
+      let stream: MediaStream;
+      try {
+        stream = await navigator.mediaDevices.getUserMedia({
+          video: { facingMode: { ideal: 'environment' }, width: { ideal: 1280 }, height: { ideal: 720 } },
+        });
+      } catch {
+        stream = await navigator.mediaDevices.getUserMedia({
+          video: true,
+        });
+      }
+
       qrStreamRef.current = stream;
       if (videoRef.current) {
         videoRef.current.srcObject = stream;
-        videoRef.current.play();
+        videoRef.current.setAttribute('playsinline', 'true');
+        videoRef.current.play().catch(() => {});
       }
 
-      // BarcodeDetector API chuẩn trình duyệt
-      if ('BarcodeDetector' in window) {
-        const barcodeDetector = new (window as any).BarcodeDetector({ formats: ['qr_code'] });
-        scanIntervalRef.current = setInterval(async () => {
-          if (!videoRef.current || videoRef.current.readyState < 2 || isScanningQr) return;
-          try {
-            const barcodes = await barcodeDetector.detect(videoRef.current);
-            if (barcodes.length > 0) {
-              const detectedToken = barcodes[0].rawValue;
-              if (detectedToken && detectedToken !== lastScannedToken) {
-                setLastScannedToken(detectedToken);
-                stopCameraScanner();
-                processQrAttendance(detectedToken);
+      // Khởi tạo Canvas & BarcodeDetector ngầm để giải mã QR trên mọi trình duyệt
+      const canvas = document.createElement('canvas');
+      const ctx = canvas.getContext('2d', { willReadFrequently: true });
+      const hasNativeBarcode = typeof window !== 'undefined' && 'BarcodeDetector' in window;
+      const barcodeDetector = hasNativeBarcode ? new (window as any).BarcodeDetector({ formats: ['qr_code'] }) : null;
+
+      scanIntervalRef.current = setInterval(async () => {
+        if (!videoRef.current || videoRef.current.readyState < 2 || isScanningQr) return;
+
+        try {
+          let detectedToken: string | null = null;
+
+          // 1. Thử dùng BarcodeDetector chuẩn trình duyệt nếu có
+          if (barcodeDetector) {
+            try {
+              const barcodes = await barcodeDetector.detect(videoRef.current);
+              if (barcodes.length > 0 && barcodes[0].rawValue) {
+                detectedToken = barcodes[0].rawValue;
               }
+            } catch { }
+          }
+
+          // 2. Dự phòng bằng jsQR thông qua Canvas ngầm (hoạt động 100% trên PC, Laptop, Chrome, Firefox, Safari)
+          if (!detectedToken && ctx && videoRef.current) {
+            const vWidth = videoRef.current.videoWidth || 640;
+            const vHeight = videoRef.current.videoHeight || 480;
+            if (canvas.width !== vWidth || canvas.height !== vHeight) {
+              canvas.width = vWidth;
+              canvas.height = vHeight;
             }
-          } catch { }
-        }, 400);
-      }
+            ctx.drawImage(videoRef.current, 0, 0, vWidth, vHeight);
+            const imageData = ctx.getImageData(0, 0, vWidth, vHeight);
+            const qrResult = jsQR(imageData.data, imageData.width, imageData.height, {
+              inversionAttempts: 'dontInvert',
+            });
+            if (qrResult && qrResult.data) {
+              detectedToken = qrResult.data;
+            }
+          }
+
+          if (detectedToken && detectedToken !== lastScannedToken) {
+            setLastScannedToken(detectedToken);
+            stopCameraScanner();
+            processQrAttendance(detectedToken);
+          }
+        } catch { }
+      }, 300);
     } catch (err: any) {
-      toast.error('Không thể mở camera: ' + (err.message || 'Vui lòng cấp quyền truy cập camera.'));
+      console.error('[CameraScanner Error]', err);
+      toast.error('Không thể mở camera: ' + (err.message || 'Vui lòng cấp quyền truy cập camera trên trình duyệt.'));
       setCameraActive(false);
     }
   };
@@ -1645,13 +1685,11 @@ export const AttendanceCheckInPage: React.FC = () => {
                 </span>
 
                 <button
+                  type="button"
                   onClick={cameraActive ? stopCameraScanner : startCameraScanner}
-                  disabled={!checkInTimingStatus.canCheckIn && !cameraActive}
-                  className={`w-full sm:w-auto px-5 py-2.5 sm:py-1.5 rounded-xl sm:rounded-full text-xs font-bold transition flex items-center justify-center gap-2 shadow-sm ${cameraActive
-                    ? 'bg-rose-500 hover:bg-rose-600 text-white cursor-pointer'
-                    : !checkInTimingStatus.canCheckIn
-                      ? 'bg-slate-700 text-slate-400 cursor-not-allowed border border-white/10'
-                      : 'bg-indigo-600 hover:bg-indigo-700 text-white cursor-pointer'
+                  className={`w-full sm:w-auto px-5 py-2.5 sm:py-1.5 rounded-xl sm:rounded-full text-xs font-bold transition flex items-center justify-center gap-2 shadow-sm cursor-pointer ${cameraActive
+                    ? 'bg-rose-500 hover:bg-rose-600 text-white'
+                    : 'bg-indigo-600 hover:bg-indigo-700 text-white hover:shadow-indigo-500/25'
                     }`}
                 >
                   <Camera className="w-3.5 h-3.5 shrink-0" />
@@ -1695,13 +1733,16 @@ export const AttendanceCheckInPage: React.FC = () => {
                     </p>
                   </div>
                 ) : (
-                  <div className="text-center p-6 text-slate-400 flex flex-col items-center justify-center z-10">
-                    <div className="w-14 h-14 sm:w-16 sm:h-16 rounded-2xl bg-white/5 border border-white/10 flex items-center justify-center mb-3">
-                      <QrCode className="w-7 h-7 sm:w-8 sm:h-8 text-slate-400" />
+                  <div
+                    onClick={startCameraScanner}
+                    className="text-center p-6 text-slate-400 flex flex-col items-center justify-center z-10 cursor-pointer hover:opacity-90 transition-opacity group"
+                  >
+                    <div className="w-14 h-14 sm:w-16 sm:h-16 rounded-2xl bg-white/5 border border-white/10 flex items-center justify-center mb-3 group-hover:scale-105 group-hover:border-indigo-400/40 transition-all">
+                      <QrCode className="w-7 h-7 sm:w-8 sm:h-8 text-indigo-400" />
                     </div>
                     <p className="text-sm font-bold text-slate-200">Camera chưa được kích hoạt</p>
                     <p className="text-xs text-slate-400 mt-1 max-w-xs mx-auto">
-                      Bấm nút <strong className="text-indigo-400">"Mở Camera Quét Mã"</strong> phía trên để bắt đầu điểm danh
+                      Bấm nút <strong className="text-indigo-400 underline">"Mở Camera Quét Mã"</strong> phía trên hoặc chạm vào đây để bật Camera
                     </p>
                   </div>
                 )}

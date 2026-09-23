@@ -15,6 +15,31 @@ const timeStringToMinutes = (timeStr) => {
   return (h || 0) * 60 + (m || 0);
 };
 
+/**
+ * Chuẩn hóa tên phòng học / giảng đường để so khớp chống trùng lịch
+ * Loại bỏ các tiền tố như "phòng học", "phòng", "giảng đường", "hội trường", "p."
+ */
+const normalizeRoomKey = (room) => {
+  if (!room || typeof room !== 'string') return '';
+  return room
+    .toLowerCase()
+    .trim()
+    .replace(/^(phòng\s*học|phòng|giảng\s*đường|hội\s*trường|khu|p\.)\s+/i, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+};
+
+const isSameRoom = (room1, room2) => {
+  if (!room1 || !room2) return false;
+  const r1 = room1.trim().toLowerCase();
+  const r2 = room2.trim().toLowerCase();
+  if (r1 === r2) return true;
+  const n1 = normalizeRoomKey(r1);
+  const n2 = normalizeRoomKey(r2);
+  if (n1 && n2 && n1 === n2) return true;
+  return false;
+};
+
 const { getDeanDepartmentIds, isUserInDeanScope } = require('../utils/deanScope');
 
 /**
@@ -248,6 +273,7 @@ const createSchedule = async (req, res, next) => {
     const newShiftEndMins = timeStringToMinutes(effectiveEndTime);
 
     // 4. Thuật toán kiểm tra xung đột thời gian (Conflict Detection)
+    // 4.1. Kiểm tra trùng lịch của Giảng viên / Nhân sự (userId)
     // Điều kiện giao thoa 2 khoảng thời gian: max(start1, start2) < min(end1, end2)
     const existingSchedules = await Schedule.find({
       userId,
@@ -268,11 +294,49 @@ const createSchedule = async (req, res, next) => {
           const weekdayLabel = weekdayNum === 0 ? 'Chủ nhật' : `Thứ ${weekdayNum + 1}`;
           return sendError(
             res,
-            `Trùng lịch: Người dùng này đã có lịch vào ${weekdayLabel} (${exStart} - ${exEnd}) trong cùng khung thời gian học kỳ!`,
+            `Trùng lịch giảng dạy: Giảng viên này đã có lịch vào ${weekdayLabel} (${exStart} - ${exEnd}) trong cùng khung thời gian học kỳ!`,
             null,
             409,
             ERROR_CODES.SCHEDULE_CONFLICT
           );
+        }
+      }
+    }
+
+    // 4.2. Kiểm tra trùng Phòng Học / Giảng Đường (roomId) trên cùng ca / khung giờ
+    const trimmedRoom = roomId ? roomId.trim() : '';
+    if (trimmedRoom) {
+      const existingRoomSchedules = await Schedule.find({
+        weekday: weekdayNum,
+        startDate: { $lte: newEnd },
+        endDate: { $gte: newStart },
+        roomId: { $exists: true, $ne: '' },
+      })
+        .populate('userId', 'fullName email')
+        .populate('shiftId');
+
+      for (const exRoom of existingRoomSchedules) {
+        if (!isSameRoom(trimmedRoom, exRoom.roomId)) continue;
+
+        const exStart = exRoom.startTime || (exRoom.shiftId ? exRoom.shiftId.startTime : null);
+        const exEnd = exRoom.endTime || (exRoom.shiftId ? exRoom.shiftId.endTime : null);
+
+        if (exStart && exEnd) {
+          const exStartMins = timeStringToMinutes(exStart);
+          const exEndMins = timeStringToMinutes(exEnd);
+
+          if (Math.max(newShiftStartMins, exStartMins) < Math.min(newShiftEndMins, exEndMins)) {
+            const weekdayLabel = weekdayNum === 0 ? 'Chủ nhật' : `Thứ ${weekdayNum + 1}`;
+            const lecturerName = exRoom.userId?.fullName || 'giảng viên khác';
+            const subjectText = exRoom.subjectName ? ` (Môn: "${exRoom.subjectName}")` : '';
+            return sendError(
+              res,
+              `Trùng phòng học: Phòng / Giảng đường "${trimmedRoom}" đã được xếp lịch cho ${lecturerName}${subjectText} vào ${weekdayLabel} (${exStart} - ${exEnd}) trong cùng ca/khung giờ!`,
+              null,
+              409,
+              ERROR_CODES.SCHEDULE_CONFLICT
+            );
+          }
         }
       }
     }
@@ -416,7 +480,8 @@ const updateSchedule = async (req, res, next) => {
     const startMins = timeStringToMinutes(targetStartTime);
     const endMins = timeStringToMinutes(targetEndTime);
 
-    // Kiểm tra trùng lịch với các lịch khác (loại trừ chính bản ghi đang sửa: _id != scheduleId)
+    // 4. Kiểm tra xung đột thời gian (Conflict Detection khi cập nhật)
+    // 4.1. Kiểm tra trùng lịch Giảng viên (trừ chính bản ghi đang sửa: _id != scheduleId)
     const otherSchedules = await Schedule.find({
       _id: { $ne: scheduleId },
       userId: targetUserId,
@@ -437,11 +502,50 @@ const updateSchedule = async (req, res, next) => {
           const weekdayLabel = targetWeekday === 0 ? 'Chủ nhật' : `Thứ ${targetWeekday + 1}`;
           return sendError(
             res,
-            `Trùng lịch: Người dùng này đã có lịch khác vào ${weekdayLabel} (${otherStart} - ${otherEnd}) trong cùng khung thời gian!`,
+            `Trùng lịch giảng dạy: Giảng viên này đã có lịch khác vào ${weekdayLabel} (${otherStart} - ${otherEnd}) trong cùng khung thời gian!`,
             null,
             409,
             ERROR_CODES.SCHEDULE_CONFLICT
           );
+        }
+      }
+    }
+
+    // 4.2. Kiểm tra trùng Phòng Học / Giảng Đường (trừ chính bản ghi đang sửa)
+    const targetRoomId = (roomId !== undefined ? roomId : existingSchedule.roomId)?.trim() || '';
+    if (targetRoomId) {
+      const otherRoomSchedules = await Schedule.find({
+        _id: { $ne: scheduleId },
+        weekday: targetWeekday,
+        startDate: { $lte: targetEnd },
+        endDate: { $gte: targetStart },
+        roomId: { $exists: true, $ne: '' },
+      })
+        .populate('userId', 'fullName email')
+        .populate('shiftId');
+
+      for (const other of otherRoomSchedules) {
+        if (!isSameRoom(targetRoomId, other.roomId)) continue;
+
+        const otherStart = other.startTime || (other.shiftId ? other.shiftId.startTime : null);
+        const otherEnd = other.endTime || (other.shiftId ? other.shiftId.endTime : null);
+
+        if (otherStart && otherEnd) {
+          const otherStartMins = timeStringToMinutes(otherStart);
+          const otherEndMins = timeStringToMinutes(otherEnd);
+
+          if (Math.max(startMins, otherStartMins) < Math.min(endMins, otherEndMins)) {
+            const weekdayLabel = targetWeekday === 0 ? 'Chủ nhật' : `Thứ ${targetWeekday + 1}`;
+            const lecturerName = other.userId?.fullName || 'giảng viên khác';
+            const subjectText = other.subjectName ? ` (Môn: "${other.subjectName}")` : '';
+            return sendError(
+              res,
+              `Trùng phòng học: Phòng / Giảng đường "${targetRoomId}" đã được xếp lịch cho ${lecturerName}${subjectText} vào ${weekdayLabel} (${otherStart} - ${otherEnd}) trong cùng ca/khung giờ!`,
+              null,
+              409,
+              ERROR_CODES.SCHEDULE_CONFLICT
+            );
+          }
         }
       }
     }

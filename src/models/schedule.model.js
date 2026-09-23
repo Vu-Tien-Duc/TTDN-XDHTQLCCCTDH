@@ -85,5 +85,7 @@ scheduleSchema.pre('save', async function () {
 // Index bắt buộc tăng tốc truy vấn "lịch hiệu lực hôm nay" gọi liên tục ở check-in và cron
 scheduleSchema.index({ userId: 1, weekday: 1, startDate: 1, endDate: 1 });
 scheduleSchema.index({ shiftId: 1 });
+scheduleSchema.index({ roomId: 1, weekday: 1, startDate: 1, endDate: 1 });
 
 module.exports = mongoose.model('Schedule', scheduleSchema, 'schedules');
+
