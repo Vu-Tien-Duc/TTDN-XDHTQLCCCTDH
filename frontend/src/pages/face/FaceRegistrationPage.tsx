@@ -61,6 +61,7 @@ export const FaceRegistrationPage: React.FC = () => {
   const [samplePreviews, setSamplePreviews] = useState<string[]>([]);
   const [duplicateError, setDuplicateError] = useState<{
     message: string;
+    duplicateUserId?: string;
     duplicateFullName?: string;
     duplicateEmail?: string;
     distance?: number;
@@ -262,6 +263,7 @@ export const FaceRegistrationPage: React.FC = () => {
         const msg = errPayload.message || 'Khuôn mặt này đã được đăng ký cho tài khoản khác!';
         setDuplicateError({
           message: msg,
+          duplicateUserId: errErrors.duplicateUserId,
           duplicateFullName: errErrors.duplicateFullName,
           duplicateEmail: errErrors.duplicateEmail,
           distance: errErrors.distance,
@@ -758,6 +760,7 @@ export const FaceRegistrationPage: React.FC = () => {
         const msg = errPayload.message || 'Khuôn mặt này đã được đăng ký cho tài khoản khác!';
         setDuplicateError({
           message: msg,
+          duplicateUserId: errErrors.duplicateUserId,
           duplicateFullName: errErrors.duplicateFullName,
           duplicateEmail: errErrors.duplicateEmail,
           distance: errErrors.distance,
@@ -767,6 +770,48 @@ export const FaceRegistrationPage: React.FC = () => {
       } else {
         toast.error(error.response?.data?.message || 'Lỗi khi lưu vector khuôn mặt vào máy chủ');
       }
+    } finally {
+      setIsExtracting(false);
+    }
+  };
+
+  // 6b. Chuyển Face ID từ tài khoản cũ sang tài khoản hiện tại (Override/Reassign)
+  const handleReassignFace = async () => {
+    if (!selectedUser || !duplicateError?.duplicateUserId) return;
+    const oldUserId = duplicateError.duplicateUserId;
+    const oldName = duplicateError.duplicateFullName || 'tài khoản cũ';
+
+    const isConfirmed = window.confirm(
+      `Bạn có chắc chắn muốn chuyển Face ID từ "${oldName}" sang "${selectedUser.fullName}"?\n\nDữ liệu Face ID ở tài khoản "${oldName}" sẽ được gỡ bỏ để gán cho tài khoản "${selectedUser.fullName}".`
+    );
+    if (!isConfirmed) return;
+
+    try {
+      setIsExtracting(true);
+      // 1. Xóa Face ID ở tài khoản cũ
+      await attendanceApi.deleteFaceDescriptor(oldUserId);
+
+      // 2. Lưu Face ID cho tài khoản hiện tại
+      const payload = samples.length > 1 ? samples : (detectedDescriptor || samples[0]);
+      const res = await attendanceApi.registerFaceDescriptor(selectedUser._id, payload);
+
+      if (res && res.success) {
+        toast.success(`🎉 Đã chuyển và đăng ký Face ID thành công cho ${selectedUser.fullName}!`);
+        // Cập nhật local state
+        setLecturers((prev) =>
+          prev.map((item) => {
+            if (item._id === oldUserId) return { ...item, faceRegistered: false };
+            if (item._id === selectedUser._id) return { ...item, faceRegistered: true };
+            return item;
+          })
+        );
+        setSelectedUser((prev) => (prev ? { ...prev, faceRegistered: true } : null));
+        setDuplicateError(null);
+        stopCamera();
+      }
+    } catch (err: any) {
+      console.error('Lỗi khi chuyển Face ID:', err);
+      toast.error(err.response?.data?.message || 'Không thể chuyển Face ID sang tài khoản này');
     } finally {
       setIsExtracting(false);
     }
@@ -1179,16 +1224,60 @@ export const FaceRegistrationPage: React.FC = () => {
                         {duplicateError.message}
                       </p>
                       {duplicateError.duplicateFullName && (
-                        <div className="flex flex-wrap items-center gap-2 pt-1 text-xs">
-                          <span className="text-gray-600 font-medium">Khuôn mặt này thuộc về:</span>
-                          <span className="px-2.5 py-1 bg-white border border-rose-200 text-rose-900 rounded-lg font-bold shadow-xs">
-                            👤 {duplicateError.duplicateFullName} ({duplicateError.duplicateEmail})
-                          </span>
-                          {duplicateError.distance !== undefined && (
-                            <span className="text-[11px] text-gray-500 font-mono">
-                              [Euclidean: {duplicateError.distance} &lt; {duplicateError.threshold || 0.40}]
+                        <div className="space-y-2 pt-1">
+                          <div className="flex flex-wrap items-center gap-2 text-xs">
+                            <span className="text-gray-600 font-medium">Khuôn mặt này thuộc về:</span>
+                            <span className="px-2.5 py-1 bg-white border border-rose-200 text-rose-900 rounded-lg font-bold shadow-xs">
+                              👤 {duplicateError.duplicateFullName} ({duplicateError.duplicateEmail})
                             </span>
-                          )}
+                            {duplicateError.distance !== undefined && (
+                              <span className="text-[11px] text-gray-500 font-mono">
+                                [Độ khớp Euclidean: {duplicateError.distance} &lt; {duplicateError.threshold || 0.44}]
+                              </span>
+                            )}
+                          </div>
+
+                          <div className="flex flex-wrap items-center gap-2 pt-1">
+                            {duplicateError.duplicateUserId && (
+                              <button
+                                type="button"
+                                onClick={handleReassignFace}
+                                disabled={isExtracting}
+                                className="inline-flex items-center gap-1.5 px-3.5 py-2 bg-rose-600 hover:bg-rose-700 text-white rounded-xl text-xs font-bold shadow-sm transition cursor-pointer"
+                              >
+                                <RotateCw className="w-3.5 h-3.5" />
+                                <span>Chuyển Face ID sang {selectedUser.fullName}</span>
+                              </button>
+                            )}
+                            {duplicateError.duplicateUserId && (
+                              <button
+                                type="button"
+                                onClick={async () => {
+                                  if (!duplicateError.duplicateUserId) return;
+                                  const confirmDel = window.confirm(`Bạn có chắc muốn xóa Face ID của "${duplicateError.duplicateFullName}"?`);
+                                  if (!confirmDel) return;
+                                  try {
+                                    setIsExtracting(true);
+                                    await attendanceApi.deleteFaceDescriptor(duplicateError.duplicateUserId);
+                                    toast.success(`Đã xóa Face ID của ${duplicateError.duplicateFullName}!`);
+                                    setLecturers((prev) =>
+                                      prev.map((u) => (u._id === duplicateError.duplicateUserId ? { ...u, faceRegistered: false } : u))
+                                    );
+                                    setDuplicateError(null);
+                                  } catch (e: any) {
+                                    toast.error('Lỗi khi xóa Face ID tài khoản cũ');
+                                  } finally {
+                                    setIsExtracting(false);
+                                  }
+                                }}
+                                disabled={isExtracting}
+                                className="inline-flex items-center gap-1.5 px-3.5 py-2 bg-white border border-rose-300 text-rose-700 hover:bg-rose-50 rounded-xl text-xs font-semibold shadow-2xs transition cursor-pointer"
+                              >
+                                <UserX className="w-3.5 h-3.5" />
+                                <span>Xóa Face ID của {duplicateError.duplicateFullName}</span>
+                              </button>
+                            )}
+                          </div>
                         </div>
                       )}
                       <p className="text-[11px] text-rose-600 italic pt-1">
