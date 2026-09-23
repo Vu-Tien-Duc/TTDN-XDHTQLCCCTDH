@@ -85,12 +85,27 @@ $$\text{Accuracy} = \frac{\text{TP} + \text{TN}}{\text{Total}} = \frac{196 + 100
 
 ---
 
+### 4.3. Ngưỡng Chống Đăng Ký Trùng Lặp Tài Khoản ($\tau_{\text{register}} = 0.44$)
+
+Để giải quyết triệt để bài toán: *“Một người dùng khuôn mặt của mình đăng ký cho nhiều tài khoản khác nhau”* và *“Hai người có nét mặt giống nhau bị nhầm lẫn khi đăng ký”*, hệ thống áp dụng kiến trúc **Ngưỡng Kép (Dual-Threshold Architecture)**:
+
+| Ngưỡng | Giá trị | Ngữ cảnh sử dụng | Mục tiêu kỹ thuật |
+|:---|:---:|:---|:---|
+| **$\tau_{\text{match}}$ (So khớp Kiosk)** | $0.55$ | Điểm danh thời gian thực tại Kiosk sảnh | Tối đa hóa tỷ lệ nhận diện đúng (TAR = 98.0%) dưới điều kiện ánh sáng và góc nghiêng giảng đường. |
+| **$\tau_{\text{register}}$ (Đăng ký mới)** | $0.44$ | Kiểm tra chéo toàn bộ CSDL khi Admin gán Face ID | Ngăn chặn tuyệt đối 1 khuôn mặt đăng ký $\ge 2$ tài khoản; bảo vệ danh tính giảng viên. |
+
+- Khi Admin gửi yêu cầu `POST /api/users/:id/face-descriptor`, Backend quét toàn bộ vector hiện có trong CSDL:
+  - Nếu $\min(d) < 0.44$: Hệ thống từ chối ngay lập tức với mã lỗi HTTP `409 Conflict` (`USER_003: Khuôn mặt này đã được đăng ký cho tài khoản khác`).
+  - Giao diện Frontend tự động khóa camera khi tài khoản đã có Face ID và yêu cầu bấm nút **"Xóa Face ID cũ"** nếu muốn cập nhật lại khuôn mặt.
+
+---
+
 ## 5. Kết Luận & Đề Xuất Bàn Giao (Cho Báo Cáo Kỹ Thuật)
 
-1. **Chốt ngưỡng so khớp $\tau = 0.55$ trong mã nguồn Backend**:
-   - Vị trí cấu hình: `src/controllers/attendance.controller.js` (Hàm `faceCheckIn`).
-   - Đảm bảo độ nhạy cao, phản hồi tức thì trong vòng $0.3 - 0.5$ giây.
-   - Hoàn toàn loại bỏ rủi ro gian lận điểm danh hộ giữa các giảng viên trong khoa.
+1. **Chốt kiến trúc Ngưỡng Kép trong mã nguồn Backend**:
+   - Ngưỡng Kiosk điểm danh: $\tau_{\text{match}} = 0.55$ (`src/controllers/attendance.controller.js`).
+   - Ngưỡng đăng ký độc bản: $\tau_{\text{register}} = 0.44$ (`src/controllers/user.controller.js`).
+   - Đảm bảo độ nhạy cao, phản hồi tức thì trong vòng $0.3 - 0.5$ giây, loại bỏ hoàn toàn khả năng gian lận.
 2. **Khuyến nghị vận hành tại trường**:
    - Đặt Kiosk tại vị trí có ánh sáng đồng đều (tránh ánh nắng chiếu trực tiếp từ sau lưng gây ngược sáng).
    - Thiết kế giao diện Kiosk có khung định vị khuôn mặt để hướng dẫn giảng viên đứng đúng cự ly $0.5\text{m} - 1.2\text{m}$.

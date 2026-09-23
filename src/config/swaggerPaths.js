@@ -153,7 +153,7 @@ const swaggerPaths = {
   '/api/health': {
     get: {
       tags: ['3.8 - Hạ Tầng & Kiểm Tra Hệ Thống'],
-      summary: '[🔓 Public] Kiểm tra trạng thái máy chủ và 8 Collections MongoDB',
+      summary: '[🔓 Public] Kiểm tra trạng thái máy chủ và 9 Collections MongoDB',
       responses: {
         200: {
           description: 'Hệ thống hoạt động bình thường',
@@ -162,7 +162,7 @@ const swaggerPaths = {
               example: {
                 status: 'OK',
                 message: 'Hệ thống Quản lý Chấm công Trường Đại học đang hoạt động bình thường.',
-                collectionsCount: 8,
+                collectionsCount: 9,
                 collections: [
                   'users',
                   'departments',
@@ -172,8 +172,9 @@ const swaggerPaths = {
                   'leave_requests',
                   'audit_logs',
                   'refresh_tokens',
+                  'token_blacklists',
                 ],
-                timestamp: '2026-09-06T12:00:00.000Z',
+                timestamp: '2026-09-23T12:00:00.000Z',
               },
             },
           },
@@ -186,6 +187,26 @@ const swaggerPaths = {
   // 3.1 AUTHENTICATION
   // -------------------------------------------------------------
   '/api/auth/login': {
+    get: {
+      tags: ['3.1 - Xác Thực & Phiên Làm Việc (Auth)'],
+      summary: '[🔓 Public] Hướng dẫn phương thức đăng nhập (Trả về 405 Method Not Allowed)',
+      description: 'Nhắc nhở người dùng và nhà phát triển gửi yêu cầu POST /api/auth/login kèm theo body JSON { email, password } thay vì gọi GET.',
+      security: [],
+      responses: {
+        405: {
+          description: 'Phương thức GET không được hỗ trợ',
+          content: {
+            'application/json': {
+              example: {
+                success: false,
+                message: 'Phương thức GET không được hỗ trợ cho route này. Vui lòng gửi HTTP POST với Body JSON { email, password } để đăng nhập.',
+                hint: 'Sử dụng POST /api/auth/login',
+              },
+            },
+          },
+        },
+      },
+    },
     post: {
       tags: ['3.1 - Xác Thực & Phiên Làm Việc (Auth)'],
       summary: '[🔓 Public] Đăng nhập người dùng (Rate Limit 5 lần/15p, JWT Access & Refresh Token)',
@@ -258,8 +279,35 @@ const swaggerPaths = {
   '/api/auth/refresh': {
     post: {
       tags: ['3.1 - Xác Thực & Phiên Làm Việc (Auth)'],
-      summary: '[🔓 Public] Cấp mới Access Token từ Refresh Token (Hỗ trợ Cookie & Request Body)',
+      summary: '[🔓 Public] Cấp mới Access Token từ Refresh Token (Alias)',
       description: 'Hệ thống tự động đọc Refresh Token từ httpOnly cookie hoặc JSON Request Body để cấp mới Access Token 15 phút.',
+      security: [],
+      requestBody: {
+        required: false,
+        content: {
+          'application/json': {
+            schema: {
+              type: 'object',
+              properties: {
+                refreshToken: { type: 'string', example: 'eyJhbGciOiJIUzI1Ni...' },
+              },
+            },
+          },
+        },
+      },
+      responses: {
+        200: { description: 'Cấp token mới thành công' },
+        400: { description: 'Thiếu Refresh Token trong Cookie hoặc Body' },
+        403: { description: 'Refresh token không hợp lệ hoặc đã hết hạn' },
+      },
+    },
+  },
+
+  '/api/auth/refresh-token': {
+    post: {
+      tags: ['3.1 - Xác Thực & Phiên Làm Việc (Auth)'],
+      summary: '[🔓 Public] Cấp mới Access Token từ Refresh Token (Tuyến đường chuẩn)',
+      description: 'Đọc Refresh Token từ httpOnly cookie hoặc JSON Request Body để cấp mới Access Token 15 phút.',
       security: [],
       requestBody: {
         required: false,
@@ -368,6 +416,34 @@ const swaggerPaths = {
     },
   },
 
+  '/api/auth/verify-account': {
+    post: {
+      tags: ['3.1 - Xác Thực & Phiên Làm Việc (Auth)'],
+      summary: '[🔓 Public] Kích hoạt tài khoản bằng mã OTP 6 số (Alias chuẩn)',
+      description: 'Người dùng nhập mã OTP 6 chữ số nhận từ Email để kích hoạt tài khoản (tương tự /verify-otp).',
+      security: [],
+      requestBody: {
+        required: true,
+        content: {
+          'application/json': {
+            schema: {
+              type: 'object',
+              required: ['email', 'otp'],
+              properties: {
+                email: { type: 'string', example: 'nguyenvanmoi@university.edu.vn' },
+                otp: { type: 'string', example: '123456' },
+              },
+            },
+          },
+        },
+      },
+      responses: {
+        200: { description: 'Xác minh tài khoản thành công' },
+        400: { description: 'Mã OTP không hợp lệ hoặc đã hết hạn' },
+      },
+    },
+  },
+
   '/api/auth/forgot-password': {
     post: {
       tags: ['3.1 - Xác Thực & Phiên Làm Việc (Auth)'],
@@ -423,6 +499,92 @@ const swaggerPaths = {
         200: { description: 'Đặt lại mật khẩu thành công' },
         400: { description: 'Mã OTP không hợp lệ, đã hết hạn (>10 phút) hoặc mật khẩu dưới 6 ký tự' },
         404: { description: 'Không tìm thấy tài khoản' },
+      },
+    },
+  },
+
+  '/api/auth/change-password': {
+    put: {
+      tags: ['3.1 - Xác Thực & Phiên Làm Việc (Auth)'],
+      summary: '[🔒 Cá nhân] Đổi mật khẩu tài khoản đang đăng nhập',
+      security: [{ BearerAuth: [] }],
+      requestBody: {
+        required: true,
+        content: {
+          'application/json': {
+            schema: {
+              type: 'object',
+              required: ['oldPassword', 'newPassword'],
+              properties: {
+                oldPassword: { type: 'string', example: 'password123' },
+                newPassword: { type: 'string', example: 'new_secret_pass_2026' },
+              },
+            },
+          },
+        },
+      },
+      responses: {
+        200: { description: 'Đổi mật khẩu thành công' },
+        400: { description: 'Mật khẩu cũ không chính xác hoặc mật khẩu mới dưới 6 ký tự' },
+      },
+    },
+  },
+
+  '/api/auth/avatar': {
+    put: {
+      tags: ['3.1 - Xác Thực & Phiên Làm Việc (Auth)'],
+      summary: '[🔒 Cá nhân] Cập nhật ảnh đại diện cá nhân (PUT - Upload file hoặc URL)',
+      security: [{ BearerAuth: [] }],
+      requestBody: {
+        content: {
+          'multipart/form-data': {
+            schema: {
+              type: 'object',
+              properties: {
+                avatar: { type: 'string', format: 'binary', description: 'File ảnh JPG/PNG' },
+              },
+            },
+          },
+          'application/json': {
+            schema: {
+              type: 'object',
+              properties: {
+                avatarUrl: { type: 'string', example: '/uploads/avatar_user.png' },
+              },
+            },
+          },
+        },
+      },
+      responses: {
+        200: { description: 'Cập nhật ảnh đại diện thành công' },
+      },
+    },
+    post: {
+      tags: ['3.1 - Xác Thực & Phiên Làm Việc (Auth)'],
+      summary: '[🔒 Cá nhân] Cập nhật ảnh đại diện cá nhân (POST - Upload file hoặc URL)',
+      security: [{ BearerAuth: [] }],
+      requestBody: {
+        content: {
+          'multipart/form-data': {
+            schema: {
+              type: 'object',
+              properties: {
+                avatar: { type: 'string', format: 'binary' },
+              },
+            },
+          },
+          'application/json': {
+            schema: {
+              type: 'object',
+              properties: {
+                avatarUrl: { type: 'string', example: '/uploads/avatar_user.png' },
+              },
+            },
+          },
+        },
+      },
+      responses: {
+        200: { description: 'Cập nhật ảnh đại diện thành công' },
       },
     },
   },
@@ -522,6 +684,55 @@ const swaggerPaths = {
       parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'string' } }],
       responses: {
         200: { description: 'Vô hiệu hóa tài khoản thành công' },
+        404: { description: 'Không tìm thấy người dùng' },
+      },
+    },
+  },
+
+  '/api/users/{id}/face-descriptor': {
+    post: {
+      tags: ['3.1 - Quản Lý Người Dùng (Users)'],
+      summary: '[🔒 Admin] Đăng ký vector đặc trưng Face ID 128 chiều (Chống trùng lặp 0.44 threshold)',
+      description: 'Lưu trữ vector 128 số float chuẩn hóa L2 của khuôn mặt. Tự động kiểm tra chéo khoảng cách Euclidean với toàn bộ người dùng khác trong hệ thống. Nếu khoảng cách < 0.44 sẽ từ chối với mã lỗi 409 USER_003 để tránh 1 mặt đăng ký nhiều tài khoản.',
+      security: [{ BearerAuth: [] }],
+      parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'string' }, description: 'ID người dùng cần gán Face ID' }],
+      requestBody: {
+        required: true,
+        content: {
+          'application/json': {
+            schema: {
+              type: 'object',
+              required: ['faceDescriptor'],
+              properties: {
+                faceDescriptor: {
+                  type: 'array',
+                  items: { type: 'number' },
+                  description: 'Mảng 128 số thực float trích xuất từ camera',
+                  example: [0.0123, -0.0456, 0.0789],
+                },
+                facePhotoUrl: { type: 'string', nullable: true, example: '/uploads/face_6aad1.jpg' },
+              },
+            },
+          },
+        },
+      },
+      responses: {
+        200: { description: 'Đăng ký Face ID thành công' },
+        400: { description: 'Vector không đúng chuẩn 128 chiều' },
+        403: { description: 'Chỉ Admin mới có quyền thực hiện' },
+        404: { description: 'Không tìm thấy người dùng' },
+        409: { description: 'Khuôn mặt đã được đăng ký cho người khác (USER_003)' },
+      },
+    },
+    delete: {
+      tags: ['3.1 - Quản Lý Người Dùng (Users)'],
+      summary: '[🔒 Admin] Xóa dữ liệu Face ID của nhân sự',
+      description: 'Xóa bỏ vector 128 chiều và đặt lại faceRegistered = false để cho phép đăng ký lại khuôn mặt mới.',
+      security: [{ BearerAuth: [] }],
+      parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'string' }, description: 'ID người dùng cần xóa Face ID' }],
+      responses: {
+        200: { description: 'Xóa Face ID thành công' },
+        403: { description: 'Chỉ Admin mới có quyền thực hiện' },
         404: { description: 'Không tìm thấy người dùng' },
       },
     },
@@ -987,6 +1198,213 @@ const swaggerPaths = {
     },
   },
 
+  '/api/attendance/face-checkin': {
+    post: {
+      tags: ['3.4 - Quản Lý Chấm Công (Attendance)'],
+      summary: '[🔒 Kiosk] Điểm danh nhận diện khuôn mặt qua Kiosk sảnh (Header x-kiosk-key)',
+      description: 'Xác thực qua header x-kiosk-key kèm rate limit 15 req/phút. Đối chiếu vector 128D bằng Euclidean distance (< 0.55), tự động tìm ca dạy phù hợp trong ngày và ghi nhận điểm danh.',
+      security: [],
+      parameters: [
+        {
+          name: 'x-kiosk-key',
+          in: 'header',
+          required: true,
+          schema: { type: 'string' },
+          description: 'Khóa bí mật của thiết bị Kiosk (mặc định: kiosk_secret_key_university_2026)',
+        },
+      ],
+      requestBody: {
+        required: true,
+        content: {
+          'application/json': {
+            schema: {
+              type: 'object',
+              required: ['faceDescriptor'],
+              properties: {
+                faceDescriptor: {
+                  type: 'array',
+                  items: { type: 'number' },
+                  description: 'Vector 128 số thực float trích xuất từ camera Kiosk',
+                },
+                location: {
+                  type: 'object',
+                  properties: {
+                    lat: { type: 'number', example: 21.028511 },
+                    lng: { type: 'number', example: 105.854444 },
+                  },
+                },
+              },
+            },
+          },
+        },
+      },
+      responses: {
+        200: { description: 'Điểm danh Face ID thành công' },
+        400: { description: 'Vector không hợp lệ hoặc không có ca/lịch phù hợp' },
+        401: { description: 'Thiếu header x-kiosk-key' },
+        403: { description: 'Khóa Kiosk không hợp lệ' },
+        404: { description: 'Không nhận diện được khuôn mặt' },
+        409: { description: 'Giảng viên đã check-in cho ca này hôm nay rồi' },
+      },
+    },
+  },
+
+  '/api/attendance/face-checkin-batch': {
+    post: {
+      tags: ['3.4 - Quản Lý Chấm Công (Attendance)'],
+      summary: '[🔒 Kiosk] Điểm danh nhận diện khuôn mặt hàng loạt (Batch)',
+      description: 'Nhận danh sách nhiều vector khuôn mặt quét được đồng thời trong một khung hình camera Kiosk để xử lý điểm danh song song.',
+      security: [],
+      parameters: [
+        {
+          name: 'x-kiosk-key',
+          in: 'header',
+          required: true,
+          schema: { type: 'string' },
+          description: 'Khóa bí mật của thiết bị Kiosk',
+        },
+      ],
+      requestBody: {
+        required: true,
+        content: {
+          'application/json': {
+            schema: {
+              type: 'object',
+              required: ['descriptors'],
+              properties: {
+                descriptors: {
+                  type: 'array',
+                  items: {
+                    type: 'array',
+                    items: { type: 'number' },
+                  },
+                  description: 'Danh sách mảng vector 128 số thực',
+                },
+              },
+            },
+          },
+        },
+      },
+      responses: {
+        200: { description: 'Xử lý batch điểm danh thành công' },
+      },
+    },
+  },
+
+  '/api/attendance/qr/generate': {
+    get: {
+      tags: ['3.4 - Quản Lý Chấm Công (Attendance)'],
+      summary: '[🔓 Public] Sinh mã QR Động TOTP (Hiệu lực 15-20s) phục vụ điểm danh Kiosk/Lớp học',
+      description: 'Sinh chuỗi mã hóa ký HMAC-SHA256 kèm timestamp làm mới liên tục mỗi 15-20 giây để hiển thị trên màn hình lớn Kiosk hoặc máy chiếu giảng đường.',
+      security: [],
+      responses: {
+        200: {
+          description: 'Sinh mã QR động thành công',
+          content: {
+            'application/json': {
+              example: {
+                success: true,
+                message: 'Tạo mã QR thành công.',
+                data: {
+                  qrToken: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...',
+                  expiresIn: 15,
+                  generatedAt: '2026-09-23T12:00:00.000Z',
+                },
+              },
+            },
+          },
+        },
+      },
+    },
+  },
+
+  '/api/attendance/qr/scan': {
+    post: {
+      tags: ['3.4 - Quản Lý Chấm Công (Attendance)'],
+      summary: '[🔒 Cá nhân] Quét mã QR Động trên di động để điểm danh vào ca',
+      description: 'Giảng viên dùng điện thoại di động quét mã QR động hiển thị trên máy chiếu/Kiosk kết hợp xác thực tọa độ GPS khuôn viên trường (Geofence).',
+      security: [{ BearerAuth: [] }],
+      requestBody: {
+        required: true,
+        content: {
+          'application/json': {
+            schema: {
+              type: 'object',
+              required: ['qrToken'],
+              properties: {
+                qrToken: { type: 'string', description: 'Token trích xuất từ mã QR động' },
+                location: {
+                  type: 'object',
+                  properties: {
+                    lat: { type: 'number', example: 21.028511 },
+                    lng: { type: 'number', example: 105.854444 },
+                  },
+                },
+                deviceId: { type: 'string', example: 'MOBILE_CLIENT_IPHONE15' },
+              },
+            },
+          },
+        },
+      },
+      responses: {
+        200: { description: 'Điểm danh qua QR thành công' },
+        400: { description: 'Mã QR đã hết hạn, không hợp lệ hoặc vị trí GPS ngoài khuôn viên' },
+      },
+    },
+  },
+
+  '/api/attendance/campus-config': {
+    get: {
+      tags: ['3.4 - Quản Lý Chấm Công (Attendance)'],
+      summary: '[🔓 Public] Lấy cấu hình tọa độ khuôn viên trường & bán kính Geofencing GPS',
+      description: 'Trả về tọa độ trung tâm khuôn viên trường đại học và bán kính hợp lệ (mét) cho phép điểm danh di động.',
+      security: [],
+      responses: {
+        200: {
+          description: 'Lấy cấu hình thành công',
+          content: {
+            'application/json': {
+              example: {
+                success: true,
+                data: {
+                  campusCenter: { lat: 21.028511, lng: 105.854444 },
+                  radiusMeters: 500,
+                  name: 'Khuôn viên Cơ sở Chính',
+                },
+              },
+            },
+          },
+        },
+      },
+    },
+    post: {
+      tags: ['3.4 - Quản Lý Chấm Công (Attendance)'],
+      summary: '[🔒 Admin] Cập nhật tọa độ khuôn viên trường & bán kính Geofencing GPS',
+      description: 'Chỉ Quản trị viên (Admin) mới có quyền hiệu chỉnh tọa độ trung tâm và bán kính cho phép chấm công GPS.',
+      security: [{ BearerAuth: [] }],
+      requestBody: {
+        required: true,
+        content: {
+          'application/json': {
+            schema: {
+              type: 'object',
+              required: ['lat', 'lng', 'radiusMeters'],
+              properties: {
+                lat: { type: 'number', example: 21.028511 },
+                lng: { type: 'number', example: 105.854444 },
+                radiusMeters: { type: 'number', example: 600 },
+              },
+            },
+          },
+        },
+      },
+      responses: {
+        200: { description: 'Cập nhật cấu hình khuôn viên thành công' },
+        403: { description: 'Chỉ Admin mới có quyền thực hiện' },
+      },
+    },
+  },
+
   // -------------------------------------------------------------
   // 3.5 LEAVE REQUESTS
   // -------------------------------------------------------------
@@ -1287,6 +1705,40 @@ const swaggerPaths = {
     },
   },
 
+  '/api/reports/export-data': {
+    get: {
+      tags: ['3.7 - Báo Cáo & Thống Kê (Reports)'],
+      summary: '[🔒 Xác thực] Trích xuất dữ liệu đa chiều 5 Sheets phục vụ xuất file Excel tổng hợp',
+      description: 'Trả về cấu trúc dữ liệu hoàn chỉnh 5 sheet: Tổng hợp công, Bảng chấm công chi tiết, Danh sách đi muộn/về sớm, Thống kê đơn nghỉ phép, và Phân bổ giờ giảng theo khoa.',
+      security: [{ BearerAuth: [] }],
+      parameters: [
+        { name: 'month', in: 'query', schema: { type: 'integer', example: 9 }, description: 'Tháng cần xuất (1-12)' },
+        { name: 'year', in: 'query', schema: { type: 'integer', example: 2026 }, description: 'Năm (YYYY)' },
+        { name: 'departmentId', in: 'query', schema: { type: 'string' }, description: 'Lọc theo khoa (Admin có thể lọc, Trưởng khoa tự động giới hạn)' },
+      ],
+      responses: {
+        200: {
+          description: 'Lấy dữ liệu xuất báo cáo thành công',
+          content: {
+            'application/json': {
+              example: {
+                success: true,
+                message: 'Lấy dữ liệu xuất báo cáo thành công.',
+                data: {
+                  summarySheet: [],
+                  dailyAttendanceSheet: [],
+                  lateEarlySheet: [],
+                  leaveRequestsSheet: [],
+                  departmentStatsSheet: [],
+                },
+              },
+            },
+          },
+        },
+      },
+    },
+  },
+
   // -------------------------------------------------------------
   // 3.9 AI ASSISTANT
   // -------------------------------------------------------------
@@ -1328,6 +1780,43 @@ const swaggerPaths = {
       },
     },
   },
+
+  // -------------------------------------------------------------
+  // 3.10 NOTIFICATIONS
+  // -------------------------------------------------------------
+  '/api/notifications': {
+    get: {
+      tags: ['3.10 - Hệ Thống Thông Báo (Notifications)'],
+      summary: '[🔒 Cá nhân] Lấy danh sách thông báo của người dùng (kết quả duyệt đơn, cảnh báo đi muộn/vắng mặt)',
+      security: [{ BearerAuth: [] }],
+      parameters: [
+        { name: 'isRead', in: 'query', schema: { type: 'boolean' }, description: 'Lọc thông báo đã đọc hoặc chưa đọc' },
+        { name: 'limit', in: 'query', schema: { type: 'integer', default: 20 }, description: 'Số lượng thông báo' },
+      ],
+      responses: {
+        200: {
+          description: 'Lấy danh sách thông báo thành công',
+          content: {
+            'application/json': {
+              example: {
+                success: true,
+                data: [
+                  {
+                    _id: '6a9d57378cf3a6165de25df9',
+                    title: 'Đơn nghỉ phép đã được phê duyệt',
+                    message: 'Đơn nghỉ phép ngày 25/09/2026 của Thầy/Cô đã được Trưởng khoa phê duyệt.',
+                    type: 'LEAVE_APPROVED',
+                    isRead: false,
+                    createdAt: '2026-09-23T08:30:00.000Z',
+                  },
+                ],
+              },
+            },
+          },
+        },
+      },
+    },
+  },
 };
 
 const swaggerTags = [
@@ -1342,6 +1831,7 @@ const swaggerTags = [
   { name: '3.6 - Nhật Ký Kiểm Toán An Toàn (Audit Logs)', description: 'Lưu vết lịch sử thao tác quan trọng để giám sát' },
   { name: '3.7 - Báo Cáo & Thống Kê (Reports)', description: 'Thống kê tổng hợp số giờ dạy, đi muộn, nghỉ phép' },
   { name: '3.9 - Trợ Lý Thông Minh AI (AI Assistant)', description: 'Chatbot AI hỗ trợ thanh tra đào tạo & truy vấn dữ liệu chấm công' },
+  { name: '3.10 - Hệ Thống Thông Báo (Notifications)', description: 'Quản lý thông báo người dùng, cảnh báo chấm công và kết quả phê duyệt đơn' },
 ];
 
 module.exports = {

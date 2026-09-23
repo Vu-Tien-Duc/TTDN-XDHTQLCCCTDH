@@ -108,11 +108,15 @@ export const attendanceApi = {
    */
   registerFaceDescriptor: async (
     userId: string,
-    descriptorData: number[] | number[][]
+    descriptorData: number[] | number[][],
+    options?: { force?: boolean }
   ): Promise<ApiResponse<{ userId: string; fullName: string; email: string; faceRegistered: boolean; samplesCount?: number }>> => {
-    const payload = Array.isArray(descriptorData[0])
+    const payload: any = Array.isArray(descriptorData[0])
       ? { faceDescriptors: descriptorData }
       : { faceDescriptor: descriptorData };
+    if (options?.force) {
+      payload.force = true;
+    }
     return axiosClient.post(`/users/${userId}/face-descriptor`, payload);
   },
 
