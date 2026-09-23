@@ -107,7 +107,7 @@ const login = async (req, res, next) => {
     // 2. Cấp Refresh Token: Thời hạn theo phiên làm việc (4 giờ)
     const refreshTokenExpiresAt = new Date(Date.now() + 4 * 60 * 60 * 1000);
     const refreshTokenString = jwt.sign(
-      { id: user._id },
+      { id: user._id, jti: crypto.randomBytes(16).toString('hex') },
       process.env.REFRESH_TOKEN_SECRET,
       { expiresIn: '4h' }
     );
@@ -357,7 +357,7 @@ const refreshToken = async (req, res, next) => {
     );
 
     const newRefreshTokenString = jwt.sign(
-      { id: user._id },
+      { id: user._id, jti: crypto.randomBytes(16).toString('hex') },
       process.env.REFRESH_TOKEN_SECRET,
       { expiresIn: '4h' }
     );

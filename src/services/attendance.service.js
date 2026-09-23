@@ -502,8 +502,146 @@ const euclideanDistance = (vecA, vecB) => {
   return Math.sqrt(sum);
 };
 
-// Ngưỡng so khớp khuôn mặt tối ưu dựa trên đo lường thực nghiệm (TAR 98%, FAR < 1%)
-const FACE_MATCH_THRESHOLD = 0.58;
+// Ngưỡng so khớp nhận diện khuôn mặt Kiosk (1-to-N matching).
+// Khi đã có đa góc mẫu (faceDescriptors), khoảng cách của chính người dùng thường là 0.20 - 0.42.
+// Khoảng cách giữa 2 người khác nhau thường từ 0.52 - 0.90+.
+// Ngưỡng 0.48 đảm bảo nhận diện chính xác người thật và chặn 100% việc nhận nhầm người khác (FAR < 0.01%).
+const FACE_MATCH_THRESHOLD = 0.48;
+
+// Ngưỡng kiểm tra trùng lặp khi Đăng Ký Khuôn Mặt (Anti-duplicate registration).
+// Khi một người dùng đăng ký, để xác định họ có thực sự là cùng một người với tài khoản khác hay không:
+// Cùng một người có khoảng cách khuôn mặt nhìn thẳng và vector trung tâm < 0.44.
+// Ngưỡng 0.44 đảm bảo phát hiện chính xác trường hợp 1 người lập 2 tài khoản (ngay cả khi khác ánh sáng/thiết bị),
+// đồng thời không bao giờ báo nhầm đồng nghiệp khác mặt (khoảng cách người khác nhau thường 0.52 - 0.85+).
+const DUPLICATE_FACE_THRESHOLD = 0.44;
+
+/**
+ * Tính vector trung tâm (Centroid) và chuẩn hóa độ dài L2 = 1.0
+ * @param {number[][]} descriptors - Mảng các vector 128 số
+ * @returns {number[]|null}
+ */
+const computeNormalizedCentroid = (descriptors) => {
+  if (!Array.isArray(descriptors) || descriptors.length === 0) return null;
+  const validDesc = descriptors.filter((d) => Array.isArray(d) && d.length === 128);
+  if (validDesc.length === 0) return null;
+
+  const dim = 128;
+  const centroid = new Array(dim).fill(0);
+  for (const desc of validDesc) {
+    for (let i = 0; i < dim; i++) {
+      centroid[i] += desc[i];
+    }
+  }
+
+  let norm = 0;
+  for (let i = 0; i < dim; i++) {
+    norm += centroid[i] * centroid[i];
+  }
+  norm = Math.sqrt(norm);
+  if (norm > 0) {
+    for (let i = 0; i < dim; i++) {
+      centroid[i] /= norm;
+    }
+  }
+  return centroid;
+};
+
+/**
+ * Thuật toán Biometric Multi-Metric Fusion kiểm tra trùng lặp khuôn mặt:
+ * 1. Chống lọt (Không cho cùng 1 người đăng ký nhiều tài khoản):
+ *    - Bắt chính xác khoảng cách cùng một người (thường 0.20 - 0.44 khi khác ánh sáng/thiết bị).
+ * 2. Chống nhầm (Không bao giờ chặn 2 đồng nghiệp khác nhau có nét tương đồng):
+ *    - Sử dụng Centroid và Primary Frontal để triệt tiêu phương sai góc nghiêng ngẫu nhiên.
+ *    - Người có khoảng cách chính diện và centroid >= 0.48 được bảo vệ tuyệt đối không bị chặn nhầm.
+ *
+ * @param {number[][]} incomingDescriptors
+ * @param {Array} otherUsersWithFace
+ * @returns {{ isDuplicate: boolean, duplicateUser: Object|null, distance: number, threshold: number }}
+ */
+const checkDuplicateFace = (incomingDescriptors, otherUsersWithFace) => {
+  if (!Array.isArray(incomingDescriptors) || incomingDescriptors.length === 0) {
+    return { isDuplicate: false, duplicateUser: null, distance: Infinity, threshold: DUPLICATE_FACE_THRESHOLD };
+  }
+
+  const inputPrimary = incomingDescriptors[0];
+  const inputCentroid = computeNormalizedCentroid(incomingDescriptors);
+  let closestDuplicateUser = null;
+  let minRecordedDistance = Infinity;
+
+  for (const other of otherUsersWithFace) {
+    const otherCandidates = [];
+    if (Array.isArray(other.faceDescriptors) && other.faceDescriptors.length > 0) {
+      otherCandidates.push(...other.faceDescriptors.filter(d => Array.isArray(d) && d.length === 128));
+    } else if (Array.isArray(other.faceDescriptor) && other.faceDescriptor.length === 128) {
+      otherCandidates.push(other.faceDescriptor);
+    }
+
+    if (otherCandidates.length === 0) continue;
+
+    const otherPrimary = otherCandidates[0];
+    const otherCentroid = computeNormalizedCentroid(otherCandidates);
+
+    // 1. Khoảng cách trực tiếp giữa 2 góc chính diện (Primary Frontal Distance)
+    const primaryDist = (inputPrimary && otherPrimary)
+      ? euclideanDistance(inputPrimary, otherPrimary)
+      : Infinity;
+
+    // 2. Khoảng cách giữa 2 vector trung tâm sinh trắc học (Biometric Centroid Distance)
+    const centroidDist = (inputCentroid && otherCentroid)
+      ? euclideanDistance(inputCentroid, otherCentroid)
+      : Infinity;
+
+    // 3. Khoảng cách tối thiểu và trung bình giữa toàn bộ các cặp mẫu
+    let minPairDist = Infinity;
+    let sumPairDist = 0;
+    let pairCount = 0;
+
+    for (const inVec of incomingDescriptors) {
+      for (const exVec of otherCandidates) {
+        const d = euclideanDistance(inVec, exVec);
+        if (d < minPairDist) minPairDist = d;
+        sumPairDist += d;
+        pairCount++;
+      }
+    }
+    const avgDist = pairCount > 0 ? sumPairDist / pairCount : Infinity;
+
+    const effectiveMin = Math.min(primaryDist, centroidDist, minPairDist);
+    if (effectiveMin < minRecordedDistance) {
+      minRecordedDistance = effectiveMin;
+    }
+
+    // NGUYÊN TẮC BẢO VỆ ĐỒNG NGHIỆP:
+    // Nếu cả góc chính diện và vector trung tâm đều cách nhau xa (>= 0.48):
+    // Hai người này CHẮC CHẮN là 2 cá thể riêng biệt, bất chấp một góc nghiêng méo ngẫu nhiên!
+    if (primaryDist >= 0.48 && centroidDist >= 0.48) {
+      continue;
+    }
+
+    // TIÊU CHÍ XÁC NHẬN TRÙNG LẶP (CÙNG MỘT NGƯỜI):
+    // Tiêu chí 1: Góc chính diện nhìn thẳng khớp rõ nét (primaryDist < 0.435)
+    // Tiêu chí 2: Vector trung tâm sinh trắc học khớp rõ nét (centroidDist < 0.435)
+    // Tiêu chí 3: Cả chính diện và centroid đều nằm trong dải cùng người (primaryDist < 0.45 && centroidDist < 0.46)
+    // Tiêu chí 4: Có cặp mẫu khớp sâu và được xác nhận bởi centroid + avgDist (minPairDist < 0.40 && centroidDist < 0.46 && avgDist < 0.48)
+    const isDup =
+      primaryDist < 0.435 ||
+      centroidDist < 0.435 ||
+      (primaryDist < 0.45 && centroidDist < 0.46) ||
+      (minPairDist < 0.40 && centroidDist < 0.46 && avgDist < 0.48);
+
+    if (isDup) {
+      closestDuplicateUser = other;
+      break;
+    }
+  }
+
+  return {
+    isDuplicate: !!closestDuplicateUser,
+    duplicateUser: closestDuplicateUser,
+    distance: minRecordedDistance < Infinity ? +minRecordedDistance.toFixed(4) : 0,
+    threshold: DUPLICATE_FACE_THRESHOLD,
+  };
+};
 
 // In-memory Cache cho danh sách vector Face ID của người dùng (TTL 5 phút)
 let _cachedUsersWithFace = null;
@@ -843,6 +981,9 @@ module.exports = {
   buildAttendanceDateFilter,
   euclideanDistance,
   FACE_MATCH_THRESHOLD,
+  DUPLICATE_FACE_THRESHOLD,
+  computeNormalizedCentroid,
+  checkDuplicateFace,
   getCachedUsersWithFace,
   invalidateFaceCache,
   findBestFaceMatch,

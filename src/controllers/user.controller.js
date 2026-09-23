@@ -6,7 +6,7 @@ const AuditLog = require('../models/auditLog.model');
 const RefreshToken = require('../models/refreshToken.model');
 const { sendSuccess, sendError } = require('../utils/responseHandler');
 const ERROR_CODES = require('../utils/errorCodes');
-const { euclideanDistance, FACE_MATCH_THRESHOLD, invalidateFaceCache } = require('../services/attendance.service');
+const { euclideanDistance, FACE_MATCH_THRESHOLD, DUPLICATE_FACE_THRESHOLD, invalidateFaceCache, checkDuplicateFace } = require('../services/attendance.service');
 const { getDeanDepartmentIds } = require('../utils/deanScope');
 const { runInTransaction } = require('../utils/transaction');
 
@@ -652,32 +652,10 @@ const registerFaceDescriptor = async (req, res, next) => {
       ],
     }).select('+faceDescriptor +faceDescriptors fullName email role departmentId');
 
-    let duplicateUser = null;
-    let closestDistance = Infinity;
+    const duplicateCheck = checkDuplicateFace(descriptorList, otherUsersWithFace);
 
-    for (const other of otherUsersWithFace) {
-      const otherCandidates = [];
-      if (Array.isArray(other.faceDescriptors) && other.faceDescriptors.length > 0) {
-        otherCandidates.push(...other.faceDescriptors);
-      } else if (Array.isArray(other.faceDescriptor) && other.faceDescriptor.length === 128) {
-        otherCandidates.push(other.faceDescriptor);
-      }
-
-      for (const inputVec of descriptorList) {
-        for (const existVec of otherCandidates) {
-          const dist = euclideanDistance(inputVec, existVec);
-          if (dist < closestDistance) closestDistance = dist;
-          if (dist < FACE_MATCH_THRESHOLD) {
-            duplicateUser = other;
-            break;
-          }
-        }
-        if (duplicateUser) break;
-      }
-      if (duplicateUser) break;
-    }
-
-    if (duplicateUser) {
+    if (duplicateCheck.isDuplicate && duplicateCheck.duplicateUser) {
+      const duplicateUser = duplicateCheck.duplicateUser;
       return sendError(
         res,
         `Khuôn mặt này đã được đăng ký cho tài khoản "${duplicateUser.fullName}" (${duplicateUser.email}). Mỗi tài khoản chỉ được sở hữu một khuôn mặt duy nhất trên hệ thống!`,
@@ -685,8 +663,8 @@ const registerFaceDescriptor = async (req, res, next) => {
           duplicateUserId: duplicateUser._id,
           duplicateFullName: duplicateUser.fullName,
           duplicateEmail: duplicateUser.email,
-          distance: +closestDistance.toFixed(4),
-          threshold: FACE_MATCH_THRESHOLD,
+          distance: duplicateCheck.distance,
+          threshold: duplicateCheck.threshold,
         },
         409,
         ERROR_CODES.USER_FACE_ALREADY_REGISTERED

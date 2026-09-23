@@ -658,7 +658,7 @@ export const ProfilePage: React.FC = () => {
                 </div>
                 <div className="p-3 rounded-2xl bg-slate-800/80 border border-slate-700">
                   <span className="text-slate-400 block text-[10px]">Ngưỡng so khớp (Threshold)</span>
-                  <span className="font-bold text-emerald-400 mt-0.5 block text-sm">≤ 0.55 Euclidean</span>
+                  <span className="font-bold text-emerald-400 mt-0.5 block text-sm">≤ 0.48 Euclidean</span>
                 </div>
                 <div className="p-3 rounded-2xl bg-slate-800/80 border border-slate-700">
                   <span className="text-slate-400 block text-[10px]">Tốc độ trích xuất</span>
