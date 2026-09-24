@@ -203,7 +203,7 @@ const checkIn = async (req, res, next) => {
         );
       }
 
-      // Kiểm tra quá 15 phút -> Tự động hủy lịch và đánh vắng
+      // Kiểm tra nếu vượt quá thời gian cho phép đi muộn của ca đó -> Tự động hủy lịch và đánh vắng
       const lateThreshold = shift.lateThresholdMinutes !== undefined ? shift.lateThresholdMinutes : 15;
       if (currentMinutes > startMinutes + lateThreshold) {
         try {

@@ -67,8 +67,8 @@ export function useKioskCamera(options: UseKioskCameraOptions = {}): UseKioskCam
   const {
     sleepTimeoutMs = DEFAULT_SLEEP_TIMEOUT_MS,
     enableMotionDetection = true,
-    hdWidth = 1280,
-    hdHeight = 720,
+    hdWidth = 1920,
+    hdHeight = 1080,
     preferredDeviceId,
   } = options;
 
@@ -126,19 +126,37 @@ export function useKioskCamera(options: UseKioskCameraOptions = {}): UseKioskCam
 
       const targetDeviceId = deviceId || selectedCameraIdRef.current;
 
-      const constraints: MediaStreamConstraints = {
-        video: targetDeviceId
-          ? { deviceId: { exact: targetDeviceId }, width: { ideal: hdWidth }, height: { ideal: hdHeight } }
-          : { width: { ideal: hdWidth }, height: { ideal: hdHeight }, facingMode: 'user' },
-        audio: false,
-      };
+      // Đa tầng tự động đàm phán độ phân giải cao nhất của phần cứng Kiosk
+      const candidateConstraints: MediaStreamConstraints[] = [
+        {
+          video: targetDeviceId
+            ? { deviceId: { exact: targetDeviceId }, width: { ideal: 1920 }, height: { ideal: 1080 } }
+            : { width: { ideal: 1920 }, height: { ideal: 1080 }, facingMode: 'user' },
+          audio: false,
+        },
+        {
+          video: targetDeviceId
+            ? { deviceId: { exact: targetDeviceId }, width: { ideal: 1280 }, height: { ideal: 720 } }
+            : { width: { ideal: 1280 }, height: { ideal: 720 }, facingMode: 'user' },
+          audio: false,
+        },
+        {
+          video: targetDeviceId ? { deviceId: { exact: targetDeviceId } } : { facingMode: 'user' },
+          audio: false,
+        },
+      ];
 
-      let stream: MediaStream;
-      try {
-        stream = await navigator.mediaDevices.getUserMedia(constraints);
-      } catch {
-        // Fallback nếu webcam không hỗ trợ resolution yêu cầu
-        console.warn('[KioskCamera] Fallback sang chế độ camera linh hoạt');
+      let stream: MediaStream | null = null;
+      for (const c of candidateConstraints) {
+        try {
+          stream = await navigator.mediaDevices.getUserMedia(c);
+          if (stream) break;
+        } catch {
+          // Thử tiếp candidate tiếp theo
+        }
+      }
+
+      if (!stream) {
         stream = await navigator.mediaDevices.getUserMedia({
           video: targetDeviceId ? { deviceId: { exact: targetDeviceId } } : true,
           audio: false,

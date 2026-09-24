@@ -398,7 +398,8 @@ const runDailyAbsentCheck = async (targetDate = new Date()) => {
 
 /**
  * Quét định kỳ trong ngày (mỗi 5 phút):
- * Tự động tìm các ca làm việc mà giảng viên chưa check-in và đã quá ngưỡng đi muộn (startMinutes + lateThresholdMinutes)
+ * Tự động tìm các ca làm việc mà giảng viên/nhân viên chưa check-in và đã quá thời gian cho phép của ca đó
+ * (startMinutes + shift.lateThresholdMinutes, với 15 phút là giá trị mặc định nếu ca chưa cấu hình)
  * để tự động hủy lịch và ghi nhận vắng mặt (ABSENT) ngay trong ngày!
  */
 const scanAndMarkExpiredShiftsAbsent = async (targetDate = new Date()) => {
@@ -415,9 +416,10 @@ const scanAndMarkExpiredShiftsAbsent = async (targetDate = new Date()) => {
 
         const shiftStartStr = schedule.startTime || shift.startTime;
         const startMinutes = timeStringToMinutes(shiftStartStr);
+        // Lấy thời gian cho phép đi muộn được cấu hình riêng của từng ca (lateThresholdMinutes)
         const lateThreshold = shift.lateThresholdMinutes !== undefined ? shift.lateThresholdMinutes : 15;
 
-        // Nếu thời điểm hiện tại đã vượt quá giờ bắt đầu ca + ngưỡng cho phép đi muộn
+        // Nếu thời điểm hiện tại đã vượt quá giờ bắt đầu ca + thời gian cho phép của ca đó
         if (currentMinutes > startMinutes + lateThreshold) {
           await processScheduleAttendanceCheck(schedule, dayRange);
         }
@@ -439,6 +441,16 @@ const initCronJobs = () => {
     console.warn('[Cron Service] Bỏ qua initCronJobs vì node-cron không khả dụng.');
     return;
   }
+
+  // 0. Quét kiểm tra tức thì 1 lần sau khi server khởi động (sau 2 giây) để phát hiện ngay các ca đã quá hạn trong ngày
+  setTimeout(async () => {
+    try {
+      console.log('[Cron Service] Tự động kích hoạt lượt quét kiểm tra ca quá hạn ngay sau khi khởi động máy chủ...');
+      await scanAndMarkExpiredShiftsAbsent();
+    } catch (e) {
+      console.error('[Cron Service] Lỗi quét khởi động máy chủ:', e.message);
+    }
+  }, 2000);
 
   // 1. Quét vắng mặt tự động mỗi 5 phút trong ngày theo giờ Việt Nam
   // Tự động đánh vắng / hủy lịch ngay khi giảng viên đi muộn vượt quá ngưỡng của ca đó

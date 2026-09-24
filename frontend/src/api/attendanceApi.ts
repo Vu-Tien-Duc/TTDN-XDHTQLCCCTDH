@@ -244,6 +244,22 @@ export const attendanceApi = {
   }): Promise<ApiResponse<any>> => {
     return axiosClient.post('/attendance/campus-config', data);
   },
+
+  /**
+   * [Admin] Điều chỉnh bản ghi chấm công (Duyệt phép, sửa giờ, sửa trạng thái)
+   * PUT /api/attendance/:id
+   */
+  updateAttendanceByAdmin: async (
+    id: string,
+    data: {
+      status?: AttendanceStatus;
+      checkInTime?: string | null;
+      checkOutTime?: string | null;
+      leaveRequestId?: string | null;
+    }
+  ): Promise<ApiResponse<{ updatedLog: AttendanceLog; previousData: any }>> => {
+    return axiosClient.put(`/attendance/${id}`, data);
+  },
 };
 
 export default attendanceApi;

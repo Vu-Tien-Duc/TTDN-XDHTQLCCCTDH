@@ -98,8 +98,8 @@ app.use(
 if (process.env.NODE_ENV === 'development') {
   app.use(morgan('dev'));
 }
-app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
+app.use(express.json({ limit: '10mb' }));
+app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 app.use(cookieParser());
 
 // 3. Phục vụ file tĩnh uploads (ảnh đại diện, ảnh Face ID, ảnh minh chứng)

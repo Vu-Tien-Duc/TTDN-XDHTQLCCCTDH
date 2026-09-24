@@ -1,3 +1,8 @@
+const dns = require('dns');
+if (dns.setDefaultResultOrder) {
+  dns.setDefaultResultOrder('ipv4first');
+}
+
 require('dotenv').config();
 
 // Kiểm tra bắt buộc biến môi trường bảo mật JWT (tự động gán mặc định nếu ở môi trường dev)
