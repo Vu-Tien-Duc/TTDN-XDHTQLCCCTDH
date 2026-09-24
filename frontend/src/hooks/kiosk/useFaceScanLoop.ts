@@ -132,6 +132,8 @@ export interface UseFaceScanLoopOptions {
   isActive: boolean;
   /** Target FPS (mặc định 7 = ~143ms/frame) */
   targetFps?: number;
+  /** Bật chế độ lật gương selfie (mặc định true) */
+  isMirrored?: boolean;
   /** Chế độ Kiosk hiện tại */
   kioskMode: KioskMode;
   /** Hàm tiền xử lý frame trước khi nhận diện (từ useImageEnhancement) */
@@ -164,6 +166,7 @@ export function useFaceScanLoop(options: UseFaceScanLoopOptions) {
     canvasRef,
     isActive,
     targetFps = 7,
+    isMirrored = true,
     kioskMode,
     enhanceFrame,
     onStateChange,
@@ -175,6 +178,9 @@ export function useFaceScanLoop(options: UseFaceScanLoopOptions) {
     onApiError,
     playBeep,
   } = options;
+
+  const isMirroredRef = useRef(isMirrored);
+  isMirroredRef.current = isMirrored;
 
   // Refs cho trạng thái internal (tránh re-render liên tục)
   const isProcessingRef = useRef(false);
@@ -371,18 +377,34 @@ export function useFaceScanLoop(options: UseFaceScanLoopOptions) {
               stableCountRef.current = 0;
               onStateChange('VERIFYING');
 
-              // Snapshot frame minh chứng (tái sử dụng canvas)
+              // Snapshot frame minh chứng độ nét cao chuẩn hóa (tái sử dụng canvas)
               let capturedImage: string | undefined;
               try {
+                const vw = videoRef.current?.videoWidth || 640;
+                const vh = videoRef.current?.videoHeight || 480;
+                const snapWidth = Math.min(640, vw);
+                const snapHeight = Math.round(snapWidth * (vh / vw));
+
                 if (!snapshotCanvasRef.current) {
                   snapshotCanvasRef.current = document.createElement('canvas');
-                  snapshotCanvasRef.current.width = 320;
-                  snapshotCanvasRef.current.height = 240;
                 }
+                snapshotCanvasRef.current.width = snapWidth;
+                snapshotCanvasRef.current.height = snapHeight;
+
                 const tCtx = snapshotCanvasRef.current.getContext('2d');
                 if (tCtx && videoRef.current) {
-                  tCtx.drawImage(videoRef.current, 0, 0, 320, 240);
-                  capturedImage = snapshotCanvasRef.current.toDataURL('image/jpeg', 0.6);
+                  tCtx.imageSmoothingEnabled = true;
+                  tCtx.imageSmoothingQuality = 'high';
+                  if (isMirroredRef.current) {
+                    tCtx.save();
+                    tCtx.translate(snapWidth, 0);
+                    tCtx.scale(-1, 1);
+                    tCtx.drawImage(videoRef.current, 0, 0, snapWidth, snapHeight);
+                    tCtx.restore();
+                  } else {
+                    tCtx.drawImage(videoRef.current, 0, 0, snapWidth, snapHeight);
+                  }
+                  capturedImage = snapshotCanvasRef.current.toDataURL('image/jpeg', 0.82);
                 }
               } catch { /* ignore */ }
 
@@ -461,8 +483,8 @@ export function useFaceScanLoop(options: UseFaceScanLoopOptions) {
                 const { x, y, width, height } = resized.detection.box;
                 const isTarget = d === targetFace;
 
-                // Mirror X cho camera selfie
-                const drawX = displaySize.width - (x + width);
+                // Mirror X cho camera selfie nếu đang bật chế độ gương
+                const drawX = isMirroredRef.current ? displaySize.width - (x + width) : x;
 
                 const curState = isCallingApiRef.current ? 'VERIFYING' : cooldownRef.current ? 'SUCCESS' : 'DETECTING';
                 const color = isTarget

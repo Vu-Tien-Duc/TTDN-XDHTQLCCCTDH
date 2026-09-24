@@ -158,14 +158,26 @@ export function useImageEnhancement(options: UseImageEnhancementOptions): UseIma
   const getVideoFilter = useCallback((condition: LightingCondition): React.CSSProperties => {
     switch (condition) {
       case 'TOO_DARK':
-        return { filter: 'brightness(1.5) contrast(1.2)' };
+        return {
+          filter: 'brightness(1.45) contrast(1.2) saturate(106%)',
+          imageRendering: '-webkit-optimize-contrast',
+        };
       case 'LOW_LIGHT':
-        return { filter: 'brightness(1.25) contrast(1.1)' };
+        return {
+          filter: 'brightness(1.2) contrast(1.12) saturate(106%)',
+          imageRendering: '-webkit-optimize-contrast',
+        };
       case 'TOO_BRIGHT':
-        return { filter: 'brightness(0.85) contrast(1.05)' };
+        return {
+          filter: 'brightness(0.88) contrast(1.08) saturate(102%)',
+          imageRendering: '-webkit-optimize-contrast',
+        };
       case 'OPTIMAL':
       default:
-        return {};
+        return {
+          filter: 'contrast(108%) brightness(102%) saturate(106%)',
+          imageRendering: '-webkit-optimize-contrast',
+        };
     }
   }, []);
 

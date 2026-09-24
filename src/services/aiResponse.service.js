@@ -1,3 +1,8 @@
+const dns = require('dns');
+if (dns.setDefaultResultOrder) {
+  dns.setDefaultResultOrder('ipv4first');
+}
+
 /**
  * Dịch vụ tạo câu trả lời tự nhiên bằng tiếng Việt cho AI Assistant
  * Dựa trên số liệu thực tế đã được Analytics Engine tính toán chính xác
@@ -234,7 +239,7 @@ QUY TẮC CỐT LÕI (TRẢ LỜI TRỰC DIỆN - KHÔNG LAN MAN):
 5. Tuyệt đối không bịa số liệu. Chỉ dùng đúng các con số được cung cấp.`;
 
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 2500); // 2.5s timeout
+    const timeoutId = setTimeout(() => controller.abort(), 12000); // 12s timeout
 
     const genConfig = {
       maxOutputTokens: 350,
@@ -262,12 +267,16 @@ QUY TẮC CỐT LÕI (TRẢ LỜI TRỰC DIỆN - KHÔNG LAN MAN):
     clearTimeout(timeoutId);
 
     const data = await res.json();
+    if (data?.error) {
+      console.warn(`[Gemini - ${model}] API Response error:`, data.error.message || data.error);
+    }
     const text = data?.candidates?.[0]?.content?.parts?.[0]?.text;
     if (text) return text;
 
     return null;
   } catch (err) {
-    // Quá thời gian chờ hoặc lỗi mạng: lập tức dùng bộ tổng hợp CSDL MongoDB siêu tốc (0.05s)
+    console.warn('[Gemini] Fallback to MongoDB engine due to:', err.message);
+    // Quá thời gian chờ hoặc lỗi mạng: lập tức dùng bộ tổng hợp CSDL MongoDB siêu tốc
     return null;
   }
 };
@@ -313,7 +322,7 @@ QUY TẮC BẮT BUỘC (TRẢ LỜI TRỰC DIỆN - KHÔNG LAN MAN DÀI DÒNG):
   if (activeKey) {
     try {
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 6000); // 6s timeout
+      const timeoutId = setTimeout(() => controller.abort(), 15000); // 15s timeout
 
       const genConfig = {
         maxOutputTokens: 600,
@@ -375,7 +384,7 @@ QUY TẮC BẮT BUỘC (TRẢ LỜI TRỰC DIỆN - KHÔNG LAN MAN DÀI DÒNG):
       if (text) return text;
     } catch (err) {
       if (err.name === 'AbortError') {
-        apiErrorMessage = 'Yêu cầu phản hồi quá thời gian cho phép (6s). Vui lòng thử lại với câu hỏi ngắn gọn hơn.';
+        apiErrorMessage = 'Yêu cầu phản hồi quá thời gian cho phép (15s). Vui lòng thử lại với câu hỏi ngắn gọn hơn.';
       } else {
         apiErrorMessage = err.message;
       }
@@ -389,7 +398,7 @@ QUY TẮC BẮT BUỘC (TRẢ LỜI TRỰC DIỆN - KHÔNG LAN MAN DÀI DÒNG):
       `Hệ thống đã đọc \`GEMINI_API_KEY\` từ file \`.env\`, tuy nhiên Google AI Studio trả về thông báo lỗi:\n\n` +
       `> ❌ **Nguyên nhân:** \`${apiErrorMessage}\`\n\n` +
       `**Hướng dẫn xử lý:**\n` +
-      `- Khóa chuẩn của Google AI Studio (Gemini) bắt đầu bằng \`AIzaSy...\` (khoảng 39 ký tự).\n` +
+      `- Khóa chuẩn của Google AI Studio (Gemini) bắt đầu bằng \`AQ...\` hoặc \`AIzaSy...\`.\n` +
       `- Vui lòng truy cập **[aistudio.google.com/app/apikey](https://aistudio.google.com/app/apikey)**, bấm **"Create API key"** hoặc copy lại đúng mã khóa.\n` +
       `- Dán vào biến \`GEMINI_API_KEY=\` trong file \`.env\` ở thư mục gốc của dự án.`;
   }

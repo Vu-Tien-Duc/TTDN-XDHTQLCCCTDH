@@ -162,9 +162,35 @@ export const FaceRegistrationPage: React.FC = () => {
       if (streamRef.current) {
         streamRef.current.getTracks().forEach((track) => track.stop());
       }
-      const stream = await navigator.mediaDevices.getUserMedia({
-        video: { width: { ideal: 640 }, height: { ideal: 480 }, facingMode: 'user' },
-      });
+      // Tự động đàm phán độ phân giải cao nhất phần cứng hỗ trợ (1080p -> 720p -> tương thích)
+      // Không gán ép frameRate.min để tránh bị Windows/Chrome ép lùi về 480p khi thiếu sáng
+      let stream: MediaStream | null = null;
+      try {
+        stream = await navigator.mediaDevices.getUserMedia({
+          video: {
+            width: { ideal: 1920 },
+            height: { ideal: 1080 },
+            facingMode: 'user',
+          },
+          audio: false,
+        });
+      } catch {
+        try {
+          stream = await navigator.mediaDevices.getUserMedia({
+            video: {
+              width: { ideal: 1280 },
+              height: { ideal: 720 },
+              facingMode: 'user',
+            },
+            audio: false,
+          });
+        } catch {
+          stream = await navigator.mediaDevices.getUserMedia({
+            video: { facingMode: 'user' },
+            audio: false,
+          });
+        }
+      }
       streamRef.current = stream;
       setIsCameraActive(true);
       setDetectedDescriptor(null);
@@ -376,16 +402,25 @@ export const FaceRegistrationPage: React.FC = () => {
           const desc = Array.from(targetFace.descriptor);
           frontalSampleRef.current = desc;
 
-          // Snapshot frame chính diện làm ảnh đại diện minh chứng
+          // Snapshot frame chính diện làm ảnh đại diện minh chứng với độ nét cao
           if (!capturedImagePreview) {
+            const vw = videoRef.current?.videoWidth || 1280;
+            const vh = videoRef.current?.videoHeight || 720;
+            const snapWidth = Math.min(1280, vw);
+            const snapHeight = Math.round(snapWidth * (vh / vw));
+
             const snapCanvas = document.createElement('canvas');
-            snapCanvas.width = 320;
-            snapCanvas.height = 240;
+            snapCanvas.width = snapWidth;
+            snapCanvas.height = snapHeight;
             const sCtx = snapCanvas.getContext('2d');
             if (sCtx && videoRef.current) {
-              sCtx.drawImage(videoRef.current, 0, 0, 320, 240);
+              sCtx.imageSmoothingEnabled = true;
+              sCtx.imageSmoothingQuality = 'high';
+              sCtx.translate(snapWidth, 0);
+              sCtx.scale(-1, 1);
+              sCtx.drawImage(videoRef.current, 0, 0, snapWidth, snapHeight);
             }
-            const dataUrl = snapCanvas.toDataURL('image/jpeg', 0.85);
+            const dataUrl = snapCanvas.toDataURL('image/jpeg', 0.92);
             setCapturedImagePreview(dataUrl);
             setSamplePreviews((prev) => (prev.length === 0 ? [dataUrl] : prev));
           }
@@ -414,15 +449,24 @@ export const FaceRegistrationPage: React.FC = () => {
               lastSectorSampledRef.current = sectorIdx;
               setSamples([...(frontalSampleRef.current ? [frontalSampleRef.current] : []), ...circleSamplesRef.current]);
 
-              // Snapshot frame hình minh chứng
+              // Snapshot frame hình minh chứng độ nét cao
+              const vw = videoRef.current?.videoWidth || 1280;
+              const vh = videoRef.current?.videoHeight || 720;
+              const snapWidth = Math.min(1280, vw);
+              const snapHeight = Math.round(snapWidth * (vh / vw));
+
               const snapCanvas = document.createElement('canvas');
-              snapCanvas.width = 320;
-              snapCanvas.height = 240;
+              snapCanvas.width = snapWidth;
+              snapCanvas.height = snapHeight;
               const sCtx = snapCanvas.getContext('2d');
               if (sCtx && videoRef.current) {
-                sCtx.drawImage(videoRef.current, 0, 0, 320, 240);
+                sCtx.imageSmoothingEnabled = true;
+                sCtx.imageSmoothingQuality = 'high';
+                sCtx.translate(snapWidth, 0);
+                sCtx.scale(-1, 1);
+                sCtx.drawImage(videoRef.current, 0, 0, snapWidth, snapHeight);
               }
-              const dataUrl = snapCanvas.toDataURL('image/jpeg', 0.85);
+              const dataUrl = snapCanvas.toDataURL('image/jpeg', 0.92);
               setSamplePreviews((prev) => [...prev, dataUrl]);
             }
           }
@@ -618,7 +662,7 @@ export const FaceRegistrationPage: React.FC = () => {
         }
       }
 
-      const dataUrl = canvas.toDataURL('image/jpeg', 0.85);
+      const dataUrl = canvas.toDataURL('image/jpeg', 0.92);
       const descriptorArray = Array.from(targetFace.descriptor);
       const nextSamples = [...samples, descriptorArray];
       const nextPreviews = [...samplePreviews, dataUrl];
@@ -1111,14 +1155,22 @@ export const FaceRegistrationPage: React.FC = () => {
                       autoPlay
                       playsInline
                       muted
-                      className={`w-full h-full object-cover ${isCameraActive ? 'block' : 'hidden'}`}
+                      disablePictureInPicture
+                      controlsList="nodownload noplaybackrate nofullscreen noremoteplayback"
+                      className={`w-full h-full object-cover transition-transform duration-200 scale-x-[-1] pointer-events-none ${
+                        isCameraActive ? 'block' : 'hidden'
+                      }`}
+                      style={{
+                        filter: 'contrast(108%) brightness(102%) saturate(106%)',
+                        imageRendering: '-webkit-optimize-contrast',
+                      }}
                     />
 
                     {/* Canvas vẽ vòng tròn 24 vạch sinh trắc học Face ID */}
                     {isCameraActive && (
                       <canvas
                         ref={canvasRef}
-                        className="absolute inset-0 w-full h-full object-cover pointer-events-none z-10"
+                        className="absolute inset-0 w-full h-full object-cover pointer-events-none z-10 transition-transform duration-200 scale-x-[-1]"
                       />
                     )}
 
@@ -1169,7 +1221,8 @@ export const FaceRegistrationPage: React.FC = () => {
                         <img
                           src={capturedImagePreview}
                           alt="Captured"
-                          className="w-full h-full object-contain rounded-xl"
+                          className="w-full h-full object-contain rounded-xl shadow-lg"
+                          style={{ imageRendering: '-webkit-optimize-contrast' }}
                         />
                         {samplePreviews.length > 1 && (
                           <div className="absolute bottom-3 inset-x-3 flex items-center justify-center gap-2 bg-black/60 backdrop-blur-md py-2 px-3 rounded-xl border border-white/10">

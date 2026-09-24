@@ -1714,9 +1714,11 @@ export const AttendanceCheckInPage: React.FC = () => {
               <div className="relative w-full aspect-video sm:aspect-[4/3] max-h-[360px] bg-black rounded-2xl overflow-hidden flex items-center justify-center border border-white/10">
                 <video
                   ref={videoRef}
-                  className={`absolute inset-0 w-full h-full object-cover ${cameraActive ? 'block' : 'hidden'}`}
+                  className={`absolute inset-0 w-full h-full object-cover pointer-events-none ${cameraActive ? 'block' : 'hidden'}`}
                   playsInline
                   muted
+                  disablePictureInPicture
+                  controlsList="nodownload noplaybackrate nofullscreen noremoteplayback"
                 />
 
                 {cameraActive ? (

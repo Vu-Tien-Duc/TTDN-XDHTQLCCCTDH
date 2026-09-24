@@ -101,8 +101,8 @@ export const FaceCheckInKiosk: React.FC = () => {
   } = useKioskCamera({
     sleepTimeoutMs: 15_000,
     enableMotionDetection: true,
-    hdWidth: 1280,
-    hdHeight: 720,
+    hdWidth: 1920,
+    hdHeight: 1080,
   });
 
   // =====================================================================
@@ -286,6 +286,7 @@ export const FaceCheckInKiosk: React.FC = () => {
     canvasRef,
     isActive: modelReady && isScanning && isCameraActive && cameraState === 'ACTIVE' && displayTab === 'face',
     targetFps: 7,
+    isMirrored: true,
     kioskMode,
     enhanceFrame,
     onStateChange: setKioskState,
@@ -717,10 +718,12 @@ export const FaceCheckInKiosk: React.FC = () => {
               autoPlay
               playsInline
               muted
+              disablePictureInPicture
+              controlsList="nodownload noplaybackrate nofullscreen noremoteplayback"
               onLoadedMetadata={() => {
                 videoRef.current?.play().catch((err) => console.warn('Video play warning:', err));
               }}
-              className="absolute inset-0 w-full h-full object-cover transform scale-x-[-1] z-0"
+              className="absolute inset-0 w-full h-full object-cover transform scale-x-[-1] z-0 pointer-events-none"
               style={cameraState === 'ACTIVE' ? videoFilterStyle : {}}
             />
             {/* Canvas overlay */}

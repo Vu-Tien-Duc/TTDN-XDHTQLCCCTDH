@@ -82,7 +82,7 @@ const timeStringToMinutes = (timeStr) => {
 /**
  * Xác định khung giờ check-in hợp lệ cho ca làm việc:
  * - Sớm tối đa 30 phút trước giờ bắt đầu ca (startMinutes - 30)
- * - Muộn tối đa 15 phút (startMinutes + 15)
+ * - Muộn tối đa theo thời gian cho phép của ca (startMinutes + shift.lateThresholdMinutes)
  * @param {Object} shift - Bản ghi ca làm việc (chứa startTime, endTime, lateThresholdMinutes)
  * @returns {Object|null} { startMinutes, endMinutes, windowStartMinutes, windowEndMinutes }
  */
@@ -124,8 +124,8 @@ const calculateAttendanceStatus = (checkInTime, shiftConfig, date = new Date()) 
 /**
  * Đánh giá toàn diện lịch làm việc hôm nay để check-in theo nghiệp vụ:
  * 1. Sớm bao nhiêu cũng được (lên tới 240 phút / 4 tiếng trước giờ bắt đầu ca).
- * 2. Cho phép muộn tối đa 15 phút (startMinutes + lateThreshold, mặc định 15p).
- * 3. Nếu muộn quá 15 phút: TỰ ĐỘNG HỦY LỊCH / GHI NHẬN VẮNG MẶT (ABSENT) và gửi email cảnh báo.
+ * 2. Cho phép muộn trong ngưỡng thời gian cho phép của ca (startMinutes + shift.lateThresholdMinutes, mặc định 15p).
+ * 3. Nếu muộn quá thời gian cho phép của ca đó: TỰ ĐỘNG HỦY LỊCH / GHI NHẬN VẮNG MẶT (ABSENT) và gửi email cảnh báo.
  * 4. Nếu hôm nay không có lịch: Trả về trạng thái 'NO_SCHEDULE'.
  * 5. Nếu chưa đến giờ check-in ca tiếp theo: Trả về trạng thái 'TOO_EARLY'.
  * 
