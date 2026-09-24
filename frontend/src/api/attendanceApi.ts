@@ -1,5 +1,5 @@
 import { axiosClient } from './axiosClient';
-import { ApiResponse, AttendanceLog, PaginatedResponse, Schedule } from '../types';
+import { ApiResponse, AttendanceLog, AttendanceStatus, PaginatedResponse, Schedule } from '../types';
 
 export interface CheckInPayload {
   scheduleId?: string;
