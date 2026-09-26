@@ -1167,7 +1167,110 @@ const scanQRCode = async (req, res, next) => {
       );
     }
 
-    // 3. Tự động xác định ca và lịch dạy hôm nay theo chuẩn nghiệp vụ (sớm bao nhiêu cũng được, muộn tối đa 15p)
+    // 3. Kiểm tra xem người dùng có ca đang mở (đã check-in hôm nay nhưng chưa check-out) hay không:
+    const { startOfDay, endOfDay } = getVietnamDayRange();
+    const openLog = await AttendanceLog.findOne({
+      userId,
+      checkOutTime: null,
+      checkInTime: { $gte: startOfDay, $lte: endOfDay },
+    }).populate('shiftId');
+
+    if (openLog) {
+      // 3.1. Chống quét đúp liên tiếp trong thời gian ngắn (Double-tap protection)
+      const diffSeconds = (Date.now() - new Date(openLog.checkInTime).getTime()) / 1000;
+      if (diffSeconds < 60) {
+        return sendError(
+          res,
+          `Bạn vừa Check-in xong (${Math.round(diffSeconds)} giây trước). Vui lòng không quét mã liên tiếp.`,
+          {
+            status: 'RECENTLY_CHECKED_IN',
+            attendanceId: openLog._id,
+            openLog,
+          },
+          409,
+          'RECENTLY_CHECKED_IN'
+        );
+      }
+
+      // 3.2. Thực hiện Check-out ra ca tự động qua mã QR
+      const checkOutTime = new Date();
+      openLog.checkOutTime = checkOutTime;
+      if (finalDeviceId) openLog.deviceId = finalDeviceId;
+      if (finalLocation) openLog.location = finalLocation;
+
+      const { finalStatus, isEarlyLeave, earlyMinutes } = calculateCheckOutStatus(
+        checkOutTime,
+        openLog.shiftId,
+        openLog.status
+      );
+      openLog.status = finalStatus;
+      await openLog.save();
+
+      const populatedLog = await AttendanceLog.findById(openLog._id)
+        .populate('userId', 'fullName email avatar role')
+        .populate('shiftId', 'name startTime endTime lateThresholdMinutes')
+        .populate('scheduleId', 'roomId weekday subjectName subjectCode');
+
+      const durationMs = checkOutTime.getTime() - new Date(openLog.checkInTime).getTime();
+      const durationMinutes = Math.max(0, Math.round(durationMs / (60 * 1000)));
+      const hours = Math.floor(durationMinutes / 60);
+      const mins = durationMinutes % 60;
+      const formattedDuration = `${hours} giờ ${mins} phút`;
+
+      // Gửi email thông báo QR Check-out (Hoàn thành ca / Về sớm)
+      if (populatedLog?.userId?.email) {
+        sendCheckOutNotificationEmail({
+          to: populatedLog.userId.email,
+          fullName: populatedLog.userId.fullName,
+          shiftName: populatedLog.shiftId?.name,
+          checkInTime: openLog.checkInTime,
+          checkOutTime,
+          durationFormatted: formattedDuration,
+          status: finalStatus,
+          isEarlyLeave,
+          earlyMinutes,
+          method: 'qr',
+        }).catch((err) => console.error('[EmailService] QR check-out email error:', err.message));
+      }
+
+      // Ghi AuditLog cho QR Check-out
+      AuditLog.create({
+        actor: userId,
+        action: 'QR_CHECK_OUT',
+        targetId: openLog._id.toString(),
+        targetType: 'AttendanceLog',
+        ipAddress: req.ip || req.connection?.remoteAddress,
+        timestamp: checkOutTime,
+        details: {
+          method: 'qr',
+          deviceId: finalDeviceId,
+          workingMinutes: durationMinutes,
+          status: finalStatus,
+          location: finalLocation,
+          isEarlyLeave,
+          earlyMinutes,
+        },
+      }).catch((err) => console.error('[AuditLog Error] Lỗi ghi audit log QR Check-out:', err.message));
+
+      const successMsg = isEarlyLeave
+        ? `👋 Quét mã QR Check-out thành công (Về sớm ${earlyMinutes} phút)! Đã kết thúc ca làm việc.`
+        : '👋 Quét mã QR Check-out ra ca thành công! Đã kết thúc ca làm việc.';
+
+      return sendSuccess(res, successMsg, {
+        ...populatedLog.toObject(),
+        action: 'CHECK_OUT',
+        workingDuration: {
+          totalMinutes: durationMinutes,
+          formatted: formattedDuration,
+        },
+        earlyLeave: {
+          isEarlyLeave,
+          earlyMinutes,
+        },
+      }, 200);
+    }
+
+    // 4. Nếu chưa có ca mở hôm nay -> Thực hiện Check-in vào ca
     const evalResult = await evaluateUserScheduleForCheckIn(userId);
     if (!evalResult.canCheckIn) {
       const statusCode = evalResult.status === 'ALREADY_CHECKED_IN' ? 409 : 400;
