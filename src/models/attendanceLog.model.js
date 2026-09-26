@@ -70,8 +70,12 @@ const attendanceLogSchema = new mongoose.Schema(
       type: String,
       default: function () {
         const d = this.checkInTime ? new Date(this.checkInTime) : new Date();
-        const vnDate = new Date(d.getTime() + 7 * 3600 * 1000);
-        return vnDate.toISOString().slice(0, 10);
+        return new Intl.DateTimeFormat('en-CA', {
+          timeZone: 'Asia/Ho_Chi_Minh',
+          year: 'numeric',
+          month: '2-digit',
+          day: '2-digit',
+        }).format(d);
       },
       index: true,
     },
