@@ -442,6 +442,14 @@ const getAttendanceHistory = async (req, res, next) => {
       Object.assign(query, dateFilter);
     }
 
+    // 3.1 Dọn dẹp tự động các bản ghi vắng mặt tương lai bị tạo sai lệch (nếu có)
+    const todayStr = getVietnamDayRange().dateStr;
+    await AttendanceLog.deleteMany({
+      status: { $in: ['ABSENT', 'EXCUSED_ABSENCE'] },
+      method: 'system',
+      workDate: { $gt: todayStr },
+    });
+
     // 4. Phân trang chuẩn (page, limit, skip, total, totalPages)
     const pageNum = Math.max(1, parseInt(page, 10) || 1);
     const limitNum = Math.max(1, parseInt(limit, 10) || 20);

@@ -133,7 +133,7 @@ const processScheduleAttendanceCheck = async (schedule, dayRange) => {
       workDate: dayRange.dateStr,
       leaveRequestId,
       isManualOverride: false,
-      createdAt: endOfDay,
+      createdAt: new Date(),
     });
   } catch (err) {
     if (err.code === 11000) {
@@ -445,6 +445,17 @@ const initCronJobs = () => {
   // 0. Quét kiểm tra tức thì 1 lần sau khi server khởi động (sau 2 giây) để phát hiện ngay các ca đã quá hạn trong ngày
   setTimeout(async () => {
     try {
+      // 0.1 Tự động dọn dẹp mọi bản ghi vắng mặt / nghỉ phép tự động bị tạo sai cho ngày tương lai (nếu có do lỗi múi giờ cũ)
+      const todayStr = getVietnamDayRange().dateStr;
+      const purgeResult = await AttendanceLog.deleteMany({
+        status: { $in: ['ABSENT', 'EXCUSED_ABSENCE'] },
+        method: 'system',
+        workDate: { $gt: todayStr },
+      });
+      if (purgeResult.deletedCount > 0) {
+        console.log(`[Cron Service] 🧹 Đã tự động dọn dẹp ${purgeResult.deletedCount} bản ghi vắng mặt tương lai bị tạo nhầm do lỗi lệch múi giờ.`);
+      }
+
       console.log('[Cron Service] Tự động kích hoạt lượt quét kiểm tra ca quá hạn ngay sau khi khởi động máy chủ...');
       await scanAndMarkExpiredShiftsAbsent();
     } catch (e) {

@@ -27,6 +27,13 @@ export function cn(...classes: ClassValue[]): string {
  */
 export function formatDate(dateString?: string | Date | null): string {
   if (!dateString) return '-';
+  if (typeof dateString === 'string') {
+    const trimmed = dateString.trim();
+    if (/^\d{4}-\d{2}-\d{2}$/.test(trimmed)) {
+      const [y, m, d] = trimmed.split('-');
+      return `${d}/${m}/${y}`;
+    }
+  }
   const date = new Date(dateString);
   if (isNaN(date.getTime())) return '-';
   return date.toLocaleDateString('vi-VN', {

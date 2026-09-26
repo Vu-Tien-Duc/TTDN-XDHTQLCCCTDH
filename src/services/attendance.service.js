@@ -46,6 +46,7 @@ const getVietnamTime = (date = new Date()) => {
   vnDate.getDate = () => day;
   vnDate.getMonth = () => month;
   vnDate.getFullYear = () => year;
+  vnDate._isVietnamTime = true;
 
   return vnDate;
 };
@@ -56,13 +57,23 @@ const getVietnamTime = (date = new Date()) => {
  * @returns {{ startOfDay: Date, endOfDay: Date, dateStr: string }}
  */
 const getVietnamDayRange = (date = new Date()) => {
-  const formatter = new Intl.DateTimeFormat('en-CA', {
-    timeZone: 'Asia/Ho_Chi_Minh',
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit',
-  });
-  const dateStr = formatter.format(date); // Định dạng YYYY-MM-DD
+  let dateStr;
+  if (date && date._isVietnamTime) {
+    // Nếu đối tượng đã được chuẩn hóa qua getVietnamTime, lấy trực tiếp ngày tháng năm VN để tránh bị cộng lệch thêm 7 tiếng
+    const y = date.getFullYear();
+    const m = String(date.getMonth() + 1).padStart(2, '0');
+    const d = String(date.getDate()).padStart(2, '0');
+    dateStr = `${y}-${m}-${d}`;
+  } else {
+    const formatter = new Intl.DateTimeFormat('en-CA', {
+      timeZone: 'Asia/Ho_Chi_Minh',
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+    });
+    const validDate = date instanceof Date && !isNaN(date.getTime()) ? date : new Date(date || Date.now());
+    dateStr = formatter.format(validDate); // Định dạng YYYY-MM-DD
+  }
   const startOfDay = new Date(`${dateStr}T00:00:00.000+07:00`);
   const endOfDay = new Date(`${dateStr}T23:59:59.999+07:00`);
   return { startOfDay, endOfDay, dateStr };
