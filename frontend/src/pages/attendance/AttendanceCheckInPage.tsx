@@ -628,8 +628,18 @@ export const AttendanceCheckInPage: React.FC = () => {
   }, []);
 
   const processQrAttendance = async (token: string) => {
-    if (!checkInTimingStatus.canCheckIn) {
+    // 1. Nếu chưa Check-in: Kiểm tra điều kiện mở điểm danh vào ca
+    if (!hasCheckedIn && !checkInTimingStatus.canCheckIn) {
       toast.error(checkInTimingStatus.reason);
+      setTimeout(() => setLastScannedToken(null), 3000);
+      return;
+    }
+
+    // 2. Nếu đã hoàn tất cả Check-in và Check-out cho ca này hôm nay
+    if (hasCheckedIn && hasCheckedOut) {
+      toast('Bạn đã hoàn tất cả Check-in và Check-out cho ca giảng dạy này hôm nay rồi.', {
+        icon: 'ℹ️',
+      });
       setTimeout(() => setLastScannedToken(null), 3000);
       return;
     }
@@ -1697,7 +1707,36 @@ export const AttendanceCheckInPage: React.FC = () => {
                 </button>
               </div>
 
-              {/* Cảnh báo trạng thái thời gian điểm danh ở tab QR */}
+              {/* Trạng thái ca và hướng dẫn quét QR */}
+              {hasCheckedIn && !hasCheckedOut && (
+                <div className="mb-4 p-3.5 rounded-2xl bg-amber-500/20 border border-amber-400/30 text-amber-200 text-xs flex items-start gap-2.5">
+                  <Clock className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
+                  <div className="space-y-0.5">
+                    <p className="font-bold text-amber-300">
+                      Đang trong ca làm việc • Quét mã QR lúc tan ca để tự động Check-out
+                    </p>
+                    <p className="text-[11px] text-amber-100/90 leading-relaxed">
+                      Bạn đã Check-in ca này. Khi tan ca, bạn có thể quét mã QR động để tự động Check-out kết thúc ca (hoặc bấm nút "Kết Thúc Ca" ở tab Định vị GPS).
+                    </p>
+                  </div>
+                </div>
+              )}
+
+              {hasCheckedIn && hasCheckedOut && (
+                <div className="mb-4 p-3.5 rounded-2xl bg-emerald-500/20 border border-emerald-400/30 text-emerald-200 text-xs flex items-start gap-2.5">
+                  <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" />
+                  <div className="space-y-0.5">
+                    <p className="font-bold text-emerald-300">
+                      Đã hoàn thành ca làm việc hôm nay
+                    </p>
+                    <p className="text-[11px] text-emerald-100/90 leading-relaxed">
+                      Bạn đã thực hiện đầy đủ Check-in và Check-out cho ca này.
+                    </p>
+                  </div>
+                </div>
+              )}
+
+              {/* Cảnh báo trạng thái thời gian điểm danh ở tab QR khi CHƯA Check-in */}
               {!checkInTimingStatus.canCheckIn && !hasCheckedIn && (
                 <div className="mb-4 p-3.5 rounded-2xl bg-amber-500/20 border border-amber-400/30 text-amber-200 text-xs flex items-start gap-2.5">
                   <Clock className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
