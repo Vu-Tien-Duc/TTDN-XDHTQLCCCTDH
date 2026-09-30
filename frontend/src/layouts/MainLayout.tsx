@@ -384,8 +384,8 @@ export const MainLayout: React.FC = () => {
     location.pathname === '/profile'
       ? 'Hồ Sơ Cán Bộ & Cá Nhân'
       : currentMenuItem
-      ? currentMenuItem.title
-      : 'Bảng Điều Khiển';
+        ? currentMenuItem.title
+        : 'Bảng Điều Khiển';
 
   // Lấy màu sắc đặc trưng theo vai trò
   const getRoleBadgeStyle = (role?: Role) => {
@@ -439,14 +439,14 @@ export const MainLayout: React.FC = () => {
             <Link
               to="/dashboard"
               className="w-full flex items-center justify-center group relative py-1"
-              title="ĐH Công Nghệ & Khoa Học - Bảng điều khiển"
+              title="QL Chấm công  - Bảng điều khiển"
             >
               <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-blue-600 via-indigo-600 to-blue-500 flex items-center justify-center text-white shadow-md shadow-blue-500/30 group-hover:scale-105 transition-transform">
                 <GraduationCap className="w-6 h-6" />
               </div>
               {/* Tooltip khi thu gọn */}
               <div className="absolute left-full ml-3 px-3 py-1.5 bg-slate-900/95 backdrop-blur-md text-white text-xs font-bold rounded-xl shadow-xl border border-slate-700 whitespace-nowrap hidden group-hover:block z-50 pointer-events-none">
-                ĐH Công Nghệ & Khoa Học
+                QL Chấm công
               </div>
             </Link>
           ) : (
@@ -457,7 +457,7 @@ export const MainLayout: React.FC = () => {
                 </div>
                 <div className="min-w-0">
                   <h1 className="font-bold text-xs tracking-tight text-white leading-none truncate">
-                    ĐH CÔNG NGHỆ & KHOA HỌC
+                    QL Chấm công
                   </h1>
                   <p className="text-[10px] text-blue-400 font-semibold tracking-wide mt-1 truncate">
                     HỆ THỐNG QUẢN LÝ CHẤM CÔNG
@@ -590,8 +590,8 @@ export const MainLayout: React.FC = () => {
                             isActive
                               ? 'bg-gradient-to-tr from-blue-600 via-indigo-600 to-blue-500 text-white shadow-lg shadow-blue-500/30 ring-1 ring-white/20'
                               : item.highlight
-                              ? 'text-indigo-300 bg-indigo-950/40 border border-indigo-500/25 hover:bg-indigo-900/40 hover:text-white'
-                              : 'text-slate-400 hover:text-white hover:bg-slate-800/80'
+                                ? 'text-indigo-300 bg-indigo-950/40 border border-indigo-500/25 hover:bg-indigo-900/40 hover:text-white'
+                                : 'text-slate-400 hover:text-white hover:bg-slate-800/80'
                           )
                         }
                       >
@@ -638,8 +638,8 @@ export const MainLayout: React.FC = () => {
                           isActive
                             ? 'bg-gradient-to-r from-blue-600 via-indigo-600 to-blue-500 text-white font-semibold shadow-md shadow-blue-600/25 ring-1 ring-white/10'
                             : item.highlight
-                            ? 'text-indigo-300 bg-indigo-950/40 border border-indigo-500/25 hover:bg-indigo-900/40 hover:text-white hover:border-indigo-400/40'
-                            : 'text-slate-300 hover:text-white hover:bg-slate-800/80'
+                              ? 'text-indigo-300 bg-indigo-950/40 border border-indigo-500/25 hover:bg-indigo-900/40 hover:text-white hover:border-indigo-400/40'
+                              : 'text-slate-300 hover:text-white hover:bg-slate-800/80'
                         )
                       }
                     >

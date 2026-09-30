@@ -386,7 +386,8 @@ QUY TẮC BẮT BUỘC (TRẢ LỜI TRỰC DIỆN - KHÔNG LAN MAN DÀI DÒNG):
       if (err.name === 'AbortError') {
         apiErrorMessage = 'Yêu cầu phản hồi quá thời gian cho phép (15s). Vui lòng thử lại với câu hỏi ngắn gọn hơn.';
       } else {
-        apiErrorMessage = err.message;
+        const causeDetail = err.cause ? ` (${err.cause.code || err.cause.message || err.cause})` : '';
+        apiErrorMessage = `${err.message}${causeDetail}`;
       }
       console.warn('[Direct Gemini] Lỗi gọi Gemini:', apiErrorMessage);
     }

@@ -188,7 +188,7 @@ export const LoginPage: React.FC = () => {
           </div>
           <div>
             <h2 className="font-extrabold text-lg tracking-tight text-white leading-tight">
-              TRƯỜNG ĐẠI HỌC CÔNG NGHỆ & KHOA HỌC
+              Hệ thống quản lý chấm công tự động VTI
             </h2>
             <p className="text-xs text-blue-300/90 font-semibold tracking-wider uppercase mt-0.5">
               Hệ Thống Quản Lý Chấm Công, Lịch Dạy & Nghỉ Phép
