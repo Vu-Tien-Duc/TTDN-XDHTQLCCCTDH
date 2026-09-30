@@ -12,6 +12,7 @@ const auditLogRoutes = require('./auditLog.routes');
 const reportRoutes = require('./report.routes');
 const uploadRoutes = require('./upload.routes');
 const aiRoutes = require('./ai.routes');
+const notificationRoutes = require('./notification.routes');
 
 /**
  * Health check endpoint
@@ -49,5 +50,6 @@ router.use('/audit-logs', auditLogRoutes);
 router.use('/reports', reportRoutes);
 router.use('/upload', uploadRoutes);
 router.use('/ai', aiRoutes);
+router.use('/notifications', notificationRoutes);
 
 module.exports = router;

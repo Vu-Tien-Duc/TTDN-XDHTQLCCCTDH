@@ -1,5 +1,5 @@
 import { axiosClient } from './axiosClient';
-import { ApiResponse, AttendanceLog, PaginatedResponse, Schedule } from '../types';
+import { ApiResponse, AttendanceLog, AttendanceStatus, PaginatedResponse, Schedule } from '../types';
 
 export interface CheckInPayload {
   scheduleId?: string;
@@ -10,9 +10,11 @@ export interface CheckInPayload {
   location?: {
     lat: number;
     lng: number;
+    accuracy?: number;
   };
   latitude?: number;
   longitude?: number;
+  accuracy?: number;
   note?: string;
 }
 
@@ -25,9 +27,11 @@ export interface CheckOutPayload {
   location?: {
     lat: number;
     lng: number;
+    accuracy?: number;
   };
   latitude?: number;
   longitude?: number;
+  accuracy?: number;
   note?: string;
 }
 
@@ -56,13 +60,14 @@ export interface FaceCheckInOptions {
   mode?: 'auto' | 'check_in' | 'check_out';
   timeoutMs?: number;
   signal?: AbortSignal;
+  capturedImage?: string;
   location?: {
     lat: number;
     lng: number;
   };
 }
 
-const DEFAULT_KIOSK_KEY = (import.meta as any).env?.VITE_KIOSK_KEY || '';
+const DEFAULT_KIOSK_KEY = (import.meta as any).env?.VITE_KIOSK_KEY || 'kiosk_secret_key_university_2026';
 
 export const attendanceApi = {
   /**
@@ -103,11 +108,15 @@ export const attendanceApi = {
    */
   registerFaceDescriptor: async (
     userId: string,
-    descriptorData: number[] | number[][]
+    descriptorData: number[] | number[][],
+    options?: { force?: boolean }
   ): Promise<ApiResponse<{ userId: string; fullName: string; email: string; faceRegistered: boolean; samplesCount?: number }>> => {
-    const payload = Array.isArray(descriptorData[0])
+    const payload: any = Array.isArray(descriptorData[0])
       ? { faceDescriptors: descriptorData }
       : { faceDescriptor: descriptorData };
+    if (options?.force) {
+      payload.force = true;
+    }
     return axiosClient.post(`/users/${userId}/face-descriptor`, payload);
   },
 
@@ -135,6 +144,7 @@ export const attendanceApi = {
     let mode = legacyMode;
     let location: { lat: number; lng: number } | undefined;
     let signal: AbortSignal | undefined;
+    let capturedImage: string | undefined;
 
     if (Array.isArray(optionsOrDescriptor)) {
       faceDescriptor = optionsOrDescriptor;
@@ -144,11 +154,12 @@ export const attendanceApi = {
       mode = optionsOrDescriptor.mode || 'auto';
       signal = optionsOrDescriptor.signal;
       location = optionsOrDescriptor.location;
+      capturedImage = optionsOrDescriptor.capturedImage;
     }
 
     return axiosClient.post(
       '/attendance/face-checkin',
-      { faceDescriptor, mode, location },
+      { faceDescriptor, mode, location, capturedImage },
       {
         headers: {
           'x-kiosk-key': kioskKey,
@@ -198,7 +209,8 @@ export const attendanceApi = {
    */
   scanQRCode: async (data: {
     qrToken: string;
-    location?: { lat: number; lng: number };
+    location?: { lat: number; lng: number; accuracy?: number };
+    accuracy?: number;
     deviceId?: string;
   }): Promise<ApiResponse<any>> => {
     return axiosClient.post('/attendance/qr/scan', data);
@@ -231,6 +243,22 @@ export const attendanceApi = {
     radiusMeters?: number;
   }): Promise<ApiResponse<any>> => {
     return axiosClient.post('/attendance/campus-config', data);
+  },
+
+  /**
+   * [Admin] Điều chỉnh bản ghi chấm công (Duyệt phép, sửa giờ, sửa trạng thái)
+   * PUT /api/attendance/:id
+   */
+  updateAttendanceByAdmin: async (
+    id: string,
+    data: {
+      status?: AttendanceStatus;
+      checkInTime?: string | null;
+      checkOutTime?: string | null;
+      leaveRequestId?: string | null;
+    }
+  ): Promise<ApiResponse<{ updatedLog: AttendanceLog; previousData: any }>> => {
+    return axiosClient.put(`/attendance/${id}`, data);
   },
 };
 

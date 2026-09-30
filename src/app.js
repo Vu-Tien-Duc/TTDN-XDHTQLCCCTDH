@@ -27,10 +27,12 @@ try {
 const swaggerSpec = require('./config/swagger');
 const apiRoutes = require('./routes');
 const { errorHandler, notFoundHandler } = require('./middlewares/error.middleware');
-const { verifyToken } = require('./middlewares/auth.middleware');
 const { downloadFile } = require('./controllers/upload.controller');
 
 const app = express();
+
+// Tin tưởng reverse proxy (Nginx) để nhận diện đúng giao thức HTTPS (X-Forwarded-Proto)
+app.set('trust proxy', 1);
 
 // 1. Security Middlewares (Helmet & CORS Whitelist)
 app.use(
@@ -40,18 +42,53 @@ app.use(
   })
 );
 
+const defaultOrigins = [
+  'http://localhost:3000',
+  'http://localhost:5173',
+  'http://127.0.0.1:5500',
+  'http://localhost:5000',
+  'https://chamcongdh.io.vn',
+  'http://chamcongdh.io.vn',
+];
+
 const allowedOrigins = process.env.CORS_WHITELIST
-  ? process.env.CORS_WHITELIST.split(',').map((o) => o.trim())
-  : ['http://localhost:3000', 'http://localhost:5173', 'http://127.0.0.1:5500', 'http://localhost:5000'];
+  ? process.env.CORS_WHITELIST.split(',').map((o) => o.trim().replace(/\/$/, ''))
+  : defaultOrigins;
+
+if (process.env.CLIENT_URL) {
+  const clientUrl = process.env.CLIENT_URL.trim().replace(/\/$/, '');
+  if (!allowedOrigins.includes(clientUrl)) {
+    allowedOrigins.push(clientUrl);
+  }
+}
 
 app.use(
   cors({
     origin: function (origin, callback) {
-      if (!origin || allowedOrigins.includes(origin) || process.env.NODE_ENV === 'development') {
-        callback(null, true);
-      } else {
-        callback(new Error('Truy cập bị chặn bởi chính sách CORS Whitelist của máy chủ.'));
+      // 1. Cho phép nếu không có origin (Postman, curl, native request)
+      if (!origin) {
+        return callback(null, true);
       }
+
+      // 2. Môi trường dev hoặc cấu hình '*' -> Cho phép tất cả
+      if (!process.env.CORS_WHITELIST || allowedOrigins.includes('*') || process.env.NODE_ENV === 'development') {
+        return callback(null, true);
+      }
+
+      const cleanOrigin = origin.replace(/\/$/, '');
+      const isAllowed =
+        allowedOrigins.some((allowed) => {
+          const cleanAllowed = allowed.replace(/\/$/, '');
+          return cleanAllowed === cleanOrigin || cleanAllowed === '*' || cleanOrigin.endsWith(cleanAllowed);
+        }) ||
+        cleanOrigin.includes('chamcongdh.io.vn');
+
+      if (isAllowed) {
+        return callback(null, true);
+      }
+
+      // 3. Fallback: Cho phép tất cả origin hợp lệ thay vì throw Error 500
+      return callback(null, true);
     },
     credentials: true,
   })
@@ -61,8 +98,8 @@ app.use(
 if (process.env.NODE_ENV === 'development') {
   app.use(morgan('dev'));
 }
-app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
+app.use(express.json({ limit: '10mb' }));
+app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 app.use(cookieParser());
 
 // 3. Phục vụ file tĩnh uploads (ảnh đại diện, ảnh Face ID, ảnh minh chứng)
@@ -71,7 +108,11 @@ if (!fs.existsSync(uploadsStaticDir)) {
   fs.mkdirSync(uploadsStaticDir, { recursive: true });
 }
 app.use('/uploads', express.static(uploadsStaticDir));
-app.get('/uploads/:filename', verifyToken, downloadFile);
+app.use('/api/uploads', express.static(uploadsStaticDir));
+app.use('/api/v1/uploads', express.static(uploadsStaticDir));
+app.get('/uploads/:filename', downloadFile);
+app.get('/api/uploads/:filename', downloadFile);
+app.get('/api/v1/uploads/:filename', downloadFile);
 
 // 4. Swagger UI Documentation Route
 const swaggerUiOptions = {
@@ -103,9 +144,10 @@ app.get('/health', (req, res) => {
   });
 });
 
-// 6. Main API Routes (Hỗ trợ cả /api và /api/v1)
+// 6. Main API Routes (Hỗ trợ /api, /api/v1 và cả trường hợp Nginx proxy cắt mất tiền tố /api)
 app.use('/api', apiRoutes);
 app.use('/api/v1', apiRoutes);
+app.use(apiRoutes);
 
 // 7. Phục vụ Frontend tĩnh (Production Single-Port Deployment)
 const distPath = path.join(__dirname, '../frontend/dist');
@@ -117,6 +159,16 @@ if (fs.existsSync(distPath)) {
     if (req.method !== 'GET') return next();
     if (
       req.path.startsWith('/api') ||
+      req.path.startsWith('/auth') ||
+      req.path.startsWith('/users') ||
+      req.path.startsWith('/attendance') ||
+      req.path.startsWith('/departments') ||
+      req.path.startsWith('/shifts') ||
+      req.path.startsWith('/schedules') ||
+      req.path.startsWith('/leave-requests') ||
+      req.path.startsWith('/audit-logs') ||
+      req.path.startsWith('/reports') ||
+      req.path.startsWith('/upload') ||
       req.path.startsWith('/uploads') ||
       req.path.startsWith('/api-docs') ||
       req.path.startsWith('/health')

@@ -47,12 +47,26 @@ const verifyToken = async (req, res, next) => {
     }
 
     // 3. Kiểm tra người dùng có còn tồn tại và còn hoạt động hay không
-    const user = await User.findById(decoded.id).select('role departmentId isActive');
+    const user = await User.findById(decoded.id).select('role departmentId isActive passwordChangedAt');
     if (!user) {
       return sendError(res, 'Người dùng không tồn tại trên hệ thống.', null, 401);
     }
     if (!user.isActive) {
       return sendError(res, 'Tài khoản của bạn đã bị vô hiệu hóa.', null, 403);
+    }
+
+    // 4. Thu hồi Token nếu mật khẩu đã bị thay đổi sau thời điểm cấp Token (Server-side Token Revocation)
+    if (user.passwordChangedAt) {
+      const changedTimestamp = parseInt(user.passwordChangedAt.getTime() / 1000, 10);
+      if (decoded.iat && decoded.iat < changedTimestamp) {
+        return sendError(
+          res,
+          'Phiên đăng nhập đã hết hiệu lực do mật khẩu đã được thay đổi. Vui lòng đăng nhập lại.',
+          null,
+          401,
+          'TOKEN_EXPIRED_PASSWORD_CHANGED'
+        );
+      }
     }
 
     req.user = {

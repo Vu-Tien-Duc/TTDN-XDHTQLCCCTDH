@@ -15,7 +15,10 @@ export interface LeaveBalanceData {
   annualLeaveQuota: number;
   daysUsed: number;
   pendingDays?: number;
+  pendingAnnualLeaveDays?: number;
+  pendingRequestsCount?: number;
   remainingDays: number;
+  availableDays?: number;
   isAdmin?: boolean;
 }
 
@@ -47,12 +50,12 @@ export const leaveService = {
    */
   uploadAttachment: async (
     file: File
-  ): Promise<ApiResponse<{ originalName: string; filename: string; mimetype: string; size: number; fileUrl: string }>> => {
+  ): Promise<ApiResponse<{ originalName: string; filename: string; mimetype: string; size: number; fileUrl: string; fullUrl?: string; url?: string }>> => {
     const formData = new FormData();
     formData.append('file', file);
     return (await axiosClient.post('/upload', formData, {
       headers: { 'Content-Type': 'multipart/form-data' },
-    })) as unknown as ApiResponse<{ originalName: string; filename: string; mimetype: string; size: number; fileUrl: string }>;
+    })) as unknown as ApiResponse<{ originalName: string; filename: string; mimetype: string; size: number; fileUrl: string; fullUrl?: string; url?: string }>;
   },
 
   /**

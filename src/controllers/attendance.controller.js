@@ -12,6 +12,7 @@ const {
   calculateAttendanceStatus,
   calculateCheckOutStatus,
   getAttendanceSummaryByUser,
+  buildAttendanceDateFilter,
   euclideanDistance,
   FACE_MATCH_THRESHOLD,
   getCachedUsersWithFace,
@@ -33,6 +34,7 @@ const {
 } = require('../services/email.service');
 const { sendSuccess, sendError } = require('../utils/responseHandler');
 const ERROR_CODES = require('../utils/errorCodes');
+const { getDeanScopedUserIds, isUserInDeanScope } = require('../utils/deanScope');
 
 /**
  * @desc Thực hiện Check-in tự động xác định ca và lịch làm việc
@@ -61,6 +63,48 @@ const checkIn = async (req, res, next) => {
 
     // 0. Geofencing Validation: Nếu phương thức là 'gps' hoặc client gửi tọa độ
     if (method === 'gps' || (finalLocation && finalLocation.lat !== null && finalLocation.lng !== null)) {
+      // 0.1 Kiểm tra độ tin cậy tín hiệu GPS (chặn giả lập tọa độ với accuracy bất thường hoặc quá lớn)
+      if (accuracy !== undefined && accuracy !== null) {
+        if (typeof accuracy !== 'number' || accuracy <= 0 || accuracy > 100) {
+          return sendError(
+            res,
+            `Độ chính xác GPS không đủ tin cậy (bán kính sai số ${accuracy}m vượt ngưỡng an toàn <= 100m). Vui lòng di chuyển ra nơi thoáng hoặc chuyển sang Quét mã QR.`,
+            { accuracy },
+            400,
+            'GPS_ACCURACY_UNRELIABLE'
+          );
+        }
+      }
+
+      // 0.2 Thuật toán chống dịch chuyển bất thường (Teleportation check): Chống người dùng dùng Fake GPS nhảy vị trí tức thời
+      if (finalLocation.lat && finalLocation.lng) {
+        const lastRecentLog = await AttendanceLog.findOne({
+          userId,
+          'location.lat': { $ne: null },
+          createdAt: { $gte: new Date(Date.now() - 30 * 60 * 1000) },
+        }).sort({ createdAt: -1 });
+
+        if (lastRecentLog && lastRecentLog.location?.lat && lastRecentLog.location?.lng) {
+          const elapsedMinutes = (Date.now() - new Date(lastRecentLog.createdAt).getTime()) / 60000;
+          const distMeters = calculateDistanceMeters(
+            lastRecentLog.location.lat,
+            lastRecentLog.location.lng,
+            finalLocation.lat,
+            finalLocation.lng
+          );
+          // Vận tốc di chuyển vượt quá 2500m/phút (~150 km/h) trong thời gian ngắn
+          if (elapsedMinutes > 0.05 && distMeters / elapsedMinutes > 2500) {
+            return sendError(
+              res,
+              'Phát hiện thay đổi tọa độ GPS bất thường trong thời gian ngắn (nghi vấn sử dụng công cụ Fake GPS). Điểm danh bị từ chối.',
+              { distMeters: Math.round(distMeters), elapsedMinutes: Math.round(elapsedMinutes) },
+              400,
+              'GPS_SPOOF_DETECTED'
+            );
+          }
+        }
+      }
+
       const user = await User.findById(userId).populate('departmentId');
       const deptLocation = user?.departmentId?.location;
       const geofenceResult = validateGeofence(finalLocation, deptLocation);
@@ -97,6 +141,7 @@ const checkIn = async (req, res, next) => {
       selectedSchedule = await Schedule.findOne({
         _id: scheduleId,
         userId,
+        weekday: currentWeekday,
         startDate: { $lte: endOfDay },
         endDate: { $gte: startOfDay },
       }).populate('shiftId');
@@ -108,6 +153,13 @@ const checkIn = async (req, res, next) => {
       shift = selectedSchedule.shiftId;
       if (!shift) {
         return sendError(res, 'Lịch giảng dạy chưa được cấu hình ca làm việc.', null, 400);
+      }
+
+      // Xác thực ca làm việc nếu client gửi kèm shiftId
+      if (shiftId && mongoose.Types.ObjectId.isValid(shiftId)) {
+        if (shift._id.toString() !== shiftId.toString()) {
+          return sendError(res, 'Ca làm việc (shiftId) không khớp với lịch giảng dạy đã chọn.', null, 400);
+        }
       }
 
       // Kiểm tra xem hôm nay đã check-in cho lịch này chưa
@@ -130,6 +182,7 @@ const checkIn = async (req, res, next) => {
         );
       }
 
+<<<<<<< HEAD
       // Kiểm tra quá 15 phút -> Tự động hủy lịch và đánh vắng
       const shiftStartStr = selectedSchedule.startTime || shift.startTime;
       const startMinutes = timeStringToMinutes(shiftStartStr);
@@ -143,6 +196,40 @@ const checkIn = async (req, res, next) => {
         } catch (e) {}
         return sendError(
           res,
+=======
+      // Kiểm tra thời gian điểm danh: Chỉ cho phép điểm danh trước giờ bắt đầu tối đa 30 phút
+      const shiftStartStr = selectedSchedule.startTime || shift.startTime;
+      const startMinutes = timeStringToMinutes(shiftStartStr);
+      const earlyLimitMinutes = Math.max(0, startMinutes - 30);
+
+      if (currentMinutes < earlyLimitMinutes) {
+        const openH = Math.floor(earlyLimitMinutes / 60).toString().padStart(2, '0');
+        const openM = (earlyLimitMinutes % 60).toString().padStart(2, '0');
+        return sendError(
+          res,
+          `Chưa đến thời gian điểm danh. Bạn chỉ có thể điểm danh trước giờ bắt đầu tối đa 30 phút (Ca bắt đầu lúc ${shiftStartStr}, mở điểm danh từ ${openH}:${openM}).`,
+          {
+            shiftName: shift.name,
+            startTime: shiftStartStr,
+            openCheckInTime: `${openH}:${openM}`,
+          },
+          400,
+          'TOO_EARLY'
+        );
+      }
+
+      // Kiểm tra nếu vượt quá thời gian cho phép đi muộn của ca đó -> Tự động hủy lịch và đánh vắng
+      const lateThreshold = shift.lateThresholdMinutes !== undefined ? shift.lateThresholdMinutes : 15;
+      if (currentMinutes > startMinutes + lateThreshold) {
+        try {
+          const { processScheduleAttendanceCheck } = require('../services/cron.service');
+          if (processScheduleAttendanceCheck) {
+            await processScheduleAttendanceCheck(selectedSchedule, { startOfDay, endOfDay, dateStr: nowVN.toISOString().slice(0, 10) });
+          }
+        } catch (e) { }
+        return sendError(
+          res,
+>>>>>>> main
           `Ca làm việc ${shift.name} (${shiftStartStr}) đã quá hạn check-in (vượt ngưỡng cho phép đi muộn ${lateThreshold} phút) và đã tự động bị hủy lịch / ghi nhận vắng mặt.`,
           null,
           400,
@@ -186,7 +273,7 @@ const checkIn = async (req, res, next) => {
     });
 
     const populatedLog = await AttendanceLog.findById(log._id)
-      .populate('userId', 'fullName email')
+      .populate('userId', 'fullName email avatar')
       .populate('shiftId', 'name startTime endTime lateThresholdMinutes')
       .populate('scheduleId', 'roomId weekday');
 
@@ -276,7 +363,7 @@ const checkOut = async (req, res, next) => {
     await openLog.save();
 
     const populated = await AttendanceLog.findById(openLog._id)
-      .populate('userId', 'fullName email')
+      .populate('userId', 'fullName email avatar')
       .populate('shiftId', 'name startTime endTime lateThresholdMinutes')
       .populate('scheduleId', 'roomId weekday');
 
@@ -333,13 +420,11 @@ const getAttendanceHistory = async (req, res, next) => {
       // Giảng viên / Nhân viên: Hệ thống ép điều kiện chỉ xem lịch sử của chính mình
       query.userId = req.user.id;
     } else if (req.user.role === 'truongkhoa') {
-      // Trưởng khoa: Tự động lọc danh sách nhân sự thuộc khoa của mình (departmentId), không được xem ngoài khoa
-      const myDeptId = req.user.departmentId || (await User.findById(req.user.id))?.departmentId?.toString();
-      if (!myDeptId) {
-        return sendError(res, 'Tài khoản Trưởng khoa chưa được gán vào khoa/phòng ban nào.', null, 400);
+      // Trưởng khoa: Tự động lọc danh sách nhân sự thuộc khoa và các bộ môn con trực thuộc
+      const facultyUserIds = await getDeanScopedUserIds(req.user);
+      if (!facultyUserIds.length) {
+        return sendError(res, 'Tài khoản Trưởng khoa chưa được gán vào khoa/phòng ban nào hoặc khoa không có nhân sự.', null, 400);
       }
-      const facultyUsers = await User.find({ departmentId: myDeptId }).select('_id');
-      const facultyUserIds = facultyUsers.map((u) => u._id.toString());
 
       if (userId) {
         if (!facultyUserIds.includes(userId.toString())) {
@@ -365,16 +450,21 @@ const getAttendanceHistory = async (req, res, next) => {
 
     // 3. Bộ lọc theo khoảng thời gian from - to
     if (from || to) {
-      query.checkInTime = {};
-      if (from) query.checkInTime.$gte = new Date(from);
-      if (to) {
-        const toDate = new Date(to);
-        if (typeof to === 'string' && to.length <= 10) {
-          toDate.setHours(23, 59, 59, 999);
-        }
-        query.checkInTime.$lte = toDate;
+      let toDate = to ? new Date(to) : null;
+      if (toDate && typeof to === 'string' && to.length <= 10) {
+        toDate.setHours(23, 59, 59, 999);
       }
+      const dateFilter = buildAttendanceDateFilter(from, toDate);
+      Object.assign(query, dateFilter);
     }
+
+    // 3.1 Dọn dẹp tự động các bản ghi vắng mặt tương lai bị tạo sai lệch (nếu có)
+    const todayStr = getVietnamDayRange().dateStr;
+    await AttendanceLog.deleteMany({
+      status: { $in: ['ABSENT', 'EXCUSED_ABSENCE'] },
+      method: 'system',
+      workDate: { $gt: todayStr },
+    });
 
     // 4. Phân trang chuẩn (page, limit, skip, total, totalPages)
     const pageNum = Math.max(1, parseInt(page, 10) || 1);
@@ -385,11 +475,11 @@ const getAttendanceHistory = async (req, res, next) => {
     const totalPages = Math.ceil(total / limitNum);
 
     const logs = await AttendanceLog.find(query)
-      .populate('userId', 'fullName email role departmentId')
+      .populate('userId', 'fullName email role departmentId avatar')
       .populate('shiftId', 'name startTime endTime')
       .populate('scheduleId', 'roomId weekday')
       .populate('leaveRequestId', 'type reason')
-      .sort({ checkInTime: -1 })
+      .sort({ createdAt: -1, checkInTime: -1 })
       .skip(skip)
       .limit(limitNum);
 
@@ -416,7 +506,7 @@ const getAttendanceById = async (req, res, next) => {
     }
 
     const log = await AttendanceLog.findById(id)
-      .populate('userId', 'fullName email role departmentId')
+      .populate('userId', 'fullName email role departmentId avatar')
       .populate('shiftId', 'name startTime endTime lateThresholdMinutes')
       .populate('scheduleId', 'roomId weekday startDate endDate')
       .populate('leaveRequestId', 'type reason status');
@@ -431,9 +521,8 @@ const getAttendanceById = async (req, res, next) => {
         return sendError(res, 'Bạn không có quyền xem bản ghi chấm công của người khác.', null, 403);
       }
     } else if (req.user.role === 'truongkhoa') {
-      const myDeptId = req.user.departmentId || (await User.findById(req.user.id))?.departmentId?.toString();
-      const logUserDept = log.userId?.departmentId ? log.userId.departmentId.toString() : null;
-      if (!logUserDept || logUserDept !== myDeptId) {
+      const inScope = await isUserInDeanScope(req.user, log.userId._id || log.userId);
+      if (!inScope) {
         return sendError(res, 'Bạn không có quyền xem bản ghi chấm công của nhân sự ngoài khoa.', null, 403);
       }
     }
@@ -517,7 +606,7 @@ const updateAttendanceByAdmin = async (req, res, next) => {
     });
 
     const populatedLog = await AttendanceLog.findById(log._id)
-      .populate('userId', 'fullName email role departmentId')
+      .populate('userId', 'fullName email role departmentId avatar')
       .populate('shiftId', 'name startTime endTime lateThresholdMinutes')
       .populate('scheduleId', 'roomId weekday')
       .populate('leaveRequestId', 'type reason status');
@@ -666,7 +755,7 @@ const processFaceAttendanceUser = async ({
         status: finalStatus,
         location,
       },
-    }).catch(() => {});
+    }).catch((err) => console.error('[AuditLog Error] Lỗi ghi audit log Face Check-out:', err.message));
 
     return {
       status: 'OK',
@@ -775,7 +864,7 @@ const processFaceAttendanceUser = async ({
         lateMinutes,
         location,
       },
-    }).catch(() => {});
+    }).catch((err) => console.error('[AuditLog Error] Lỗi ghi audit log Face Check-in:', err.message));
 
     return {
       status: 'OK',
@@ -902,8 +991,23 @@ const processFaceAttendanceUser = async ({
  */
 const faceCheckIn = async (req, res, next) => {
   try {
-    const { faceDescriptor, mode = 'auto', capturedImage, image, location, latitude, longitude } = req.body;
+    const { faceDescriptor, mode = 'auto', capturedImage, image, location, latitude, longitude, clientTimestamp } = req.body;
     const finalLocation = location || (latitude !== undefined && longitude !== undefined ? { lat: latitude, lng: longitude } : null);
+
+    // 0. Chống Replay Attack: Nếu client gửi timestamp, kiểm tra độ tươi mới của frame (không quá 30 giây)
+    if (clientTimestamp !== undefined && clientTimestamp !== null) {
+      const now = Date.now();
+      const ts = Number(clientTimestamp);
+      if (isNaN(ts) || Math.abs(now - ts) > 30000) {
+        return sendError(
+          res,
+          'Khung hình nhận diện khuôn mặt đã hết hạn hoặc thời gian thiết bị Kiosk bị sai lệch.',
+          null,
+          400,
+          'EXPIRED_FRAME'
+        );
+      }
+    }
 
     // 1. Validate faceDescriptor
     if (!faceDescriptor || !Array.isArray(faceDescriptor) || faceDescriptor.length !== 128) {
@@ -943,7 +1047,8 @@ const faceCheckIn = async (req, res, next) => {
     });
 
     if (result.status !== 'OK') {
-      const statusCode = result.status === 'ALREADY_CHECKED_IN' || result.status === 'ALREADY_COMPLETED' ? 409 : 400;
+      const isConflict = ['ALREADY_CHECKED_IN', 'ALREADY_COMPLETED', 'RECENTLY_CHECKED_IN', 'MID_SHIFT_SCAN'].includes(result.status);
+      const statusCode = isConflict ? 409 : 400;
       return sendError(res, result.message, result, statusCode);
     }
 
@@ -1084,9 +1189,118 @@ const scanQRCode = async (req, res, next) => {
         400,
         'ATTENDANCE_OUT_OF_GEOFENCE'
       );
+<<<<<<< HEAD
     }
 
     // 3. Tự động xác định ca và lịch dạy hôm nay theo chuẩn nghiệp vụ (sớm bao nhiêu cũng được, muộn tối đa 15p)
+=======
+    }
+
+    // 3. Kiểm tra xem người dùng có ca đang mở (đã check-in hôm nay nhưng chưa check-out) hay không:
+    const { startOfDay, endOfDay } = getVietnamDayRange();
+    const openLog = await AttendanceLog.findOne({
+      userId,
+      checkOutTime: null,
+      checkInTime: { $gte: startOfDay, $lte: endOfDay },
+    }).populate('shiftId');
+
+    if (openLog) {
+      // 3.1. Chống quét đúp liên tiếp trong thời gian ngắn (Double-tap protection)
+      const diffSeconds = (Date.now() - new Date(openLog.checkInTime).getTime()) / 1000;
+      if (diffSeconds < 60) {
+        return sendError(
+          res,
+          `Bạn vừa Check-in xong (${Math.round(diffSeconds)} giây trước). Vui lòng không quét mã liên tiếp.`,
+          {
+            status: 'RECENTLY_CHECKED_IN',
+            attendanceId: openLog._id,
+            openLog,
+          },
+          409,
+          'RECENTLY_CHECKED_IN'
+        );
+      }
+
+      // 3.2. Thực hiện Check-out ra ca tự động qua mã QR
+      const checkOutTime = new Date();
+      openLog.checkOutTime = checkOutTime;
+      if (finalDeviceId) openLog.deviceId = finalDeviceId;
+      if (finalLocation) openLog.location = finalLocation;
+
+      const { finalStatus, isEarlyLeave, earlyMinutes } = calculateCheckOutStatus(
+        checkOutTime,
+        openLog.shiftId,
+        openLog.status
+      );
+      openLog.status = finalStatus;
+      await openLog.save();
+
+      const populatedLog = await AttendanceLog.findById(openLog._id)
+        .populate('userId', 'fullName email avatar role')
+        .populate('shiftId', 'name startTime endTime lateThresholdMinutes')
+        .populate('scheduleId', 'roomId weekday subjectName subjectCode');
+
+      const durationMs = checkOutTime.getTime() - new Date(openLog.checkInTime).getTime();
+      const durationMinutes = Math.max(0, Math.round(durationMs / (60 * 1000)));
+      const hours = Math.floor(durationMinutes / 60);
+      const mins = durationMinutes % 60;
+      const formattedDuration = `${hours} giờ ${mins} phút`;
+
+      // Gửi email thông báo QR Check-out (Hoàn thành ca / Về sớm)
+      if (populatedLog?.userId?.email) {
+        sendCheckOutNotificationEmail({
+          to: populatedLog.userId.email,
+          fullName: populatedLog.userId.fullName,
+          shiftName: populatedLog.shiftId?.name,
+          checkInTime: openLog.checkInTime,
+          checkOutTime,
+          durationFormatted: formattedDuration,
+          status: finalStatus,
+          isEarlyLeave,
+          earlyMinutes,
+          method: 'qr',
+        }).catch((err) => console.error('[EmailService] QR check-out email error:', err.message));
+      }
+
+      // Ghi AuditLog cho QR Check-out
+      AuditLog.create({
+        actor: userId,
+        action: 'QR_CHECK_OUT',
+        targetId: openLog._id.toString(),
+        targetType: 'AttendanceLog',
+        ipAddress: req.ip || req.connection?.remoteAddress,
+        timestamp: checkOutTime,
+        details: {
+          method: 'qr',
+          deviceId: finalDeviceId,
+          workingMinutes: durationMinutes,
+          status: finalStatus,
+          location: finalLocation,
+          isEarlyLeave,
+          earlyMinutes,
+        },
+      }).catch((err) => console.error('[AuditLog Error] Lỗi ghi audit log QR Check-out:', err.message));
+
+      const successMsg = isEarlyLeave
+        ? `👋 Quét mã QR Check-out thành công (Về sớm ${earlyMinutes} phút)! Đã kết thúc ca làm việc.`
+        : '👋 Quét mã QR Check-out ra ca thành công! Đã kết thúc ca làm việc.';
+
+      return sendSuccess(res, successMsg, {
+        ...populatedLog.toObject(),
+        action: 'CHECK_OUT',
+        workingDuration: {
+          totalMinutes: durationMinutes,
+          formatted: formattedDuration,
+        },
+        earlyLeave: {
+          isEarlyLeave,
+          earlyMinutes,
+        },
+      }, 200);
+    }
+
+    // 4. Nếu chưa có ca mở hôm nay -> Thực hiện Check-in vào ca
+>>>>>>> main
     const evalResult = await evaluateUserScheduleForCheckIn(userId);
     if (!evalResult.canCheckIn) {
       const statusCode = evalResult.status === 'ALREADY_CHECKED_IN' ? 409 : 400;
@@ -1153,7 +1367,7 @@ const scanQRCode = async (req, res, next) => {
         deviceId: finalDeviceId,
         location: finalLocation,
       },
-    }).catch(() => {});
+    }).catch((err) => console.error('[AuditLog Error] Lỗi ghi audit log QR Check-in:', err.message));
 
     return sendSuccess(res, '🎉 Điểm danh bằng Mã QR Động thành công!', populatedLog, 200);
   } catch (error) {
@@ -1180,7 +1394,11 @@ const getCampusLocationConfig = async (req, res, next) => {
  */
 const updateCampusLocationConfig = async (req, res, next) => {
   try {
+<<<<<<< HEAD
     if (req.user?.role !== 'admin') {
+=======
+    if (process.env.NODE_ENV === 'production' && req.user?.role !== 'admin') {
+>>>>>>> main
       return sendError(res, 'Chỉ có Quản trị viên (Admin) mới có quyền cấu hình tọa độ khuôn viên trường.', null, 403);
     }
     const { name, lat, lng, radiusMeters } = req.body;

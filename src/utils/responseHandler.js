@@ -28,5 +28,20 @@ const sendError = (res, message = 'Có lỗi xảy ra', errors = null, statusCod
 module.exports = {
   sendSuccess,
   sendError,
+  getBaseUrl: (req) => {
+    const host = req.get('host') || '';
+    if (host.includes('localhost') || host.includes('127.0.0.1')) {
+      return `http://${host}`;
+    }
+    const forwardedProto = req.headers['x-forwarded-proto'];
+    const isHttps =
+      forwardedProto === 'https' ||
+      req.secure ||
+      req.protocol === 'https' ||
+      host.includes('chamcongdh.io.vn');
+
+    const proto = isHttps ? 'https' : (req.protocol || 'http');
+    return `${proto}://${host}`;
+  },
 };
 

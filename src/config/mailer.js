@@ -26,18 +26,6 @@ const transporter =
         verify: async () => true,
       };
 
-const verifyMailer = async () => {
-  try {
-    if (transporter && typeof transporter.verify === 'function') {
-      await transporter.verify();
-      console.log('Mail server connection: OK');
-    }
-  } catch (error) {
-    console.warn('Mail server connection failed (chuyển sang chế độ giả lập email):', error.message);
-  }
-};
-
 module.exports = {
-    transporter,
-    verifyMailer,
+  transporter,
 };

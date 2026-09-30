@@ -100,6 +100,7 @@ export const LineTrendChart: React.FC<LineTrendChartProps> = ({
                 key={idx}
                 onMouseEnter={() => setHoveredIdx(idx)}
                 onMouseLeave={() => setHoveredIdx(null)}
+                onClick={() => setHoveredIdx((prev) => (prev === idx ? null : idx))}
                 className="cursor-pointer"
               >
                 {/* Đường dóng dọc khi hover */}

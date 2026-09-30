@@ -7,7 +7,7 @@ const {
   updateShiftConfig,
   deleteShiftConfig,
 } = require('../controllers/shiftConfig.controller');
-const { verifyToken, verifyRole, authorizeRoles } = require('../middlewares/auth.middleware');
+const { verifyToken, authorizeRoles } = require('../middlewares/auth.middleware');
 
 /**
  * @swagger

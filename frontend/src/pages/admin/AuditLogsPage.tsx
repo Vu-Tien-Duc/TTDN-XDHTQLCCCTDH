@@ -15,31 +15,41 @@ import { formatDate, formatDateTime, showErrorToast } from '../../utils';
 import { Button, Modal, EmptyState } from '../../components';
 
 const ACTION_MAP: Record<string, { label: string; color: string; bg: string }> = {
+  // Điểm danh Face ID / QR / Thủ công
+  FACE_CHECK_IN: { label: 'Điểm Danh Face ID (Vào ca)', color: 'text-emerald-700', bg: 'bg-emerald-50 border-emerald-200' },
+  FACE_CHECK_OUT: { label: 'Điểm Danh Face ID (Ra về)', color: 'text-indigo-700', bg: 'bg-indigo-50 border-indigo-200' },
+  QR_CHECK_IN: { label: 'Điểm Danh QR Động', color: 'text-sky-700', bg: 'bg-sky-50 border-sky-200' },
+  CHECK_IN: { label: 'Vào Ca Làm Việc', color: 'text-emerald-700', bg: 'bg-emerald-50 border-emerald-200' },
+  CHECK_OUT: { label: 'Ra Về Hết Ca', color: 'text-indigo-700', bg: 'bg-indigo-50 border-indigo-200' },
+  EDIT_ATTENDANCE: { label: 'Điều Chỉnh Chấm Công', color: 'text-purple-700', bg: 'bg-purple-50 border-purple-200' },
+  ADMIN_OVERRIDE_ATTENDANCE: { label: 'Ghi Đè Chấm Công', color: 'text-purple-700', bg: 'bg-purple-50 border-purple-200' },
+  ATTENDANCE_OVERLAPPING_SCHEDULES_WARNING: { label: 'Cảnh Báo Trùng Lịch Ca', color: 'text-amber-700', bg: 'bg-amber-50 border-amber-200' },
+
+  // Nhận diện & Face ID Descriptors
+  REGISTER_FACE_DESCRIPTOR: { label: 'Đăng Ký Khuôn Mặt', color: 'text-cyan-700', bg: 'bg-cyan-50 border-cyan-200' },
+  DELETE_FACE_DESCRIPTOR: { label: 'Xóa Dữ Liệu Khuôn Mặt', color: 'text-amber-700', bg: 'bg-amber-50 border-amber-200' },
+
+  // Xác thực & Bảo mật Auth
+  USER_LOGIN_SUCCESS: { label: 'Đăng Nhập Thành Công', color: 'text-emerald-700', bg: 'bg-emerald-50 border-emerald-200' },
+  USER_LOGIN_FAILED: { label: 'Đăng Nhập Thất Bại', color: 'text-rose-700', bg: 'bg-rose-50 border-rose-200' },
+  USER_LOGOUT: { label: 'Đăng Xuất Hệ Thống', color: 'text-slate-700', bg: 'bg-slate-100 border-slate-200' },
+  CHANGE_PASSWORD: { label: 'Đổi Mật Khẩu', color: 'text-violet-700', bg: 'bg-violet-50 border-violet-200' },
+  RESET_PASSWORD: { label: 'Khôi Phục Mật Khẩu (OTP)', color: 'text-orange-700', bg: 'bg-orange-50 border-orange-200' },
+  UPDATE_AVATAR: { label: 'Cập Nhật Ảnh Đại Diện', color: 'text-teal-700', bg: 'bg-teal-50 border-teal-200' },
+
+  // Nghỉ phép
   APPROVE_LEAVE: { label: 'Phê Duyệt Đơn Nghỉ', color: 'text-emerald-700', bg: 'bg-emerald-50 border-emerald-200' },
   REJECT_LEAVE: { label: 'Từ Chối Đơn Nghỉ', color: 'text-rose-700', bg: 'bg-rose-50 border-rose-200' },
-  EDIT_ATTENDANCE: {
-    label: 'Điều Chỉnh Chấm Công',
-    color: 'text-purple-700',
-    bg: 'bg-purple-50 border-purple-200',
-  },
-  ADMIN_OVERRIDE_ATTENDANCE: {
-    label: 'Ghi Đè Chấm Công',
-    color: 'text-purple-700',
-    bg: 'bg-purple-50 border-purple-200',
-  },
-  CRON_AUTO_ABSENT: {
-    label: 'Quét Tự Động Đánh Vắng',
-    color: 'text-amber-700',
-    bg: 'bg-amber-50 border-amber-200',
-  },
-  ATTENDANCE_OVERLAPPING_SCHEDULES_WARNING: {
-    label: 'Cảnh Báo Trùng Lịch Ca',
-    color: 'text-amber-700',
-    bg: 'bg-amber-50 border-amber-200',
-  },
+
+  // Tự động Cron
+  CRON_AUTO_ABSENT: { label: 'Quét Tự Động Đánh Vắng', color: 'text-amber-700', bg: 'bg-amber-50 border-amber-200' },
+
+  // Quản lý người dùng
   CREATE_USER: { label: 'Thêm Người Dùng Mới', color: 'text-emerald-700', bg: 'bg-emerald-50 border-emerald-200' },
   UPDATE_USER: { label: 'Cập Nhật Người Dùng', color: 'text-blue-700', bg: 'bg-blue-50 border-blue-200' },
   DELETE_USER: { label: 'Khóa Tài Khoản', color: 'text-rose-700', bg: 'bg-rose-50 border-rose-200' },
+
+  // Quản lý đơn vị & ca
   CREATE_DEPARTMENT: { label: 'Tạo Đơn Vị Mới', color: 'text-indigo-700', bg: 'bg-indigo-50 border-indigo-200' },
   UPDATE_DEPARTMENT: { label: 'Cập Nhật Đơn Vị', color: 'text-blue-700', bg: 'bg-blue-50 border-blue-200' },
   DELETE_DEPARTMENT: { label: 'Xóa Đơn Vị', color: 'text-rose-700', bg: 'bg-rose-50 border-rose-200' },
@@ -69,8 +79,10 @@ export const AuditLogsPage: React.FC = () => {
   const [startDate, setStartDate] = useState<string>('');
   const [endDate, setEndDate] = useState<string>('');
 
-  // Pagination (Frontend client pagination)
+  // Pagination
   const [currentPage, setCurrentPage] = useState<number>(1);
+  const [serverTotalDocs, setServerTotalDocs] = useState<number>(0);
+  const [serverTotalPages, setServerTotalPages] = useState<number>(1);
   const pageSize = 12;
 
   // Details Modal
@@ -82,17 +94,31 @@ export const AuditLogsPage: React.FC = () => {
     else setRefreshing(true);
 
     try {
+      // Chuẩn hóa endDate về cuối ngày (23:59:59.999) để không bỏ sót các log trong ngày kết thúc
+      let formattedEndDate: string | undefined = undefined;
+      if (endDate) {
+        const end = new Date(endDate);
+        end.setHours(23, 59, 59, 999);
+        formattedEndDate = end.toISOString();
+      }
+
       const res = await auditLogService.getAuditLogs({
         action: actionFilter || undefined,
         targetType: targetTypeFilter || undefined,
         startDate: startDate ? new Date(startDate).toISOString() : undefined,
-        endDate: endDate ? new Date(endDate).toISOString() : undefined,
+        endDate: formattedEndDate,
+        page: currentPage,
+        limit: pageSize,
       });
 
       if (res && Array.isArray(res.logs)) {
         setLogs(res.logs);
+        setServerTotalDocs(res.pagination?.totalDocs ?? res.totalRecords ?? res.logs.length);
+        setServerTotalPages(res.pagination?.totalPages ?? Math.ceil((res.totalRecords || res.logs.length) / pageSize) ?? 1);
       } else {
         setLogs([]);
+        setServerTotalDocs(0);
+        setServerTotalPages(1);
       }
     } catch (err) {
       showErrorToast(err, 'Không thể tải nhật ký kiểm toán hệ thống.');
@@ -100,31 +126,25 @@ export const AuditLogsPage: React.FC = () => {
       setLoading(false);
       setRefreshing(false);
     }
-  }, [actionFilter, targetTypeFilter, startDate, endDate]);
+  }, [actionFilter, targetTypeFilter, startDate, endDate, currentPage, pageSize]);
 
   useEffect(() => {
     fetchAuditLogs();
   }, [fetchAuditLogs]);
 
-  // Filtered by Search Actor
+  // Filtered by Search Actor (trên tập log hiện tại)
   const filteredLogs = useMemo(() => {
     if (!searchActor.trim()) return logs;
     const term = searchActor.toLowerCase().trim();
     return logs.filter((log) => {
-      const actorName = log.actor?.fullName?.toLowerCase() || '';
+      const actorName = log.actor?.fullName?.toLowerCase() || (log.actorType === 'SYSTEM' ? 'hệ thống cron system' : '');
       const actorEmail = log.actor?.email?.toLowerCase() || '';
       const actionName = log.action?.toLowerCase() || '';
       return actorName.includes(term) || actorEmail.includes(term) || actionName.includes(term);
     });
   }, [logs, searchActor]);
 
-  // Paginated Logs
-  const paginatedLogs = useMemo(() => {
-    const startIndex = (currentPage - 1) * pageSize;
-    return filteredLogs.slice(startIndex, startIndex + pageSize);
-  }, [filteredLogs, currentPage, pageSize]);
-
-  const totalPages = Math.ceil(filteredLogs.length / pageSize) || 1;
+  const paginatedLogs = filteredLogs;
 
   const handleResetFilter = () => {
     setActionFilter('');
@@ -331,10 +351,22 @@ export const AuditLogsPage: React.FC = () => {
 
                         {/* Người thực hiện */}
                         <td className="py-3 px-4 whitespace-nowrap">
-                          <div className="font-bold text-slate-800">
-                            {log.actor?.fullName || 'Người dùng ẩn'}
-                          </div>
-                          <div className="text-[11px] text-slate-400 font-mono">{log.actor?.email || '—'}</div>
+                          {log.actorType === 'SYSTEM' || !log.actor ? (
+                            <div>
+                              <div className="font-bold text-indigo-700 flex items-center gap-1.5">
+                                <span className="inline-block w-2 h-2 rounded-full bg-indigo-500 animate-pulse" />
+                                Hệ thống (CRON / Auto)
+                              </div>
+                              <div className="text-[11px] text-slate-400 font-mono">Tác vụ tự động</div>
+                            </div>
+                          ) : (
+                            <div>
+                              <div className="font-bold text-slate-800">
+                                {log.actor?.fullName || 'Người dùng ẩn'}
+                              </div>
+                              <div className="text-[11px] text-slate-400 font-mono">{log.actor?.email || '—'}</div>
+                            </div>
+                          )}
                         </td>
 
                         {/* Hành động */}
@@ -388,11 +420,11 @@ export const AuditLogsPage: React.FC = () => {
             </div>
 
             {/* Pagination Controls */}
-            {totalPages > 1 && (
+            {serverTotalPages > 1 && (
               <div className="p-4 border-t border-slate-100 flex items-center justify-between text-xs text-slate-500">
                 <span>
                   Hiển thị {(currentPage - 1) * pageSize + 1} -{' '}
-                  {Math.min(currentPage * pageSize, filteredLogs.length)} trên tổng số {filteredLogs.length} bản ghi
+                  {Math.min(currentPage * pageSize, serverTotalDocs)} trên tổng số {serverTotalDocs} bản ghi
                 </span>
 
                 <div className="flex items-center gap-1.5">
@@ -406,13 +438,13 @@ export const AuditLogsPage: React.FC = () => {
                     Trước
                   </Button>
                   <span className="px-2 font-bold text-slate-700">
-                    {currentPage} / {totalPages}
+                    {currentPage} / {serverTotalPages}
                   </span>
                   <Button
                     variant="outline"
                     size="sm"
-                    onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
-                    disabled={currentPage === totalPages}
+                    onClick={() => setCurrentPage((p) => Math.min(serverTotalPages, p + 1))}
+                    disabled={currentPage === serverTotalPages}
                     className="text-xs py-1 px-2"
                   >
                     Sau
@@ -438,10 +470,12 @@ export const AuditLogsPage: React.FC = () => {
               <div>
                 <span className="text-slate-400 font-medium block">Người thực hiện:</span>
                 <span className="font-bold text-slate-900 text-sm">
-                  {selectedLog.actor?.fullName || 'Hệ thống'}
+                  {selectedLog.actorType === 'SYSTEM' || !selectedLog.actor
+                    ? 'Hệ thống (CRON / Tác vụ tự động)'
+                    : selectedLog.actor?.fullName || 'Người dùng ẩn'}
                 </span>
                 <span className="text-slate-500 block font-mono text-[11px]">
-                  {selectedLog.actor?.email}
+                  {selectedLog.actor?.email || (selectedLog.actorType === 'SYSTEM' ? 'system@university.internal' : '—')}
                 </span>
               </div>
 

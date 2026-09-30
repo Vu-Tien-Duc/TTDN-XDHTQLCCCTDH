@@ -212,7 +212,11 @@ router.get('/qr/generate', generateQRCode);
 router.get('/campus-config', getCampusLocationConfig);
 
 router.use(verifyToken);
+<<<<<<< HEAD
 router.post('/campus-config', verifyRole('admin'), updateCampusLocationConfig);
+=======
+router.post('/campus-config', authorizeRoles('admin'), updateCampusLocationConfig);
+>>>>>>> main
 
 /**
  * @swagger

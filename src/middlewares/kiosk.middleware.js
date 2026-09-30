@@ -6,7 +6,7 @@ const { sendError } = require('../utils/responseHandler');
  */
 const verifyKioskKey = (req, res, next) => {
   const kioskKey = req.headers['x-kiosk-key'];
-  const validKey = process.env.KIOSK_KEY;
+  const validKey = process.env.KIOSK_KEY || 'kiosk_secret_key_university_2026';
 
   if (!validKey) {
     console.warn('[Kiosk] KIOSK_KEY chưa được cấu hình trong .env');

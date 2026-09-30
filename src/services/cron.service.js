@@ -80,11 +80,11 @@ const processScheduleAttendanceCheck = async (schedule, dayRange) => {
   const shiftName = schedule.shiftId?.name || shiftId;
 
   // 1. Kiểm tra đối chiếu xem giảng viên đã có bản ghi chấm công nào hôm nay cho ca/lịch này chưa
-  // Tính cả checkInTime hoặc createdAt nằm trong khoảng [00:00:00, 23:59:59] của ngày hôm nay
   const existingLog = await AttendanceLog.findOne({
     userId,
     scheduleId: schedule._id,
     $or: [
+      { workDate: dayRange.dateStr },
       { checkInTime: { $gte: startOfDay, $lte: endOfDay } },
       { createdAt: { $gte: startOfDay, $lte: endOfDay } },
     ],
@@ -119,18 +119,37 @@ const processScheduleAttendanceCheck = async (schedule, dayRange) => {
   // 3. Cơ chế Idempotent (Chống trùng lặp tuyệt đối):
   // Tạo bản ghi trong attendance_logs với status: 'ABSENT' (hoặc 'EXCUSED_ABSENCE' nếu có phép),
   // method: 'manual', checkInTime: null, checkOutTime: null
-  const newLog = await AttendanceLog.create({
-    userId,
-    shiftId,
-    scheduleId: schedule._id,
-    status: finalStatus,
-    method: 'manual',
-    checkInTime: null,
-    checkOutTime: null,
-    leaveRequestId,
-    isManualOverride: false,
-    createdAt: endOfDay,
-  });
+  let newLog;
+  try {
+    newLog = await AttendanceLog.create({
+      userId,
+      shiftId,
+      scheduleId: schedule._id,
+      status: finalStatus,
+      method: 'system',
+      deviceId: 'SYSTEM_CRON',
+      checkInTime: null, // Vắng mặt hoặc nghỉ phép thì không có giờ check-in
+      checkOutTime: null,
+      workDate: dayRange.dateStr,
+      leaveRequestId,
+      isManualOverride: false,
+      createdAt: new Date(),
+    });
+  } catch (err) {
+    if (err.code === 11000) {
+      console.log(`[Cron Service] [BỎ QUA] Giảng viên ${teacherName} (${shiftName}): Đã tồn tại bản ghi trong CSDL (E11000 duplicate key).`);
+      return {
+        scheduleId: schedule._id,
+        userId,
+        teacherName,
+        shiftName,
+        action: 'SKIPPED',
+        status: finalStatus,
+        reason: 'Đã có bản ghi chấm công (duplicate key)',
+      };
+    }
+    throw err;
+  }
 
   console.log(`[Cron Service] [ĐÁNH VẮNG] Tự động ghi nhận '${finalStatus}' cho Giảng viên ${teacherName} (${shiftName}) - Log ID: ${newLog._id}`);
 
@@ -224,10 +243,11 @@ const runDailyAbsentCheck = async (targetDate = new Date()) => {
     // 5. Ghi nhận tự động vào Collection audit_logs (#21)
     try {
       const adminUser = await User.findOne({ role: 'admin' });
-      const actorId = adminUser ? adminUser._id : new mongoose.Types.ObjectId();
+      const actorId = adminUser ? adminUser._id : null;
 
       await AuditLog.create({
         actor: actorId,
+        actorType: 'SYSTEM',
         action: 'CRON_AUTO_ABSENT',
         targetId: `CRON_${dayRange.dateStr}`,
         targetType: 'AttendanceLog',
@@ -378,7 +398,12 @@ const runDailyAbsentCheck = async (targetDate = new Date()) => {
 
 /**
  * Quét định kỳ trong ngày (mỗi 5 phút):
+<<<<<<< HEAD
  * Tự động tìm các ca làm việc mà giảng viên chưa check-in và đã quá ngưỡng đi muộn (startMinutes + lateThresholdMinutes)
+=======
+ * Tự động tìm các ca làm việc mà giảng viên/nhân viên chưa check-in và đã quá thời gian cho phép của ca đó
+ * (startMinutes + shift.lateThresholdMinutes, với 15 phút là giá trị mặc định nếu ca chưa cấu hình)
+>>>>>>> main
  * để tự động hủy lịch và ghi nhận vắng mặt (ABSENT) ngay trong ngày!
  */
 const scanAndMarkExpiredShiftsAbsent = async (targetDate = new Date()) => {
@@ -389,6 +414,7 @@ const scanAndMarkExpiredShiftsAbsent = async (targetDate = new Date()) => {
     const activeSchedules = await getTodayActiveSchedules(targetDate);
 
     for (const schedule of activeSchedules) {
+<<<<<<< HEAD
       const shift = schedule.shiftId;
       if (!shift || !shift.startTime) continue;
 
@@ -399,6 +425,23 @@ const scanAndMarkExpiredShiftsAbsent = async (targetDate = new Date()) => {
       // Nếu thời điểm hiện tại đã vượt quá giờ bắt đầu ca + ngưỡng cho phép đi muộn
       if (currentMinutes > startMinutes + lateThreshold) {
         await processScheduleAttendanceCheck(schedule, dayRange);
+=======
+      try {
+        const shift = schedule.shiftId;
+        if (!shift || !shift.startTime) continue;
+
+        const shiftStartStr = schedule.startTime || shift.startTime;
+        const startMinutes = timeStringToMinutes(shiftStartStr);
+        // Lấy thời gian cho phép đi muộn được cấu hình riêng của từng ca (lateThresholdMinutes)
+        const lateThreshold = shift.lateThresholdMinutes !== undefined ? shift.lateThresholdMinutes : 15;
+
+        // Nếu thời điểm hiện tại đã vượt quá giờ bắt đầu ca + thời gian cho phép của ca đó
+        if (currentMinutes > startMinutes + lateThreshold) {
+          await processScheduleAttendanceCheck(schedule, dayRange);
+        }
+      } catch (itemErr) {
+        console.error(`[Cron Service] Lỗi khi xử lý lịch ${schedule._id}:`, itemErr.message);
+>>>>>>> main
       }
     }
   } catch (error) {
@@ -416,6 +459,7 @@ const initCronJobs = () => {
     return;
   }
 
+<<<<<<< HEAD
   // 1. Quét vắng mặt tự động mỗi 5 phút trong ngày theo giờ Việt Nam
   // Tự động đánh vắng / hủy lịch ngay khi giảng viên đi muộn vượt quá ngưỡng của ca đó
   const periodicAbsentCronExpression = '*/5 * * * *';
@@ -430,6 +474,43 @@ const initCronJobs = () => {
     }
   );
 
+=======
+  // 0. Quét kiểm tra tức thì 1 lần sau khi server khởi động (sau 2 giây) để phát hiện ngay các ca đã quá hạn trong ngày
+  setTimeout(async () => {
+    try {
+      // 0.1 Tự động dọn dẹp mọi bản ghi vắng mặt / nghỉ phép tự động bị tạo sai cho ngày tương lai (nếu có do lỗi múi giờ cũ)
+      const todayStr = getVietnamDayRange().dateStr;
+      const purgeResult = await AttendanceLog.deleteMany({
+        status: { $in: ['ABSENT', 'EXCUSED_ABSENCE'] },
+        method: 'system',
+        workDate: { $gt: todayStr },
+      });
+      if (purgeResult.deletedCount > 0) {
+        console.log(`[Cron Service] 🧹 Đã tự động dọn dẹp ${purgeResult.deletedCount} bản ghi vắng mặt tương lai bị tạo nhầm do lỗi lệch múi giờ.`);
+      }
+
+      console.log('[Cron Service] Tự động kích hoạt lượt quét kiểm tra ca quá hạn ngay sau khi khởi động máy chủ...');
+      await scanAndMarkExpiredShiftsAbsent();
+    } catch (e) {
+      console.error('[Cron Service] Lỗi quét khởi động máy chủ:', e.message);
+    }
+  }, 2000);
+
+  // 1. Quét vắng mặt tự động mỗi 5 phút trong ngày theo giờ Việt Nam
+  // Tự động đánh vắng / hủy lịch ngay khi giảng viên đi muộn vượt quá ngưỡng của ca đó
+  const periodicAbsentCronExpression = '*/5 * * * *';
+  cron.schedule(
+    periodicAbsentCronExpression,
+    async () => {
+      await scanAndMarkExpiredShiftsAbsent();
+    },
+    {
+      scheduled: true,
+      timezone: 'Asia/Ho_Chi_Minh',
+    }
+  );
+
+>>>>>>> main
   // 2. Lập lịch chạy lúc 23:59:00 mỗi ngày theo giờ Việt Nam để chốt danh sách & gửi mail tổng hợp
   const dailyAbsentCronExpression = '59 23 * * *';
   cron.schedule(
@@ -450,9 +531,14 @@ const initCronJobs = () => {
 module.exports = {
   getTodayActiveSchedules,
   runDailyAbsentCheck,
+<<<<<<< HEAD
   scanAndMarkExpiredShiftsAbsent,
   processScheduleAttendanceCheck,
   isDeliverableEmail,
+=======
+  processScheduleAttendanceCheck,
+  scanAndMarkExpiredShiftsAbsent,
+>>>>>>> main
   initCronJobs,
 };
 
